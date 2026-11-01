@@ -27,13 +27,13 @@ import { OSWindow } from '../../models/os.model';
         <div class="flex items-center gap-3">
           <!-- Window Controls (Traffic Lights style but functional) -->
           <div class="flex items-center gap-1.5">
-            <button type="button" (click)="close.emit(); $event.stopPropagation()" class="w-3.5 h-3.5 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center group cursor-pointer shadow border border-rose-700/50">
+            <button type="button" (click)="closeWindow.emit(); $event.stopPropagation()" aria-label="Fechar Janela" class="w-3.5 h-3.5 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center group cursor-pointer shadow border border-rose-700/50">
               <span class="opacity-0 group-hover:opacity-100 text-[8px] text-rose-950 font-bold">✕</span>
             </button>
-            <button type="button" (click)="minimize.emit(); $event.stopPropagation()" class="w-3.5 h-3.5 rounded-full bg-amber-500 hover:bg-amber-400 flex items-center justify-center group cursor-pointer shadow border border-amber-600/50">
+            <button type="button" (click)="minimize.emit(); $event.stopPropagation()" aria-label="Minimizar Janela" class="w-3.5 h-3.5 rounded-full bg-amber-500 hover:bg-amber-400 flex items-center justify-center group cursor-pointer shadow border border-amber-600/50">
               <span class="opacity-0 group-hover:opacity-100 text-[8px] text-amber-950 font-bold">─</span>
             </button>
-            <button type="button" (click)="maximize.emit(); $event.stopPropagation()" class="w-3.5 h-3.5 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center group cursor-pointer shadow border border-emerald-600/50">
+            <button type="button" (click)="maximize.emit(); $event.stopPropagation()" aria-label="Maximizar Janela" class="w-3.5 h-3.5 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center group cursor-pointer shadow border border-emerald-600/50">
               <span class="opacity-0 group-hover:opacity-100 text-[8px] text-emerald-950 font-bold">□</span>
             </button>
           </div>
@@ -79,7 +79,7 @@ import { OSWindow } from '../../models/os.model';
 export class OsWindowShellComponent {
   window = input.required<OSWindow>();
   
-  close = output<void>();
+  closeWindow = output<void>();
   minimize = output<void>();
   maximize = output<void>();
   dock = output<'left' | 'right' | 'full'>();

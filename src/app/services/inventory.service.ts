@@ -14,7 +14,9 @@ export class InventoryService {
 
   readonly isSimulation = computed(() => this.security.isSimulated());
   private lastModeIsSimulation = this.security.isSimulated();
+  private lastTenantId = this.security.currentSession()?.tenantId;
   private latestFetchId = 0;
+  private modeGeneration = 0;
 
   readonly products = signal<ProductItem[]>(
     this.lastModeIsSimulation ? this.getSimulationProducts() : []
@@ -34,7 +36,8 @@ export class InventoryService {
     this.syncExecutionMode();
     if (this.lastModeIsSimulation) {
       if (this.products().length === 0) this.products.set(this.getSimulationProducts());
-      return this.products();
+      const activeTenantId = tenantId || this.security.currentSession()?.tenantId;
+      return this.products().filter((product) => !activeTenantId || product.tenantId === activeTenantId);
     }
 
     const fetchId = ++this.latestFetchId;
@@ -49,41 +52,67 @@ export class InventoryService {
 
   private syncExecutionMode() {
     const isSimulation = this.isSimulation();
-    if (isSimulation === this.lastModeIsSimulation) return;
+    const tenantId = this.security.currentSession()?.tenantId;
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
 
     this.lastModeIsSimulation = isSimulation;
+    this.lastTenantId = tenantId;
+    this.modeGeneration += 1;
     this.latestFetchId += 1;
     this.products.set(isSimulation ? this.getSimulationProducts() : []);
   }
 
   private getSimulationProducts(): ProductItem[] {
     const tenantId = this.security.currentSession()?.tenantId || 'tenant-sp-001';
-    return MOCK_PRODUCTS.map(product => ({ ...product, tenantId }));
+    return MOCK_PRODUCTS.map((product) => ({
+      ...product,
+      tenantId,
+      isSimulated: true,
+      mode: 'simulation'
+    }));
   }
 
   async createProduct(product: Partial<ProductItem>): Promise<ProductItem> {
-    if (this.isSimulation()) {
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
       const simProd: ProductItem = {
         ...product,
+        tenantId: this.security.currentSession()?.tenantId || product.tenantId,
         id: product.id || `sim-prod-${Date.now()}`,
-        stock: product.stock || 100,
-        price: product.price || 0
+        stock: product.stock ?? 100,
+        price: product.price ?? 0,
+        isSimulated: true,
+        mode: 'simulation'
       } as ProductItem;
-      this.products.update(cur => [...cur, simProd]);
+      this.products.update((current) => [
+        ...current.filter((item) => item.id !== simProd.id),
+        simProd
+      ]);
       return simProd;
     }
 
+    const generation = this.modeGeneration;
     const data = await firstValueFrom(this.http.post<ProductItem>('/api/products', product));
+    this.assertRealMode(generation);
     this.products.update(cur => [...cur, data]);
     return data;
   }
 
   async updateProduct(id: string, updates: Partial<ProductItem>): Promise<ProductItem> {
-    if (this.isSimulation()) {
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
+      const activeTenantId = this.security.currentSession()?.tenantId;
       let updated: ProductItem | null = null;
       this.products.update(cur => cur.map(p => {
-        if (p.id === id) {
-          updated = { ...p, ...updates };
+        if (p.id === id && (!activeTenantId || p.tenantId === activeTenantId)) {
+          updated = {
+            ...p,
+            ...updates,
+            id: p.id,
+            tenantId: p.tenantId,
+            isSimulated: true,
+            mode: 'simulation'
+          };
           return updated;
         }
         return p;
@@ -92,9 +121,18 @@ export class InventoryService {
       return updated;
     }
 
+    const generation = this.modeGeneration;
     const data = await firstValueFrom(this.http.patch<ProductItem>(`/api/products/${id}`, updates));
+    this.assertRealMode(generation);
     this.products.update(cur => cur.map(p => p.id === id ? data : p));
     return data;
+  }
+
+  private assertRealMode(generation: number) {
+    this.syncExecutionMode();
+    if (generation !== this.modeGeneration || this.lastModeIsSimulation) {
+      throw new Error('Execution mode changed while saving product.');
+    }
   }
 
   async fetchPromotions(): Promise<Promotion[]> {

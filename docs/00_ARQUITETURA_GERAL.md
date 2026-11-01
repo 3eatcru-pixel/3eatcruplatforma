@@ -2,13 +2,13 @@
 
 ## 🌐 Visão Global da Plataforma
 
-A plataforma **3EATCRU** é um ecossistema comercial multi-tenant, desacoplado e resiliente, desenvolvido em **Angular 21 (Zoneless + Signals + SSR)** no frontend e **Express 5 + Firebase Admin SDK** no backend, alimentado por um banco de dados relacional-documental **Google Cloud Firestore Live** com 18 coleções totalmente isoladas.
+A plataforma **3EATCRU** é um ecossistema comercial multi-tenant com frontend Angular e APIs Express/Firebase. Esta visão descreve os domínios do produto; inventário de módulos, eApps conectados e limites de execução estão nas fontes consolidadas de [Store OS](./OS/03_APLICATIVOS_E_MODULOS.md) e [Aplicações Auxiliares](./04_APLICACOES_AUXILIARES.md).
 
 ---
 
 ## 🏗️ As 3 Camadas de Produto & Módulos Auxiliares
 
-Em nível de produto e experiência do usuário, a plataforma se organiza em **3 Grandes Ambientes de Produto**, complementados por **Módulos Auxiliares Especializados** e suportados pela **Infraestrutura Transacional Compartilhada**:
+Em nível de produto, a plataforma se organiza em **3 ambientes**, complementados por **rotas web auxiliares** e suportados pela **infraestrutura transacional compartilhada**. O diagrama é um mapa de domínios, não uma declaração de que todos os módulos estão integrados:
 
 ```text
  ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -24,16 +24,16 @@ Em nível de produto e experiência do usuário, a plataforma se organiza em **3
  │ 2. STORE OS LOJISTA                 │               │ 3. PÚBLICO & MARKETPLACE            │
  │ Rota: /os, /pos | Role: tenant_staff│               │ Rota: /home, /p/:id | Role: consumer│
  │ • PDV Balcão & Frente de Caixa      │               │ • Marketplace Regional de Lojas     │
- │ • KDS Cozinha & Mapa de Mesas       │               │ • Vitrine Individual & QR Mesa      │
+ │ • IDs de módulos; estado no mapa OS │               │ • Vitrine Individual & QR Mesa      │
  │ • Estoque NFe & DRE Financeiro      │               │ • Checkout Delivery & Takeout       │
  └───────────┬─────────────────────────┘               └───────────┬─────────────────────────┘
              │                                                     │
              └──────────────────────────┬──────────────────────────┘
                                         │
  ┌──────────────────────────────────────▼──────────────────────────────────────────┐
- │ MÓDULOS AUXILIARES ESPECIALIZADOS (PWAs)                                        │
- │ • App do Garçom (/waiter) — Operação de Salão & Comandas nos 3 Tempos           │
- │ • App do Entregador (/driver) — Logística, Aceite de Rotas & Baixa de Entregas  │
+ │ ROTAS WEB AUXILIARES                                                            │
+ │ • App do Garçom (/waiter) — Mesas, registro de pedidos e consulta de status     │
+ │ • App do Entregador (/driver) — Rotas, baixa e prévia visual na simulação       │
  └──────────────────────────────────────┬──────────────────────────────────────────┘
                                         │
  ┌──────────────────────────────────────▼──────────────────────────────────────────┐
@@ -106,8 +106,8 @@ Para uma análise detalhada baseada no código real com as 4 perspectivas (Respo
 | Núcleo de Documentação | Diretório | Escopo Principal |
 |---|---|---|
 | **1. HQ Central — Governança** | [`docs/HQ/`](./HQ/) | 7 manuais (`00_ARQUITETURA_HQ.md` a `06_OPERACOES_E_AUDITORIA.md`) cobrindo governança de tenants, planos, split 8%, MDM e auditoria. |
-| **2. Store OS — Operação da Loja** | [`docs/OS/`](./OS/) | 10 manuais (`00_ARQUITETURA_OS.md` a `09_PERSISTENCIA_E_SINCRONIZACAO.md`) detalhando PIN 6 dígitos, catálogo de 30 eApps, PDV, estoque, DRE, KDS e Outbox. |
+| **2. Store OS — Operação da Loja** | [`docs/OS/`](./OS/) | 10 manuais (`00_ARQUITETURA_OS.md` a `09_PERSISTENCIA_E_SINCRONIZACAO.md`); consulte `03_APLICATIVOS_E_MODULOS.md` para o estado verificado dos eApps. |
 | **3. Espaços Públicos & Marketplace** | [`docs/PUBLICO/`](./PUBLICO/) | 6 manuais (`00_ARQUITETURA_PUBLICO.md` a `05_PERFIL_CONSUMIDOR_E_RESERVAS.md`) cobrindo praça regional, vitrine, takeout sem taxa, QR Mesa e Pix. |
-| **4. Apps Mobile Android** | [`docs/APPS_MOBILE/`](./APPS_MOBILE/) | 4 manuais (`00_ARQUITETURA_MOBILE_ANDROID.md` a `03_APP_CONSUMIDOR_MARKETPLACE.md`) cobrindo PWA/TWA Android, App do Motorista (`/driver`), App do Garçom (`/waiter`) e App do Consumidor (`/marketplace`). |
+| **4. Aplicações auxiliares** | [`docs/APPS_MOBILE/`](./APPS_MOBILE/) | Os documentos 00–02 apontam para as fontes consolidadas; não declaram instalação PWA, empacotamento nativo, câmera ou GPS em segundo plano sem evidência no código. |
 | **5. Contrato e Integração Transversal** | [`docs/INTEGRACAO/`](./INTEGRACAO/) | 5 manuais (`00_CONTRATO_HQ_OS.md` a `04_TESTES_E_RECUPERACAO.md`) cobrindo regras de dados, 17 coleções Firestore, 12 rotas Express e suíte de testes de estresse. |
 

@@ -12,7 +12,7 @@ O livro financeiro tem serviço e API, mas não tem janela de DRE/financeiro int
 | Sangria e suprimento pelo PDV | Modal de caixa em src/app/components/eapps/pos/ e FinancialsService | O PDV aguarda a persistência e informa falha ao operador. |
 | DRE, conciliação bancária e janela de financeiro | ID finance no registro do desktop | Placeholder; não existe interface integrada nem fluxo de conciliação bancária encontrado. |
 
-No modo de simulação, FinancialsService mantém os lançamentos localmente. Isso não constitui dado financeiro persistido.
+No modo de simulação, FinancialsService mantém os lançamentos localmente e os descarta ao alternar o modo de execução. Uma operação real iniciada antes da troca de modo não é copiada para o estado simulado. Isso não constitui dado financeiro persistido.
 
 ## Validação
 

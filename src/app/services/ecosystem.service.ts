@@ -450,7 +450,7 @@ export class EcosystemService {
       operatorName: order.operatorName || this.currentSession()?.name
     };
 
-    if (!this.offlineSync.isOnline()) {
+    if (!this.isSimulationMode() && !this.offlineSync.isOnline()) {
       const offlineId = `off-ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const offlineOrder: OrderTransaction = {
         id: offlineId,
@@ -516,7 +516,7 @@ export class EcosystemService {
     this.ordersService.orders.update((cur) =>
       cur.filter((o) => !o.isSimulated && o.mode !== 'simulation')
     );
-    this.notify('Dados de simulação removidos da memória local.', 'info');
+    this.notify('Pedidos simulados removidos da memória local.', 'info');
   }
 
   // --- Compatibility Facade Delegates (@deprecated — inject Feature Services directly in new code) ---
@@ -685,52 +685,61 @@ export class EcosystemService {
 
   async pingDriverGpsRemote(driver: StoreDriver) {
     await this.logisticsService.pingDriverGps(driver.id, 'São Paulo - Centro');
-    this.notify(`Telemetria GPS registrada para ${driver.name}`, 'info');
+    this.notify(
+      this.isSimulationMode()
+        ? `Localização simulada atualizada para ${driver.name}.`
+        : `Referência de localização atualizada para ${driver.name}.`,
+      'info'
+    );
   }
 
   async clockOffDriver(driverId: string) {
-    await this.logisticsService.clockInDriver(driverId);
+    void driverId;
+    this.notify('O encerramento de turno ainda não está conectado ao serviço logístico.', 'warning');
   }
 
   async updateDriverRateConfig(config?: unknown) {
     void config;
-    this.notify('Configuração de taxas do entregador atualizada.', 'info');
+    this.notify('A configuração de taxas ainda não está conectada ao serviço logístico.', 'warning');
   }
 
   async createDeliveryRoute(orders?: unknown, driverId?: string) {
     void orders;
     void driverId;
-    this.notify('Nova rota de entrega gerada com sucesso.', 'success');
+    this.notify('A criação de rotas ainda não está conectada ao serviço logístico.', 'warning');
   }
 
   async autoClusterAndCreateRoutes() {
-    this.notify('Algoritmo de clustering processando pedidos pendentes...', 'info');
+    this.notify('A geração automática de rotas ainda não está implementada.', 'warning');
   }
 
   async cancelRoute(routeId?: string) {
     void routeId;
-    this.notify('Rota de entrega cancelada.', 'warning');
+    this.notify('O cancelamento de rotas ainda não está conectado ao serviço logístico.', 'warning');
   }
 
   async addDriver(driver?: Partial<StoreDriver> | StoreDriver) {
-    if (driver && driver.name) {
-      const fullDriver: StoreDriver = {
-        id: (driver as StoreDriver).id || `drv-${Date.now()}`,
-        tenantId: this.resolveOperationalTenantId(driver.tenantId),
-        name: driver.name,
-        phone: driver.phone || '',
-        vehicleType: driver.vehicleType || 'moto',
-        licensePlate: driver.licensePlate,
-        status: driver.status || 'available',
-        rating: driver.rating ?? 5.0,
-        activeDeliveriesCount: driver.activeDeliveriesCount ?? 0,
-        completedTodayCount: driver.completedTodayCount ?? 0,
-        driverType: driver.driverType || 'private',
-        deviceName: driver.deviceName || 'Mobile App',
-        cnhNumber: driver.cnhNumber
-      };
-      await this.logisticsService.createDriver(fullDriver);
+    if (!driver?.name) {
+      this.notify('Informe o nome do entregador para cadastrá-lo.', 'warning');
+      return;
     }
+
+    const fullDriver: StoreDriver = {
+      id: (driver as StoreDriver).id || `drv-${Date.now()}`,
+      tenantId: this.resolveOperationalTenantId(driver.tenantId),
+      name: driver.name,
+      phone: driver.phone || '',
+      vehicleType: driver.vehicleType || 'moto',
+      licensePlate: driver.licensePlate,
+      status: driver.status || 'available',
+      rating: driver.rating ?? 5.0,
+      activeDeliveriesCount: driver.activeDeliveriesCount ?? 0,
+      completedTodayCount: driver.completedTodayCount ?? 0,
+      driverType: driver.driverType || 'private',
+      deviceName: driver.deviceName || 'Mobile App',
+      cnhNumber: driver.cnhNumber
+    };
+    await this.logisticsService.createDriver(fullDriver);
     this.notify('Novo entregador cadastrado.', 'success');
   }
 
@@ -743,10 +752,10 @@ export class EcosystemService {
   }
 
   async payDriver(_id: string, amount: number, method: 'PIX' | 'Dinheiro' = 'PIX', isClockOff = false) {
-    this.notify(
-      `Pagamento de R$ ${amount.toFixed(2)} (${method}${isClockOff ? ' - Encerramento' : ''}) registrado para o entregador.`,
-      'success'
-    );
+    void amount;
+    void method;
+    void isClockOff;
+    this.notify('O pagamento do entregador ainda não está conectado a um fluxo financeiro.', 'warning');
   }
 
   async unlockDevice(id: string) {
@@ -797,8 +806,18 @@ export class EcosystemService {
   }
 
   sendWhatsAppMessage(phone: string, message: string, name?: string) {
+    if (this.isSimulationMode()) {
+      this.notify('Mensagem de demonstração não enviada.', 'info');
+      return;
+    }
+
     const text = name ? `Olá ${name}! ${message}` : message;
-    const whatsappUrl = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
+    const normalizedPhone = phone.replace(/\D/g, '');
+    if (!normalizedPhone) {
+      this.notify('Não foi possível preparar o link: telefone inválido.', 'warning');
+      return;
+    }
+    const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(text)}`;
     if (this.isBrowser && navigator.clipboard) {
       navigator.clipboard.writeText(whatsappUrl).catch(() => undefined);
     }

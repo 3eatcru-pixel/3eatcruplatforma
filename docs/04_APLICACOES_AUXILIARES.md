@@ -1,18 +1,8 @@
-# 📱 04 — Aplicações & Módulos Auxiliares Especializados (PWAs Web Mobile)
+# 📱 04 — Aplicações e módulos auxiliares
 
-## 📌 Esclarecimento Importante sobre Arquitetura Móvel
+## Arquitetura das rotas móveis
 
-> 🚨 **DISCIPLINA DE IMPLANTAÇÃO MÓVEL:**
-> As aplicações móveis do ecossistema (**App do Garçom** e **App do Entregador**) são **Progressive Web Applications (PWAs) / Web Apps Responsivas** rodando sobre Angular no navegador e otimizadas para smartphones e maquininhas Android (SmartPOS).
-> 
-> **O QUE SÃO:**
-> - Web applications PWA responsivas com suporte a instalação na tela inicial.
-> - Interfaces otimizadas para touch e operação em pé.
-> - Telas de emulação visual de dispositivos no HQ Central para testes de homologação.
-> 
-> **O QUE NÃO SÃO:**
-> - Projetos nativos Kotlin/Java compilados via Android Studio (APK/AAB nativo).
-> - Containers Cordova/Capacitor (operam diretamente via browser / WebView).
+`/waiter` e `/driver` são rotas Angular acessadas pelo navegador e separadas do desktop `/os`. O código atual não confirma empacotamento Android, instalação PWA, acesso nativo à câmera ou rastreamento em segundo plano. Esta documentação descreve apenas o comportamento observado no código.
 
 ---
 
@@ -22,7 +12,9 @@
 - **Principais Recursos**:
   - Mapa de mesas da loja (Livre, Ocupada, Reservada, Conta solicitada).
   - Lançamento de pedidos organizados nos 3 tempos da gastronomia (Entrada, Principal, Sobremesa).
-  - Envio instantâneo de comandas ao KDS da cozinha.
+  - Registro de pedidos de salão e consulta dos status retornados pelo serviço de pedidos.
+- **Modo simulado**: carrega quatro mesas de demonstração. Comandas, mudanças de mesas e reservas permanecem no estado local e são descartadas quando o modo de execução muda.
+- **Limites atuais**: a tela não confirma entrega do pedido a uma estação KDS nem possui pareamento com terminal. Atualizar produtos, pedidos e mesas consulta a API no modo real; na simulação, atualiza os dados locais da sessão.
 - **Fronteira de Segurança**:
   - Acesso restrito a garçons da loja (`waiter`).
   - **Bloqueado em `/api/financials` (403)**: O garçom não tem acesso ao DRE, lucro nem receitas da loja.
@@ -35,8 +27,10 @@
 - **Principais Recursos**:
   - Visualização e aceite de rotas de delivery atribuídas.
   - Conferência de itens no balcão da loja e confirmação de coleta.
-  - Navegação de rota com telemetria GPS.
-  - Baixa de entrega realizada com código de confirmação.
+  - Navegação visual de rota e atualização do estado das paradas.
+  - Baixa de entrega na interface.
+- **Modo simulado**: carrega um motorista e duas rotas de demonstração locais; nenhuma alteração é persistida no servidor.
+- **Limites atuais**: o mapa movimenta um marcador de prévia apenas na simulação e não usa a geolocalização do dispositivo. O leitor de QR não está conectado; início de turno é manual. Código, assinatura e foto da entrega são campos visuais, sem validação ou persistência. A conclusão não envia WhatsApp automaticamente; em modo real, apenas prepara um link de atendimento.
 - **Fronteira de Segurança**:
   - O entregador visualiza **apenas os pedidos atribuídos ao seu ID** (`order.driverId === user.id`).
   - Não possui acesso a configurações da loja nem dados de outros entregadores.

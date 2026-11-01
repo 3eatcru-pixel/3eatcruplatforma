@@ -311,6 +311,8 @@ export interface ProductItem {
   recipe?: { productId: string; qty: number }[];
   /** Specific commission for this item (0.0 to 1.0) */
   commissionRate?: number;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface PublicCatalogProduct {
@@ -511,6 +513,8 @@ export interface StoreDriver {
   currentLocationName?: string;
   complianceVerified?: boolean;
   cnhNumber?: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface TableInfo {
@@ -525,6 +529,8 @@ export interface TableInfo {
   currentTotal?: number;
   currentOrderId?: string;
   staffUids?: string[];
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface FinancialRecord {
@@ -634,6 +640,8 @@ export interface Appointment {
   notes?: string;
   staffUids?: string[];
   createdAt?: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface MemoNote {

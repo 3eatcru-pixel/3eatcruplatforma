@@ -16,7 +16,7 @@ O ecossistema 3EATCRU utiliza o **Cloud Firestore** em modo Enterprise como font
 │  /reservations/{resId}            ──► Reservas de mesas e fila de espera               │
 │  /financials/{finId}              ──► Livro-caixa, despesas e receitas com split       │
 │  /delivery_routes/{routeId}       ──► Rotas de entrega e despacho para motoristas      │
-│  /drivers/{driverId}              ──► Cadastro e telemetria GPS de entregadores         │
+│  /drivers/{driverId}              ──► Cadastro e posição reportada do entregador        │
 │  /consumers/{consumerId}          ──► Perfis de clientes consumidores                  │
 │  /devices/{deviceId}              ──► Hardware e terminais de automação (MDM)           │
 │  /hq_settings/{global}            ──► Configurações mestras privadas do SaaS            │
@@ -49,7 +49,7 @@ O ecossistema 3EATCRU utiliza o **Cloud Firestore** em modo Enterprise como font
     - `TableInfo`: Identificador físico da mesa, capacidade, status e comanda ativa.
     - `FinancialRecord`: Movimentação contábil categorizada.
     - `DeliveryRoute` e `DeliveryWaypoint`: Geometria da rota e paradas de entrega.
-    - `DriverProfile`: Status do motorista, tipo de veículo e coordenadas GPS.
+    - `DriverProfile`: Status do motorista, tipo de veículo e campos de localização reportados. O App `/driver` não coleta GPS do dispositivo.
     - `POSDevice`: Informações de hardware, MAC, IP e status MDM.
 - **Isolamento de Catálogo Público:**
   - O catálogo público reside em `/public_catalog`, mantido sincronizado pelo servidor apenas com produtos que tenham `availableOnline: true`.

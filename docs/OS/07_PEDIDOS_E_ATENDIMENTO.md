@@ -4,13 +4,15 @@
 
 | Domínio | Implementação | Estado de interface |
 |---|---|---|
-| Pedidos | OrdersService e src/server/routes/orders.router.ts | API e serviço presentes; janela de histórico/KDS no desktop ausente. |
-| Mesas | TablesService e src/server/routes/tables.router.ts | API e serviço presentes; mapa de salão no desktop ausente. |
-| Reservas | AppointmentsService e src/server/routes/reservations.router.ts | API e serviço presentes; janela de reservas no desktop ausente. |
-| App Garçom | src/app/components/waiter-app.ts, rota /waiter | Aplicação standalone, não uma janela de gestão do Store OS. |
+| Pedidos | OrdersService e src/server/routes/orders.router.ts | API e serviço presentes; janela de histórico/KDS no desktop ausente. No modo simulado, as mudanças ficam em memória local. |
+| Mesas | TablesService e src/server/routes/tables.router.ts | API e serviço presentes; mapa de salão no desktop ausente. O modo simulado fornece quatro mesas locais para demonstração. |
+| Reservas | AppointmentsService e src/server/routes/reservations.router.ts | API e serviço presentes; janela de reservas no desktop ausente. Transições simuladas atualizam localmente a mesa associada. |
+| App Garçom | src/app/components/waiter-app.ts, rota /waiter | Aplicação standalone, não uma janela de gestão do Store OS. No modo simulado usa mesas e pedidos locais. |
 | KDS | Pedidos e transições no domínio comercial | O registro contém o ID kds, mas não foi encontrada tela KDS integrada. |
 
 O pedido passa pelo servidor e pelo CommerceEngine para validar as regras comerciais e o estoque. A disponibilidade de endpoint não comprova que exista monitor visual para a cozinha ou mapa de salão.
+
+No modo simulado, pedidos, mesas e reservas não são enviados à API nem à fila offline. A troca para o modo real limpa o estado simulado desses serviços; não há migração dos dados de demonstração.
 
 ## Limites documentados
 

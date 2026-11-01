@@ -16,6 +16,7 @@ O IndexedDB usa o banco 3eatcru_commercial_os_db e os stores outbox_queue, confl
 
 - Cartão e PIX são desabilitados e bloqueados no handler enquanto o navegador está offline, pois precisam de autorização conectada.
 - Venda em dinheiro pode ser registrada localmente pelo operador e enfileirada com chave idempotente. A tela marca o pedido como pendente e informa que aguarda sincronização.
+- No modo de simulação, pedidos não entram na fila offline; o serviço mantém o registro apenas na memória local.
 - A conclusão comercial e a baixa de estoque dependem da resposta do servidor após o replay. Se o estoque não permitir a venda, o servidor retorna conflito e o pedido local é marcado como cancelado.
 - Nenhum estado local pendente comprova liquidação ou lançamento financeiro persistido.
 

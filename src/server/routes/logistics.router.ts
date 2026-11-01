@@ -353,15 +353,19 @@ logisticsRouter.post('/drivers/:id/ping', async (req: Request, res: Response) =>
   }
   try {
     const docRef = adminDb.collection('drivers').doc(id);
-    const updates = {
-      lat: Number(req.body?.lat),
-      lng: Number(req.body?.lng),
-      lastGpsPing: new Date().toISOString()
-    };
+    const updates: Record<string, string | number> = { lastGpsPing: new Date().toISOString() };
+    const lat = Number(req.body?.lat);
+    const lng = Number(req.body?.lng);
+    const locationName = String(req.body?.locationName || '').trim().slice(0, 120);
+    const hasLat = req.body?.lat !== undefined && req.body?.lat !== null && req.body?.lat !== '';
+    const hasLng = req.body?.lng !== undefined && req.body?.lng !== null && req.body?.lng !== '';
+    if (hasLat && Number.isFinite(lat) && lat >= -90 && lat <= 90) updates['lat'] = lat;
+    if (hasLng && Number.isFinite(lng) && lng >= -180 && lng <= 180) updates['lng'] = lng;
+    if (locationName) updates['currentLocationName'] = locationName;
     await docRef.set(updates, { merge: true });
     res.json({ id, ...updates });
   } catch {
-    res.status(500).json({ error: 'Falha ao registrar ping GPS.' });
+    res.status(500).json({ error: 'Falha ao registrar localização.' });
   }
 });
 

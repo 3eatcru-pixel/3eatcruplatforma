@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { OrderTransaction, ExternalOrder } from '../models/ecosystem.model';
 import { firstValueFrom } from 'rxjs';
@@ -19,6 +19,10 @@ export class OrdersService {
   readonly orders = signal<OrderTransaction[]>([]);
   readonly externalOrders = signal<ExternalOrder[]>([]);
   private ordersSubscription: Unsubscribe | null = null;
+  private lastModeIsSimulation = this.security.isSimulated();
+  private lastTenantId = this.security.currentSession()?.tenantId;
+  private latestFetchId = 0;
+  private modeGeneration = 0;
 
   readonly pendingOrdersCount = computed(
     () => this.orders().filter((o) => o.status === 'pending').length
@@ -27,11 +31,22 @@ export class OrdersService {
     () => this.orders().filter((o) => ['pending', 'preparing', 'ready'].includes(o.status)).length
   );
 
+  constructor() {
+    effect(() => this.syncExecutionMode());
+  }
+
   async fetchOrders(tenantId?: string): Promise<OrderTransaction[]> {
-    if (this.isSimulation()) return this.orders();
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
+      const activeTenantId = tenantId || this.security.currentSession()?.tenantId;
+      return this.orders().filter((order) => !activeTenantId || order.tenantId === activeTenantId);
+    }
     
+    const fetchId = ++this.latestFetchId;
     const url = tenantId ? `/api/orders?tenantId=${tenantId}` : '/api/orders';
     const data = await firstValueFrom(this.http.get<OrderTransaction[]>(url));
+    this.syncExecutionMode();
+    if (fetchId !== this.latestFetchId || this.lastModeIsSimulation) return this.orders();
     this.orders.set(data);
 
     if (this.firebase.isBrowser && this.firebase.auth?.currentUser) {
@@ -52,6 +67,7 @@ export class OrdersService {
           activeTenant,
           uid,
           (updatedOrders) => {
+            if (fetchId !== this.latestFetchId || this.isSimulation()) return;
             const sorted = [...updatedOrders].sort(
               (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
@@ -60,6 +76,7 @@ export class OrdersService {
         );
       } else if (role === 'consumer') {
         this.ordersSubscription = this.firebase.listenConsumerOrders(uid, (updatedOrders) => {
+          if (fetchId !== this.latestFetchId || this.isSimulation()) return;
           const sorted = [...updatedOrders].sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
@@ -72,9 +89,11 @@ export class OrdersService {
   }
 
   async createOrder(order: Partial<OrderTransaction>): Promise<OrderTransaction> {
-    if (this.isSimulation()) {
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
       const simOrder: OrderTransaction = {
         ...order,
+        tenantId: this.security.currentSession()?.tenantId || order.tenantId,
         id: order.id || `sim-ord-${Date.now()}`,
         createdAt: new Date().toISOString(),
         mode: 'simulation',
@@ -84,7 +103,9 @@ export class OrdersService {
       return simOrder;
     }
 
+    const generation = this.modeGeneration;
     const data = await firstValueFrom(this.http.post<OrderTransaction>('/api/orders', order));
+    this.assertRealMode(generation);
     this.orders.update((cur) => {
       const exists = cur.some((o) => o.id === data.id);
       return exists ? cur.map((o) => (o.id === data.id ? data : o)) : [data, ...cur];
@@ -96,11 +117,13 @@ export class OrdersService {
     orderId: string,
     status: OrderTransaction['status']
   ): Promise<OrderTransaction> {
-    if (this.isSimulation()) {
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
+      const activeTenantId = this.security.currentSession()?.tenantId;
       let updated: OrderTransaction | null = null;
       this.orders.update(cur => cur.map(o => {
-        if (o.id === orderId) {
-          updated = { ...o, status };
+        if (o.id === orderId && (!activeTenantId || o.tenantId === activeTenantId)) {
+          updated = { ...o, status, isSimulated: true, mode: 'simulation' };
           return updated;
         }
         return o;
@@ -109,10 +132,36 @@ export class OrdersService {
       return updated;
     }
 
+    const generation = this.modeGeneration;
     const data = await firstValueFrom(
       this.http.patch<OrderTransaction>(`/api/orders/${orderId}/status`, { status })
     );
+    this.assertRealMode(generation);
     this.orders.update((cur) => cur.map((o) => (o.id === orderId ? data : o)));
     return data;
+  }
+
+  private syncExecutionMode() {
+    const isSimulation = this.isSimulation();
+    const tenantId = this.security.currentSession()?.tenantId;
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
+
+    this.lastModeIsSimulation = isSimulation;
+    this.lastTenantId = tenantId;
+    this.modeGeneration += 1;
+    this.latestFetchId += 1;
+    if (this.ordersSubscription) {
+      this.ordersSubscription();
+      this.ordersSubscription = null;
+    }
+    this.orders.set([]);
+    this.externalOrders.set([]);
+  }
+
+  private assertRealMode(generation: number) {
+    this.syncExecutionMode();
+    if (generation !== this.modeGeneration || this.lastModeIsSimulation) {
+      throw new Error('Execution mode changed while saving order.');
+    }
   }
 }

@@ -6,7 +6,7 @@ import { SecurityService } from '../services/security.service';
 import { EcosystemService } from '../services/ecosystem.service';
 import { ProductItem, TableInfo } from '../models/ecosystem.model';
 
-export type WaiterTab = 'mesas' | 'comanda' | 'kds_status' | 'pareamento';
+export type WaiterTab = 'mesas' | 'comanda' | 'pedidos' | 'dados';
 
 interface ComandaItemDraft {
   product: ProductItem;
@@ -289,10 +289,11 @@ interface ComandaItemDraft {
 
                     <button
                       type="button"
-                      (click)="dispatchComandaToKitchen()"
-                      class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95">
-                      <mat-icon class="text-base">soup_kitchen</mat-icon>
-                      <span>Disparar para Cozinha (KDS)</span>
+                      (click)="registerTableOrder()"
+                      [disabled]="isSubmittingComanda()"
+                      class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                      <mat-icon class="text-base">receipt_long</mat-icon>
+                      <span>{{ isSubmittingComanda() ? 'Registrando pedido…' : 'Registrar pedido da mesa' }}</span>
                     </button>
                   </div>
                 }
@@ -302,9 +303,10 @@ interface ComandaItemDraft {
                   <button
                     type="button"
                     (click)="requestBillForTable()"
-                    class="flex-1 py-3 bg-[#261207] hover:bg-[#331809] border border-amber-600/40 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer">
+                    [disabled]="isUpdatingTableStatus()"
+                    class="flex-1 py-3 bg-[#261207] hover:bg-[#331809] border border-amber-600/40 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                     <mat-icon class="text-sm">receipt_long</mat-icon>
-                    <span>Pedir Pré-Conta</span>
+                    <span>{{ isUpdatingTableStatus() ? 'Atualizando mesa…' : 'Marcar conta solicitada' }}</span>
                   </button>
                 </div>
               }
@@ -312,22 +314,22 @@ interface ComandaItemDraft {
             </div>
           }
 
-          <!-- TAB 3: STATUS EM TEMPO REAL DO KDS COZINHA -->
-          @if (activeTab() === 'kds_status') {
+          <!-- TAB 3: STATUS DOS PEDIDOS DE SALÃO -->
+          @if (activeTab() === 'pedidos') {
             <div class="space-y-4 animate-in fade-in duration-300">
               <div class="bg-[#1d0e06] border border-[#482814] p-3 rounded-2xl flex justify-between items-center">
                 <div>
                   <h3 class="font-serif font-black text-xs text-white uppercase tracking-wider flex items-center gap-1.5">
                     <mat-icon class="text-amber-500 text-sm">soup_kitchen</mat-icon>
-                    <span>Status da Cozinha (KDS)</span>
+                    <span>Pedidos de salão</span>
                   </h3>
-                  <p class="text-[10px] text-stone-400">Acompanhamento dos pratos em preparo pelo garçom.</p>
+                  <p class="text-[10px] text-stone-400">Status registrado dos pedidos. A confirmação de uma estação KDS não está integrada nesta tela.</p>
                 </div>
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <mat-icon class="text-amber-400">info</mat-icon>
               </div>
 
               <div class="space-y-3">
-                @for (order of kitchenOrders(); track order.id) {
+                @for (order of activeSalonOrders(); track order.id) {
                   <div class="bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 space-y-2 shadow">
                     <div class="flex justify-between items-start">
                       <div class="flex items-center gap-2">
@@ -353,8 +355,7 @@ interface ComandaItemDraft {
                     </div>
 
                     <div class="flex justify-between items-center text-[10px] text-stone-500 pt-1">
-                      <span>Praça: Grelha / Bar</span>
-                      <span class="text-emerald-400 font-bold">Sincronizado c/ KDS</span>
+                      <span>Pedido {{ order.isSimulated ? 'simulado' : 'registrado' }}</span>
                     </div>
                   </div>
                 }
@@ -363,38 +364,30 @@ interface ComandaItemDraft {
           }
 
           <!-- TAB 4: PAREAMENTO & CONFIGURAÇÕES -->
-          @if (activeTab() === 'pareamento') {
+          @if (activeTab() === 'dados') {
             <div class="space-y-4 animate-in fade-in duration-300">
               <div class="bg-[#1d0e06] border border-[#482814] p-4 rounded-2xl space-y-3">
                 <h3 class="font-serif font-black text-sm text-white uppercase tracking-wider flex items-center gap-2">
-                  <mat-icon class="text-amber-500">qr_code_scanner</mat-icon>
-                  <span>Pareamento com Terminal Desktop</span>
+                  <mat-icon class="text-amber-500">store</mat-icon>
+                  <span>Dados da loja</span>
                 </h3>
                 <p class="text-xs text-stone-400 leading-relaxed">
-                  Este smartphone está sincronizado com a bancada do terminal de caixa e o KDS da loja.
+                  Atualize produtos, pedidos e mesas conforme o modo de execução. Pareamento por QR, IP fixo e conexão direta com o terminal/KDS não estão disponíveis.
                 </p>
 
                 <div class="p-3 bg-[#130702] border border-[#331809] rounded-xl space-y-2 font-mono text-[11px]">
                   <div class="flex justify-between">
-                    <span class="text-stone-500">Terminal Host:</span>
-                    <span class="text-stone-200 font-bold">{{ ecosystem.currentTenant().name }} (POS-01)</span>
-                  </div>
-                  <div class="flex justify-between">
-                    <span class="text-stone-500">Token de Sessão:</span>
-                    <span class="text-amber-400 font-bold">TK-9842-SALÃO</span>
-                  </div>
-                  <div class="flex justify-between">
-                    <span class="text-stone-500">IP da Bancada:</span>
-                    <span class="text-stone-200 font-bold">192.168.1.104:3000</span>
+                    <span class="text-stone-500">Unidade:</span>
+                    <span class="text-stone-200 font-bold">{{ ecosystem.currentTenant().name }}</span>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  (click)="syncWithHost()"
+                  (click)="refreshStoreData()"
                   class="w-full py-3 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow">
                   <mat-icon class="text-sm">sync</mat-icon>
-                  <span>Sincronizar Mesas &amp; Cardápio</span>
+                  <span>Atualizar dados da loja</span>
                 </button>
               </div>
             </div>
@@ -429,20 +422,20 @@ interface ComandaItemDraft {
 
           <button
             type="button"
-            (click)="activeTab.set('kds_status')"
-            [class.text-amber-400]="activeTab() === 'kds_status'"
+            (click)="activeTab.set('pedidos')"
+            [class.text-amber-400]="activeTab() === 'pedidos'"
             class="flex flex-col items-center gap-1 text-stone-500 hover:text-white transition-all cursor-pointer">
-            <mat-icon class="text-xl">soup_kitchen</mat-icon>
-            <span class="text-[9px] font-mono font-bold uppercase">KDS</span>
+            <mat-icon class="text-xl">receipt_long</mat-icon>
+            <span class="text-[9px] font-mono font-bold uppercase">Pedidos</span>
           </button>
 
           <button
             type="button"
-            (click)="activeTab.set('pareamento')"
-            [class.text-amber-400]="activeTab() === 'pareamento'"
+            (click)="activeTab.set('dados')"
+            [class.text-amber-400]="activeTab() === 'dados'"
             class="flex flex-col items-center gap-1 text-stone-500 hover:text-white transition-all cursor-pointer">
-            <mat-icon class="text-xl">qr_code_2</mat-icon>
-            <span class="text-[9px] font-mono font-bold uppercase">Parear</span>
+            <mat-icon class="text-xl">store</mat-icon>
+            <span class="text-[9px] font-mono font-bold uppercase">Dados</span>
           </button>
         </div>
 
@@ -462,6 +455,7 @@ export class WaiterAppComponent implements OnInit {
 
   ngOnInit() {
     this.security.setPillar('os');
+    void this.refreshStoreData();
   }
 
   readonly currentTime = computed(() => {
@@ -475,6 +469,8 @@ export class WaiterAppComponent implements OnInit {
   readonly selectedCategory = signal<string>('all');
   readonly selectedCourse = signal<'entrada' | 'principal' | 'sobremesa'>('principal');
   readonly draftItems = signal<ComandaItemDraft[]>([]);
+  readonly isSubmittingComanda = signal(false);
+  readonly isUpdatingTableStatus = signal(false);
 
   readonly productCategories = [
     { id: 'all', label: 'Todos', icon: 'apps' },
@@ -522,7 +518,7 @@ export class WaiterAppComponent implements OnInit {
     return this.draftItems().reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
   });
 
-  readonly kitchenOrders = computed(() => {
+  readonly activeSalonOrders = computed(() => {
     const tenantId = this.ecosystem.currentTenantId();
     return this.ecosystem.orders().filter(o => {
       if (tenantId && o.tenantId !== tenantId) return false;
@@ -613,10 +609,12 @@ export class WaiterAppComponent implements OnInit {
     });
   }
 
-  dispatchComandaToKitchen() {
+  async registerTableOrder() {
     const table = this.selectedTable();
     const items = this.draftItems();
-    if (!table || items.length === 0) return;
+    if (!table || items.length === 0 || this.isSubmittingComanda()) return;
+
+    this.isSubmittingComanda.set(true);
 
     const orderItems = items.map(i => ({
       product: i.product,
@@ -627,64 +625,105 @@ export class WaiterAppComponent implements OnInit {
     const serviceCharge = Number((total * 0.1).toFixed(2));
     const finalBillAmount = Number((total + serviceCharge).toFixed(2));
 
-    this.ecosystem.addOrder({
-      tenantId: this.ecosystem.currentTenantId(),
-      orderNumber: '#M' + table.number,
-      type: 'dine-in',
-      tableNumber: 'Mesa ' + table.number,
-      items: orderItems,
-      subtotal: total,
-      tax: serviceCharge,
-      discount: 0,
-      total: finalBillAmount,
-      paymentMethod: 'card',
-      status: 'pending',
-      channel: 'Waiter Comanda',
-      deviceType: 'mobile',
-      deviceName: 'Smartphone Garçom',
-      operatorName: this.serverName()
-    });
+    try {
+      const createdOrder = await this.ecosystem.addOrder({
+        tenantId: this.ecosystem.currentTenantId(),
+        orderNumber: '#M' + table.number,
+        type: 'dine-in',
+        tableNumber: 'Mesa ' + table.number,
+        items: orderItems,
+        subtotal: total,
+        tax: serviceCharge,
+        discount: 0,
+        total: finalBillAmount,
+        paymentMethod: 'card',
+        status: 'pending',
+        channel: 'Waiter Comanda',
+        deviceType: 'mobile',
+        deviceName: 'Smartphone Garçom',
+        operatorName: this.serverName()
+      });
+      this.draftItems.set([]);
 
-    const updatedTable: Partial<TableInfo> = {
-      status: 'occupied',
-      server: this.serverName(),
-      currentTotal: Number(((table.currentTotal || 0) + finalBillAmount).toFixed(2)),
-      guests: table.guests || 2
-    };
-    this.ecosystem.updateTable(table.id, updatedTable);
-    this.selectedTable.set({ ...table, ...updatedTable });
+      const updatedTable: Partial<TableInfo> = {
+        status: 'occupied',
+        server: this.serverName(),
+        currentTotal: Number(((table.currentTotal || 0) + finalBillAmount).toFixed(2)),
+        guests: table.guests || 2
+      };
+      try {
+        await this.ecosystem.updateTable(table.id, updatedTable);
+        this.selectedTable.set({ ...table, ...updatedTable });
+      } catch {
+        this.ecosystem.notify(
+          'Pedido registrado, mas o estado da mesa não foi atualizado. Atualize os dados antes de lançar outro pedido nesta mesa.',
+          'warning'
+        );
+        this.activeTab.set('pedidos');
+        return;
+      }
 
-    this.draftItems.set([]);
-    this.ecosystem.notify(`Comanda da Mesa ${table.number} com ${items.length} itens disparada para a Cozinha (KDS)!`, 'success');
-    this.activeTab.set('kds_status');
+      const queuedOffline = createdOrder.id.startsWith('off-ord-');
+      const message = queuedOffline
+        ? `Comanda da Mesa ${table.number} salva na fila local offline.`
+        : createdOrder.isSimulated
+          ? `Comanda da Mesa ${table.number} criada somente na simulação.`
+          : `Comanda da Mesa ${table.number} registrada. O acompanhamento desta tela mostra o status do pedido.`;
+      this.ecosystem.notify(message, queuedOffline ? 'info' : 'success');
+      this.activeTab.set('pedidos');
+    } catch {
+      this.ecosystem.notify('Não foi possível registrar o pedido. O rascunho foi mantido para tentar novamente.', 'error');
+    } finally {
+      this.isSubmittingComanda.set(false);
+    }
   }
 
-  requestBillForTable() {
+  async requestBillForTable() {
     const table = this.selectedTable();
-    if (!table) return;
+    if (!table || this.isUpdatingTableStatus()) return;
 
     const total = table.currentTotal || 0;
     const guests = Math.max(1, table.guests || 2);
     const perPerson = total / guests;
 
-    this.ecosystem.updateTable(table.id, { status: 'billing' });
-    this.selectedTable.set({ ...table, status: 'billing' });
-
-    this.ecosystem.notify(`Pré-conta da Mesa ${table.number} solicitada: R$ ${total.toFixed(2)} (${guests}x R$ ${perPerson.toFixed(2)}/pessoa). Caixa notificado!`, 'info');
-    this.activeTab.set('mesas');
+    this.isUpdatingTableStatus.set(true);
+    try {
+      await this.ecosystem.updateTable(table.id, { status: 'billing' });
+      this.selectedTable.set({ ...table, status: 'billing' });
+      this.ecosystem.notify(
+        `Status da Mesa ${table.number} atualizado para conta: R$ ${total.toFixed(2)} (${guests}x R$ ${perPerson.toFixed(2)}/pessoa).`,
+        'info'
+      );
+      this.activeTab.set('mesas');
+    } catch {
+      this.ecosystem.notify('Não foi possível atualizar o status da mesa.', 'error');
+    } finally {
+      this.isUpdatingTableStatus.set(false);
+    }
   }
 
-  async syncWithHost() {
+  async refreshStoreData() {
     const role = this.ecosystem.currentSession()?.role;
     const tenantId = this.ecosystem.currentTenantId() || this.ecosystem.currentSession()?.tenantId;
-    if (tenantId && (role === 'waiter' || role === 'operator' || role === 'tenant_owner' || role === 'hq_admin')) {
-      await Promise.allSettled([
-        this.ecosystem.inventoryService.fetchProducts(tenantId),
-        this.ecosystem.ordersService.fetchOrders(tenantId),
-        this.ecosystem.tablesService.fetchTables(tenantId)
-      ]);
+    if (!tenantId || !['waiter', 'operator', 'tenant_owner', 'hq_admin'].includes(role || '')) {
+      this.ecosystem.notify('Sincronização indisponível: sessão sem acesso operacional.', 'warning');
+      return;
     }
-    this.ecosystem.notify('Sincronização com o Terminal Host POS-01 concluída com sucesso!', 'success');
+
+    const results = await Promise.allSettled([
+      this.ecosystem.inventoryService.fetchProducts(tenantId),
+      this.ecosystem.ordersService.fetchOrders(tenantId),
+      this.ecosystem.tablesService.fetchTables(tenantId)
+    ]);
+    const hasFailures = results.some((result) => result.status === 'rejected');
+    this.ecosystem.notify(
+      hasFailures
+      ? 'Atualização parcial: alguns dados não foram atualizados.'
+        : this.ecosystem.isSimulationMode()
+          ? 'Dados de demonstração atualizados nesta sessão.'
+          : 'Dados da loja atualizados pela API.',
+      hasFailures ? 'warning' : 'success'
+    );
   }
 
   goToDesktopTables() {

@@ -31,8 +31,12 @@ As telas /waiter, /driver, /hq e as vitrines públicas são rotas próprias, nã
 | Produtos e estoque | InventoryService, products.router.ts | Sem janela de estoque. CRUD real; promoções e fornecedores ainda sem persistência. |
 | Catálogo público | InventoryService.publicCatalog e /api/products/public | Signal separado do catálogo interno e filtrado pelo tenant da vitrine. |
 | Financeiro | FinancialsService, financials.router.ts | Sem janela financeira. Operações de caixa iniciadas no PDV usam o serviço financeiro. |
-| Mesas e reservas | TablesService, AppointmentsService, tables.router.ts, reservations.router.ts | Sem janela de mesas/reservas; o App Garçom é uma rota separada. |
-| Logística e CRM | LogisticsService, CrmService e routers correspondentes | Sem eApp desktop conectado. |
+| Mesas e reservas | TablesService, AppointmentsService, tables.router.ts, reservations.router.ts | Sem janela de mesas/reservas; o App Garçom é uma rota separada. Ele registra pedidos e consulta seus status, sem confirmação integrada de uma estação KDS. No modo simulado, mesas, reservas e pedidos ficam em memória local. |
+| Logística e CRM | LogisticsService, CrmService e routers correspondentes | Sem eApp desktop conectado. O App Entregador carrega fixtures locais quando está no modo simulado. |
+
+## Limite do modo simulado
+
+O modo simulado mantém pedidos, lançamentos financeiros, reservas, mesas, motoristas, rotas e produtos no estado local da sessão. Mesas e rotas recebem fixtures de demonstração para os apps do Garçom e do Entregador; esses dados são marcados como simulados e descartados ao alternar o modo de execução ou o tenant ativo. A fila offline de pedidos não recebe operações simuladas. Isso não representa persistência, sincronização com o servidor ou homologação dos módulos.
 
 ## Critérios para atualizar este mapa
 

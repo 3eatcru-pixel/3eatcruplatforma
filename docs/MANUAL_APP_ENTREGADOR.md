@@ -1,9 +1,5 @@
-# 🛵 Manual Operacional — App Mobile do Entregador (/driver)
+# Manual do App do Entregador
 
-## 📌 Guia de Uso na Logística
+Este atalho aponta para a documentação consolidada do módulo. Consulte [Aplicações Auxiliares](./04_APLICACOES_AUXILIARES.md), seção **App Mobile do Entregador**, para recursos disponíveis, modo simulado e limites atuais.
 
-1. **Acesso**: Abra o smartphone no endereço `/driver`.
-2. **Minhas Entregas**: A lista exibe somente as entregas atribuídas ao seu ID de entregador.
-3. **Coleta no Lojista**: Na chegada ao estabelecimento, confira a comanda e confirme a coleta.
-4. **Navegação & Rota**: Utilize o mapa integrado com rotas otimizadas.
-5. **Baixa de Entrega**: Ao entregar ao cliente final, insira o código de confirmação para concluir a corrida e liberar a tarifa.
+O inventário de módulos e eApps do Store OS está em [Aplicativos e módulos](./OS/03_APLICATIVOS_E_MODULOS.md). Esta página não descreve leitura de QR, GPS do dispositivo ou comprovante validado, pois esses recursos não estão integrados.

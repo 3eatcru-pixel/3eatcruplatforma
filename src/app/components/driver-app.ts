@@ -69,14 +69,14 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                   <div class="absolute inset-0 bg-purple-500/5 animate-pulse"></div>
                   <mat-icon class="text-6xl z-10 group-hover:scale-110 transition-transform">qr_code_2</mat-icon>
                </div>
-               <h3 class="text-xl font-black text-white uppercase tracking-tight mb-2">Entrada Obrigatória</h3>
+               <h3 class="text-xl font-black text-white uppercase tracking-tight mb-2">Inicie seu turno</h3>
                <p class="text-[10px] text-slate-500 uppercase tracking-widest max-w-xs mx-auto mb-10 leading-relaxed">
-                 Você está offline. Para começar a receber rotas, realize o <strong>Clock-in</strong> escaneando o código de entrada na loja.
+                 Seu turno não está ativo. Para começar a receber rotas, registre manualmente o início do turno. O leitor de QR não está conectado.
                </p>
                
-               <button (click)="openShiftScanModal()" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-[0_10px_30px_rgba(168,85,247,0.3)] transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-3">
-                  <mat-icon>qr_code_scanner</mat-icon>
-                  Escanear Entrada (Clock-in)
+               <button (click)="openShiftStartModal()" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-[0_10px_30px_rgba(168,85,247,0.3)] transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-3">
+                  <mat-icon>login</mat-icon>
+                  Registrar início do turno
                </button>
             </div>
           } @else if (activeTab() === 'active_route') {
@@ -152,17 +152,20 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                 <div class="relative h-[320px] rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl bg-slate-900 group">
                    <div #mapContainer class="w-full h-full grayscale-[0.8] contrast-[1.2] invert-[0.9] hue-rotate-[180deg]"></div>
                    
-                   <!-- GPS Info Overlay -->
+                   <!-- Route Preview Overlay -->
                    <div class="absolute top-4 left-4 z-[1000] bg-slate-950/80 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <span class="text-[9px] font-black uppercase text-white tracking-widest">GPS Geodésico Ativo</span>
+                      <span class="text-[9px] font-black uppercase text-white tracking-widest">Prévia visual da rota</span>
                    </div>
 
-                   <!-- Geodetic Navigation Controls -->
+                   <!-- Route Preview Controls -->
                    <div class="absolute bottom-4 left-4 z-[1000] flex gap-2">
                       @if (route.status === 'in_progress') {
-                        <button (click)="toggleGpsNavigation()" class="px-3 py-2 rounded-xl bg-purple-600 text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-purple-500 transition-all cursor-pointer">
-                          {{ isGpsActive() ? '⏸️ Pausar GPS' : '▶️ Iniciar Navegação GPS' }}
+                        <button
+                          (click)="toggleRoutePreview()"
+                          [disabled]="!ecosystem.isSimulationMode()"
+                          class="px-3 py-2 rounded-xl bg-purple-600 text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                          {{ ecosystem.isSimulationMode() ? (isRoutePreviewActive() ? '⏸️ Pausar prévia' : '▶️ Iniciar prévia') : 'Prévia só na simulação' }}
                         </button>
                       } @else if (route.status === 'accepted') {
                         <button (click)="arriveAtStore(route.id)" class="px-3 py-2 rounded-xl bg-amber-600 text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-amber-500 transition-all cursor-pointer">
@@ -232,7 +235,7 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                       </div>
                     </div>
                     <button (click)="acceptRoute(route.id)" class="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-purple-600 hover:border-purple-500 transition-all cursor-pointer">
-                      Ver detalhes
+                      Aceitar rota
                     </button>
                   </div>
                 }
@@ -565,11 +568,14 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
            <div class="absolute inset-0 bg-[#070110]/95 backdrop-blur-md z-[100] flex flex-col justify-end p-6 animate-in slide-in-from-bottom duration-500">
               <div class="space-y-6 pb-12">
                  <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-black text-white uppercase tracking-tight">Confirmar entrega</h3>
+                    <h3 class="text-xl font-black text-white uppercase tracking-tight">Registrar baixa da entrega</h3>
                     <button (click)="showProofModal.set(false)" class="p-2 text-slate-500"><mat-icon>close</mat-icon></button>
                  </div>
                  
                  <div class="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-6">
+                    <p class="text-[10px] text-amber-300 leading-relaxed">
+                      Código, recebedor, assinatura e foto são campos visuais neste fluxo. Eles não são validados nem salvos; a ação registra apenas o status da entrega.
+                    </p>
                     <div class="space-y-2">
                        <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Código do cliente</p>
                        <div class="flex gap-2">
@@ -605,7 +611,7 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                  </div>
 
                  <button (click)="confirmDeliveryProof()" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-[0_10px_30px_rgba(168,85,247,0.3)] transition-all active:scale-95 cursor-pointer">
-                    Finalizar entrega
+                    Registrar baixa
                  </button>
               </div>
            </div>
@@ -648,30 +654,25 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
            </div>
         }
 
-         @if (showScanModal()) {
+         @if (showShiftStartModal()) {
              <div class="absolute inset-0 bg-[#070110]/95 backdrop-blur-md z-[100] flex flex-col p-6 animate-in slide-in-from-bottom duration-500">
                <div class="flex justify-between items-center mb-10">
-                  <h3 class="text-xl font-black text-white uppercase tracking-tight">Escanear QR Code</h3>
-                  <button (click)="showScanModal.set(false)" class="p-2 text-slate-500"><mat-icon>close</mat-icon></button>
+                  <h3 class="text-xl font-black text-white uppercase tracking-tight">Iniciar turno</h3>
+                  <button (click)="showShiftStartModal.set(false)" class="p-2 text-slate-500"><mat-icon>close</mat-icon></button>
                </div>
 
                <div class="flex-1 flex flex-col items-center justify-center space-y-12">
-                  <!-- AUDIT SCANNER VIEWFINDER -->
-                  <div class="w-64 h-64 border-2 border-purple-500 rounded-[3rem] relative overflow-hidden flex items-center justify-center group">
-                     <div class="absolute inset-0 bg-purple-500/5 animate-pulse"></div>
-                     <!-- Laser line animation -->
-                     <div class="absolute top-0 left-0 w-full h-1 bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)] animate-[scan_2s_infinite_linear]"></div>
-                     
-                     <mat-icon class="text-7xl text-purple-500/20">qr_code_2</mat-icon>
+                  <div class="w-40 h-40 rounded-[3rem] border border-purple-500/40 bg-purple-500/10 flex items-center justify-center">
+                     <mat-icon class="text-7xl text-purple-300">login</mat-icon>
                   </div>
 
                   <div class="text-center space-y-2">
-                     <h4 class="text-base font-black text-white uppercase">Aponte para o QR Code da Loja</h4>
-                     <p class="text-[10px] text-slate-500 uppercase tracking-[0.2em] max-w-[200px]">Posicione o código no centro do marcador para realizar o Clock-in.</p>
+                     <h4 class="text-base font-black text-white uppercase">Leitor de QR indisponível</h4>
+                     <p class="text-[10px] text-slate-500 uppercase tracking-[0.2em] max-w-[200px]">Esta ação registra o início do turno sem ler nem validar um QR Code.</p>
                   </div>
 
-                  <button (click)="confirmScanSuccess()" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all active:scale-95 cursor-pointer">
-                    Confirmar Entrada na Loja (Clock-In)
+                  <button (click)="registerShiftStart()" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all active:scale-95 cursor-pointer">
+                    Registrar início do turno
                   </button>
                </div>
             </div>
@@ -700,18 +701,18 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   });
 
   readonly selectedDriverId = signal<string>('drv-3');
+  readonly preferredActiveRouteId = signal<string | null>(null);
   readonly activeTab = signal<DriverScreenTab>('active_route');
   readonly selectedWaypoint = signal<DeliveryWaypoint | null>(null);
   
   // Modals state
   readonly showProofModal = signal<boolean>(false);
   readonly showChatModal = signal<boolean>(false);
-  readonly showScanModal = signal<boolean>(false);
+  readonly showShiftStartModal = signal<boolean>(false);
   readonly modalWaypoint = signal<DeliveryWaypoint | null>(null);
   
-  // Real-time Navigation state
-  readonly isGpsActive = signal<boolean>(false);
-  private navigationTimer: any = null;
+  readonly isRoutePreviewActive = signal<boolean>(false);
+  private routePreviewTimer: ReturnType<typeof setInterval> | null = null;
 
   // Map state
   private readonly mapContainer = viewChild<ElementRef>('mapContainer');
@@ -735,7 +736,12 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   });
 
   readonly currentActiveRoute = computed(() => {
-    return this.routesForSelectedDriver().find(r => r.status === 'in_progress' || r.status === 'at_store' || r.status === 'accepted');
+    const activeRoutes = this.routesForSelectedDriver().filter(r =>
+      r.status === 'in_progress' || r.status === 'at_store' || r.status === 'accepted'
+    );
+    const preferredRoute = activeRoutes.find(r => r.id === this.preferredActiveRouteId());
+    return preferredRoute || activeRoutes.find(r => r.status === 'in_progress') ||
+      activeRoutes.find(r => r.status === 'at_store') || activeRoutes.find(r => r.status === 'accepted');
   });
 
   readonly availableRoutes = computed(() => {
@@ -783,6 +789,10 @@ export class DriverAppComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.security.setPillar('driver');
+    void Promise.allSettled([
+      this.ecosystem.logisticsService.fetchDrivers(),
+      this.ecosystem.logisticsService.fetchDeliveryRoutes()
+    ]);
   }
 
   constructor() {
@@ -819,9 +829,9 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.navigationTimer) {
-      clearInterval(this.navigationTimer);
-      this.navigationTimer = null;
+    if (this.routePreviewTimer) {
+      clearInterval(this.routePreviewTimer);
+      this.routePreviewTimer = null;
     }
     if (this.map) {
       this.map.remove();
@@ -921,10 +931,15 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     return route.waypoints.filter(w => w.status === 'completed').length;
   }
 
-  acceptRoute(routeId: string) {
-    this.ecosystem.acceptDeliveryRoute(routeId, this.selectedDriverId());
-    this.activeTab.set('active_route');
-    setTimeout(() => this.updateMarkers(), 100);
+  async acceptRoute(routeId: string) {
+    try {
+      await this.ecosystem.acceptDeliveryRoute(routeId, this.selectedDriverId());
+      this.preferredActiveRouteId.set(routeId);
+      this.activeTab.set('active_route');
+      setTimeout(() => this.updateMarkers(), 100);
+    } catch {
+      this.ecosystem.notify('Não foi possível aceitar esta rota.', 'error');
+    }
   }
 
   selectWaypoint(wp: DeliveryWaypoint) {
@@ -942,59 +957,84 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     this.showChatModal.set(true);
   }
 
-  confirmDeliveryProof() {
+  async confirmDeliveryProof() {
     const wp = this.modalWaypoint();
     const route = this.currentActiveRoute();
-    if (wp && route) {
-      this.ecosystem.advanceWaypointStatus(route.id, wp.id, 'completed');
-      
-      // Notify via WhatsApp automatically on completion
-      this.ecosystem.sendWhatsAppMessage(wp.customerName, wp.customerPhone || '', `Sua entrega ${route.routeCode} foi concluída com sucesso por ${this.activeDriverProfile()?.name}! Obrigado por usar a 3EAT. ⭐`);
-      
+    if (!wp || !route) return;
+
+    try {
+      await this.ecosystem.advanceWaypointStatus(route.id, wp.id, 'completed');
+      if (!this.ecosystem.isSimulationMode() && wp.customerPhone) {
+        this.ecosystem.sendWhatsAppMessage(
+          wp.customerPhone,
+          `Sua entrega ${route.routeCode} foi concluída por ${this.activeDriverProfile()?.name || 'Entregador'}. Obrigado por usar a 3EAT. ⭐`,
+          wp.customerName
+        );
+      }
       this.showProofModal.set(false);
-      
+
       // If all done, show summary
       const updatedRoute = this.ecosystem.deliveryRoutes().find(r => r.id === route.id);
       if (updatedRoute && updatedRoute.status === 'completed') {
+        this.preferredActiveRouteId.set(null);
         this.activeTab.set('proof_summary');
       } else {
         this.activeTab.set('active_route');
         this.updateMarkers();
       }
+    } catch {
+      this.ecosystem.notify('Não foi possível registrar a baixa da entrega.', 'error');
     }
   }
 
-  arriveAtStore(routeId: string) {
-    this.ecosystem.markArrivedAtStore(routeId);
+  async arriveAtStore(routeId: string) {
+    try {
+      await this.ecosystem.markArrivedAtStore(routeId);
+    } catch {
+      this.ecosystem.notify('Não foi possível registrar a chegada à loja.', 'error');
+    }
   }
 
-  openShiftScanModal() {
-    this.showScanModal.set(true);
+  openShiftStartModal() {
+    this.showShiftStartModal.set(true);
   }
 
-  confirmScanSuccess() {
+  async registerShiftStart() {
     const driverId = this.selectedDriverId();
-    this.ecosystem.clockInDriver(driverId);
-    this.showScanModal.set(false);
-    setTimeout(() => this.updateMarkers(), 100);
+    try {
+      await this.ecosystem.clockInDriver(driverId);
+      this.showShiftStartModal.set(false);
+      setTimeout(() => this.updateMarkers(), 100);
+    } catch {
+      this.ecosystem.notify('Não foi possível registrar o início do turno.', 'error');
+    }
   }
 
-  confirmPickup(routeId: string) {
+  async confirmPickup(routeId: string) {
     if (!routeId) return;
-    this.ecosystem.confirmPickup(routeId);
-    setTimeout(() => this.updateMarkers(), 100);
+    try {
+      await this.ecosystem.confirmPickup(routeId);
+      setTimeout(() => this.updateMarkers(), 100);
+    } catch {
+      this.ecosystem.notify('Não foi possível confirmar a coleta.', 'error');
+    }
   }
 
-  toggleGpsNavigation() {
-    if (this.isGpsActive()) {
-      this.isGpsActive.set(false);
-      if (this.navigationTimer) {
-        clearInterval(this.navigationTimer as any);
-        this.navigationTimer = null;
+  toggleRoutePreview() {
+    if (!this.ecosystem.isSimulationMode()) {
+      this.ecosystem.notify('A prévia de navegação está disponível apenas no modo simulado.', 'warning');
+      return;
+    }
+
+    if (this.isRoutePreviewActive()) {
+      this.isRoutePreviewActive.set(false);
+      if (this.routePreviewTimer) {
+        clearInterval(this.routePreviewTimer);
+        this.routePreviewTimer = null;
       }
     } else {
-      this.isGpsActive.set(true);
-      this.navigationTimer = setInterval(() => {
+      this.isRoutePreviewActive.set(true);
+      this.routePreviewTimer = setInterval(() => {
         if (this.driverMarker && this.map) {
           const route = this.currentActiveRoute();
           const nextWp = route ? this.nextWaypoint(route) : null;
@@ -1015,8 +1055,10 @@ export class DriverAppComponent implements OnInit, OnDestroy {
             ).meters;
             
             if (dist < 50 && nextWp.status !== 'arrived') {
-               this.ecosystem.advanceWaypointStatus(route!.id, nextWp.id, 'arrived');
-               this.ecosystem.notify('Destino alcançado! Confirme a entrega.', 'success');
+               void this.ecosystem.advanceWaypointStatus(route!.id, nextWp.id, 'arrived').catch(() => {
+                 this.ecosystem.notify('Não foi possível atualizar a parada da prévia.', 'error');
+               });
+               this.ecosystem.notify('A prévia chegou ao destino. Registre a baixa quando confirmar a entrega.', 'info');
             }
           } else {
             // Drift slightly if no target

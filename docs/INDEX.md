@@ -59,8 +59,8 @@ Vitrinas regionais, checkout omnichannel e experiência do consumidor final.
 
 ---
 
-## 📱 5. Pilar 4: Apps Mobile & PWAs
-Documentação técnica para as aplicações auxiliares Android/PWA.
+## 📱 5. Pilar 4: Aplicações auxiliares
+A documentação consolidada do Garçom e Entregador está em `04_APLICACOES_AUXILIARES.md`; o mapa dos eApps do desktop está em `OS/03_APLICATIVOS_E_MODULOS.md`. Os documentos 00–02 abaixo são atalhos para essas fontes; o documento 03 cobre o consumidor.
 
 - 📱 [00 — Arquitetura Mobile Android](./APPS_MOBILE/00_ARQUITETURA_MOBILE_ANDROID.md)
 - 🛵 [01 — App Motorista e Entregador](./APPS_MOBILE/01_APP_MOTORISTA_ENTREGADOR.md)
@@ -82,8 +82,8 @@ Contratos de comunicação, segurança Zero-Trust e resiliência offline.
 
 ---
 
-## 📖 7. Manuais de Operação (User Guide)
-Guias passo-a-passo para os usuários finais de cada perfil.
+## 📖 7. Manuais de Operação
+Os manuais dos apps de entregador e garçom apontam para as fontes consolidadas e não repetem especificações antigas.
 
 - 🛍️ [Manual do Consumidor](./MANUAL_APP_CONSUMIDOR.md)
 - 🛵 [Manual do App do Entregador](./MANUAL_APP_ENTREGADOR.md)

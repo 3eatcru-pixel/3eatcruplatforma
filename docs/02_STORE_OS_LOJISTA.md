@@ -21,6 +21,8 @@ O registro de atalhos do Store OS não comprova que uma janela esteja implementa
 | Financeiro | API e `FinancialsService`; sangria/suprimento no PDV | Sem janela financeira/DRE integrada |
 | CRM, WhatsApp e iFood | Domínios parciais e/ou APIs | Sem eApps desktop integrados nesta auditoria |
 
+No modo simulado, os serviços de pedidos, mesas, reservas, financeiro, logística e estoque mantêm dados na memória local. Esses dados não são persistidos nem enviados à fila offline; a troca do modo ou do tenant ativo limpa o estado. Mesas e rotas de demonstração também dão suporte às rotas móveis `/waiter` e `/driver`.
+
 O detalhe por ID do atalho está em `docs/OS/03_APLICATIVOS_E_MODULOS.md`; o fluxo do PDV está em `docs/OS/04_PDV_E_OPERACOES.md`.
 
 ---

@@ -2,7 +2,7 @@
 
 ## 📌 1. Propósito e Fronteiras Arquiteturais
 
-O ecossistema **3EATCRU** é uma plataforma comercial omnichannel SaaS desenhada para operar de forma híbrida (Web Desktop, Mobile PWA e Terminais Físicos de Ponto de Venda). A arquitetura é rigidamente segregada em **3 ambientes independentes**, garantindo que as responsabilidades operacionais e executivas jamais se sobreponham:
+O ecossistema **3EATCRU** é uma plataforma comercial SaaS com interfaces web para desktop e rotas próprias para uso móvel. A instalação como PWA ou app nativo não é afirmada sem evidência no repositório. O sistema separa as superfícies de governança, operação da loja e atendimento público:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -16,8 +16,8 @@ O ecossistema **3EATCRU** é uma plataforma comercial omnichannel SaaS desenhada
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                  AMBIENTE 2: STORE OS LOJISTA                                  │
 │                                 (Sistema Operacional /os, /pos)                                │
-│  Desktop Multijanela • Catálogo de eApps Embutidos (PDV, KDS, Mesas, Estoque NFe, DRE Loja)    │
-│  Operação com 100% de Autonomia Local (IndexedDB Outbox + Sync Determinístico)                 │
+│  Desktop /os • PDV operacional • demais eApps conforme o mapa de módulos                       │
+│  A fila offline e seus limites estão documentados no núcleo de persistência                     │
 └────────────────────────────────────────┬───────────────────────────────────────────────────────┘
                                          │ Sincronização Operacional
                                          │ (Eventos de Cozinha, Despacho, Cardápio & Mesas)
@@ -25,7 +25,7 @@ O ecossistema **3EATCRU** é uma plataforma comercial omnichannel SaaS desenhada
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                           AMBIENTE 3: PÚBLICO, MARKETPLACE & AUXILIARES                        │
 │                 (/marketplace, /loja/:slug, /waiter, /driver, /profile)                        │
-│  Vitrine Consumidor • Checkout Pix/Cartão • App do Garçom (Comanda) • App do Entregador (GPS) │
+│  Vitrine Consumidor • App Garçom (pedidos/mesas) • App Entregador (rotas e baixa)              │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -38,8 +38,10 @@ O ecossistema **3EATCRU** é uma plataforma comercial omnichannel SaaS desenhada
 
 | Nomenclatura | O que é | Onde roda | Exemplo de Telas |
 |---|---|---|---|
-| **Apps Externos / Móveis** | Aplicações web autônomas, instaláveis via PWA ou acessadas via URL direta em celulares e tablets. | Navegador mobile / PWA do colaborador ou consumidor. | **App do Garçom** (`/waiter`), **App do Entregador** (`/driver`), **App do Consumidor** (`/profile`, `/loja/:slug`), **Gabinete HQ** (`/hq`). |
-| **eApps do Store OS** | Módulos embutidos que rodam como **janelas multitarefa** dentro do Desktop do Sistema Operacional da Loja (`/os`). | Desktop da Loja (`/os`, `/pos`) em monitores de balcão e totens. | **eApp PDV Caixa**, **eApp KDS Cozinha**, **eApp Mesas**, **eApp Estoque NFe**, **eApp DRE**, **eApp Hub Logística**. |
+| **Apps Externos / Móveis** | Rotas web separadas do desktop, acessadas pelo navegador. | Navegador em celular ou tablet. | **App do Garçom** (`/waiter`), **App do Entregador** (`/driver`), vitrines públicas e **HQ** (`/hq`). |
+| **eApps do Store OS** | IDs de aplicativos associados ao desktop `/os`; cada janela pode estar integrada ou ser placeholder. | Desktop da Loja (`/os`, `/pos`). | O estado real de cada ID está em [Aplicativos e módulos](./OS/03_APLICATIVOS_E_MODULOS.md). |
+
+Para os fluxos atuais do Garçom e do Entregador, consulte [Aplicações auxiliares](./04_APLICACOES_AUXILIARES.md). O mapa de [módulos e eApps](./OS/03_APLICATIVOS_E_MODULOS.md) é a fonte de verdade para a integração desktop.
 
 ---
 

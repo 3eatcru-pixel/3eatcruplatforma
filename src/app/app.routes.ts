@@ -52,7 +52,7 @@ export const routes: Routes = [
     canActivate: [hqAdminGuard] 
   },
 
-  // 6. Apps Móveis Auxiliares Nativos
+  // 6. Rotas Web Auxiliares para uso móvel
   { 
     path: 'driver', 
     loadComponent: () => import('./components/driver-app').then(m => m.DriverAppComponent) 

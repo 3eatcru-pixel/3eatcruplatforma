@@ -141,8 +141,16 @@ export class InventoryService {
   }
 
   async fetchSuppliers(): Promise<Supplier[]> {
-    // Logic for suppliers
-    return [];
+    const tenantId = this.security.currentSession()?.tenantId;
+    if (!tenantId || this.lastModeIsSimulation) {
+      this.suppliers.set([]);
+      return [];
+    }
+    const data = await firstValueFrom(
+      this.http.get<Supplier[]>(`/api/suppliers?tenantId=${encodeURIComponent(tenantId)}`)
+    );
+    this.suppliers.set(data);
+    return data;
   }
 
   async fetchPublicCatalog(tenantId: string): Promise<PublicCatalogProduct[]> {

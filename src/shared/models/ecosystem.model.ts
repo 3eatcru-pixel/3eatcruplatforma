@@ -324,6 +324,37 @@ export interface ProductItem {
   mode?: SystemExecutionMode;
 }
 
+export interface StockAuditEntry {
+  productId: string;
+  name: string;
+  sku: string;
+  systemStock: number;
+  countedStock: number;
+  difference: number;
+}
+
+export interface StockAuditRecord {
+  id: string;
+  tenantId: string;
+  createdByUid: string;
+  createdAt: string;
+  status: 'counted';
+  entries: StockAuditEntry[];
+  varianceCount: number;
+}
+
+export interface StoreTask {
+  id: string;
+  tenantId: string;
+  title: string;
+  sector: string;
+  completed: boolean;
+  createdByUid: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
 export interface PublicCatalogProduct {
   id: string;
   tenantId: string;
@@ -592,9 +623,10 @@ export interface Employee {
   tenantId: string;
   name: string;
   role: 'gerente' | 'caixa' | 'cozinheiro' | 'garçom' | 'entregador' | 'atendente';
-  cpf: string;
-  phone: string;
-  salary: number;
+  /** Sensitive HR fields are not collected by the initial Store OS directory. */
+  cpf?: string;
+  phone?: string;
+  salary?: number;
   commissionPercent?: number;
   status: 'active' | 'on_leave' | 'fired';
   shift: 'integral' | 'manhã' | 'tarde' | 'noite';
@@ -603,6 +635,7 @@ export interface Employee {
 
 export interface ClockEvent {
   id: string;
+  tenantId?: string;
   employeeId: string;
   employeeName: string;
   timestamp: string;
@@ -700,6 +733,7 @@ export interface ServicePart {
 
 export interface ServiceOrder {
   id: string;
+  tenantId?: string;
   osNumber?: string;
   customerId?: string;
   customerName: string;

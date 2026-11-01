@@ -36,4 +36,4 @@ Motoristas cadastrados pelas lojas são do tipo `private`. O lojista administra 
 | Bloqueio ou reinicialização remota | Não localizados |
 | Agente MDM nativo | Não localizado |
 
-Os testes de dispositivo não foram executados durante esta auditoria.
+Não há teste dedicado da rota de inventário de dispositivos no conjunto atual. A suíte geral passou nesta revisão, mas não substitui testes específicos da rota nem integração com hardware real.

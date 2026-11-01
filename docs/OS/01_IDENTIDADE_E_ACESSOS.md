@@ -42,7 +42,7 @@ Na unidade física da loja, os terminais de atendimento (PDVs e KDSs) são frequ
   - Permite ao gestor da loja (`isTenantManagerRole(caller.role)`) atribuir os papéis `'operator'`, `'waiter'` e `'driver'` exclusivamente para usuários de sua própria unidade (`requestedTenantId === caller.tenantId`).
   - O `targetUid` é anexado ao array `staffUids` do tenant no Firestore.
 - **Controle de Acesso:**
-  - As janelas de Finanças e Admin Hub não estão integradas ao desktop; seus IDs mostram placeholder (ver `03_APLICATIVOS_E_MODULOS.md`). Endpoints financeiros aplicam autorização no servidor.
+  - A janela Financeiro é integrada e restringe a consulta ao proprietário/operador; Admin Hub continua placeholder. Endpoints financeiros também aplicam autorização no servidor.
   - Garçons acessam o aplicativo de salão pela rota separada `/waiter`.
 - **Tela de Bloqueio por PIN:**
   - Componente: `src/app/components/os/lock-screen.ts`.
@@ -69,7 +69,7 @@ Na unidade física da loja, os terminais de atendimento (PDVs e KDSs) são frequ
 
 ### Perspectiva 4: Validação
 
-Este documento descreve o código encontrado. A suíte automatizada passou com 90/90 testes nesta revisão, mas usa mocks e não representa homologação do Store OS nem teste ponta a ponta específico do bloqueio por PIN.
+Este documento descreve o código encontrado. A suíte automatizada passou com 94/94 testes nesta revisão, mas usa mocks e não representa homologação do Store OS nem teste ponta a ponta específico do bloqueio por PIN.
 
 ---
 

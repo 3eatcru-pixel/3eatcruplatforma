@@ -18,8 +18,8 @@ function readJson(path) {
 }
 
 function nodeVersionIsSupported(version) {
-  const [major] = version.split('.').map(Number);
-  return major >= 20;
+  const [major, minor] = version.split('.').map(Number);
+  return major > 24 || (major === 24 && minor >= 12);
 }
 
 function manifestMatchesLock(manifest, lock) {
@@ -38,33 +38,37 @@ function manifestMatchesLock(manifest, lock) {
   return true;
 }
 
-function findMissingOrStaleDependencies(manifest, lock, installedLock) {
-  const groups = ['dependencies', 'devDependencies', 'optionalDependencies'];
-  const names = new Set(groups.flatMap((group) => Object.keys(manifest[group] || {})));
+function findMissingOrStaleDependencies(lock, installedLock) {
   const problems = [];
 
-  for (const name of names) {
-    const packagePath = join(modulesPath, ...name.split('/'), 'package.json');
-    const lockEntry = lock.packages?.[`node_modules/${name}`];
-    const installedEntry = installedLock?.packages?.[`node_modules/${name}`];
+  for (const [packageKey, lockEntry] of Object.entries(lock.packages || {})) {
+    if (!packageKey.startsWith('node_modules/') || !lockEntry?.version || lockEntry.optional) continue;
+
+    const packagePath = join(modulesPath, ...packageKey.slice('node_modules/'.length).split('/'), 'package.json');
+    const installedEntry = installedLock?.packages?.[packageKey];
     const installedPackage = readJson(packagePath);
     if (
-      !installedPackage || installedPackage.name !== name || !lockEntry?.version ||
+      !installedPackage ||
       installedPackage.version !== lockEntry.version || installedEntry?.version !== lockEntry.version
     ) {
-      problems.push(name);
+      problems.push(packageKey.slice('node_modules/'.length));
     }
   }
 
   return problems;
 }
 
-// Dev lock released
-process.exit(0);
+const manifest = readJson(packagePath);
+const lock = readJson(lockPath);
+if (!manifest || !lock) {
+  console.error('package.json ou package-lock.json está ausente ou inválido.');
+  process.exit(1);
+}
 
 if (!nodeVersionIsSupported(process.versions.node)) {
   console.error(
-    `Node.js ${process.versions.node} não é compatível com este projeto. Use Node 24.12 ou superior. ` +
+    `Node.js ${process.versions.node} não é compatível com as engines do Firebase Client SDK. ` +
+    'Use Node 24.12 ou superior. ' +
     'A instalação foi interrompida.'
   );
   process.exit(1);
@@ -76,7 +80,7 @@ if (!manifestMatchesLock(manifest, lock)) {
 }
 
 const installedLock = readJson(installedLockPath);
-const problems = findMissingOrStaleDependencies(manifest, lock, installedLock);
+const problems = findMissingOrStaleDependencies(lock, installedLock);
 if (problems.length === 0) {
   console.log('Dependências verificadas; usando node_modules existente.');
   process.exit(0);
@@ -110,7 +114,7 @@ if (install.status !== 0) {
 }
 
 const installedAfterSetup = readJson(installedLockPath);
-const remaining = findMissingOrStaleDependencies(manifest, lock, installedAfterSetup);
+const remaining = findMissingOrStaleDependencies(lock, installedAfterSetup);
 if (remaining.length > 0) {
   console.error(`A instalação terminou, mas faltam dependências: ${remaining.join(', ')}.`);
   process.exit(1);

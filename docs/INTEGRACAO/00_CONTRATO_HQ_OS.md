@@ -17,7 +17,7 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 │ Pedidos e Vendas Balcão      │ Store OS         │ Estabelecimento      │
 │ Mapa de Mesas e Comandas     │ Store OS         │ Estabelecimento      │
 │ Livro-Caixa e Despesas       │ Store OS         │ Estabelecimento      │
-│ Dispositivos Físicos (/dev)  │ Store OS / HQ    │ Compartilhado (MDM)  │
+│ Registros em /devices        │ HQ               │ Inventário; sem MDM físico ou telemetria │
 │ Estimativa HQ de entregas   │ HQ (consulta)    │ Derivada; sem escrita │
 └──────────────────────────────┴──────────────────┴──────────────────────┘
 ```
@@ -44,12 +44,12 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
   - O `tenantId` é extraído do Bearer Token assinado criptograficamente pelo Firebase.
   - A consulta ao banco utiliza `where('tenantId', '==', user.tenantId)`. Tentativa de injeção manual no corpo HTTP é rejeitada com `403 TENANT_MISMATCH`.
 - **Tratamento de Concorrência e Duplicação:**
-  - O contrato exige o cabeçalho `X-Idempotency-Key` ou campo `idempotencyKey` no payload.
-  - Transações do Firestore (`adminDb.runTransaction`) garantem isolamento serializável em operações simultâneas de estoque e pagamento.
+  - As operações comerciais que passam pelo Commerce Engine aceitam `X-Idempotency-Key` ou `idempotencyKey` conforme a rota.
+  - Transações do Firestore protegem as operações cobertas pelo motor. Tentativas do PSP ainda não têm idempotência externa nem conciliação.
 
 ### Perspectiva 3: Como se conecta (Topologia de Integração)
-- **Fluxo do HQ para o OS:** O Store OS assina ou consulta dados do tenant via `GET /api/tenants/:id` e telemetria de dispositivos via `GET /api/hq/devices?tenantId=:id`.
-- **Fluxo do OS para o HQ:** O Store OS reporta dados agregados de venda e status de dispositivos (`lastPing`, `batteryLevel`, `appVersion`).
+- **Fluxo do HQ para o OS:** O Store OS consulta os dados autorizados do tenant e lê o aviso/configuração pública durante a sincronização. `/api/hq/devices` é inventário administrativo do HQ, não telemetria consumida pelo Store OS.
+- **Fluxo do OS para o HQ:** Não há envio periódico de vendas agregadas nem heartbeat de dispositivos. O HQ consulta pedidos elegíveis sob demanda em `GET /api/hq/tenants/:id/metrics`; campos de telemetria legados não comprovam estado físico.
 - **Motoristas da loja:** São cadastrados como `private`; a loja usa o App do Entregador para facilitar rotas e baixas e decide a remuneração. O app não processa o pagamento.
 - **Receita dos pedidos:** Pertence à loja e não deve transitar pela conta do HQ. O PIX usa a chave cadastrada no tenant. Cartão real está bloqueado até que cada loja tenha uma conta de adquirência conectada.
 - **Assinatura do lojista:** É paga ao HQ pelo uso do Store OS e pela cota de dispositivos do plano. A cobrança recorrente automática ainda não existe.
@@ -57,7 +57,7 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 - **Comissão da plataforma:** O estado `platformDeliveryCommissionStatus` começa como `coming_soon`. Não há cálculo nem cobrança ativos. O futuro processo de 8% ficará separado do plano SaaS e do caixa do lojista e dependerá da rede própria e da inteligência operacional.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- As suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. Elas não foram executadas nesta revisão; o resultado de aprovação anterior não foi revalidado.
+- Nesta auditoria, `npm run test:ci` passou com 94/94 testes; as suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. A execução usa mocks e não homologa Firebase real, PSP ou hardware.
 
 ---
 
@@ -65,9 +65,9 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 
 | Regra Contratual HQ ↔ OS | Classificação | Arquivo de Evidência | Observações |
 |---|---|---|---|
-| Soberania de Dados Comerciais do Lojista | Implementado (não retestado nesta revisão) | `src/server/routes/tenants.router.ts` | Lojista edita dados comerciais permitidos; os vínculos de identidade ficam em rotas dedicadas. |
-| Bloqueio Imediato de Operação por Suspensão no HQ | Implementado (não retestado nesta revisão) | `src/server/core/commerce.engine.ts` | Mudança de status para inativo bloqueia novas vendas. |
-| Imutabilidade de Planos e Limites pelo Lojista | Implementado (não retestado nesta revisão) | `src/server/routes/tenants.router.ts` | Servidor remove campos restritos enviados por usuário da loja. |
-| Proteção de escopo entre lojas | Implementado (não retestado nesta revisão) | `src/server/core/commerce.engine.ts` | `TENANT_MISMATCH` rejeita operações fora do tenant autorizado. |
-| Idempotência de pedidos e estoque no Commerce Engine | Implementado (não retestado nesta revisão) | `src/server/core/commerce.engine.ts` | Cobertura da idempotência de pagamentos é separada e ainda não foi implementada. |
+| Soberania de Dados Comerciais do Lojista | Implementado; suíte CI aprovada nesta revisão | `src/server/routes/tenants.router.ts` | Lojista edita dados comerciais permitidos; os vínculos de identidade ficam em rotas dedicadas. |
+| Bloqueio Imediato de Operação por Suspensão no HQ | Implementado; suíte CI aprovada nesta revisão | `src/server/core/commerce.engine.ts` | Mudança de status para inativo bloqueia novas vendas. |
+| Imutabilidade de Planos e Limites pelo Lojista | Implementado; suíte CI aprovada nesta revisão | `src/server/routes/tenants.router.ts` | Servidor remove campos restritos enviados por usuário da loja. |
+| Proteção de escopo entre lojas | Implementado; suíte CI aprovada nesta revisão | `src/server/core/commerce.engine.ts` | `TENANT_MISMATCH` rejeita operações fora do tenant autorizado. |
+| Idempotência de pedidos e estoque no Commerce Engine | Implementado; suíte CI aprovada nesta revisão | `src/server/core/commerce.engine.ts` | Idempotência no PSP e conciliação de pagamentos continuam pendentes. |
 | Notificação de comandos HQ em tempo real | Não localizada | src/server/routes/hq.router.ts | Há consultas/snapshots de dados; não foi localizado canal WebSocket ou push de comandos. |

@@ -120,7 +120,7 @@ logisticsRouter.get('/routes', async (req: Request, res: Response) => {
       return;
     }
 
-    const snap = await query.get();
+    const snap = await query.limit(100).get();
     res.json(snap.docs.map((d: QueryDocumentSnapshot) => d.data()));
   } catch {
     res.status(500).json({ error: 'Failed to fetch logistics routes.' });
@@ -161,6 +161,27 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
     }
     const tenant = tenantDoc.data() as CompanyTenant;
     const waypoints: DeliveryWaypoint[] = Array.isArray(body.waypoints) ? body.waypoints : [];
+    if (waypoints.length < 1 || waypoints.length > 50) {
+      res.status(400).json({ error: 'A rota deve conter de 1 a 50 paradas.', code: 'INVALID_ROUTE_WAYPOINTS' });
+      return;
+    }
+    const waypointIds = new Set<string>();
+    const linkedOrderIds = new Set<string>();
+    for (const waypoint of waypoints) {
+      const waypointId = String(waypoint.id || '').trim();
+      if (!waypointId || waypointIds.has(waypointId) || !String(waypoint.customerName || '').trim() || !String(waypoint.address || '').trim()) {
+        res.status(400).json({ error: 'Cada parada precisa de identificador único, cliente e endereço.', code: 'INVALID_ROUTE_WAYPOINT' });
+        return;
+      }
+      waypointIds.add(waypointId);
+      if (waypoint.orderId) {
+        if (linkedOrderIds.has(waypoint.orderId)) {
+          res.status(400).json({ error: 'Um pedido não pode aparecer mais de uma vez na rota.', code: 'DUPLICATE_ROUTE_ORDER' });
+          return;
+        }
+        linkedOrderIds.add(waypoint.orderId);
+      }
+    }
     const rawStoreDriverAmount = body.storeDriverCompensation ?? body.totalEarnings ?? body.totalEstimatedEarnings;
     const storeDriverAmount = rawStoreDriverAmount === undefined ? 0 : Number(rawStoreDriverAmount);
 
@@ -169,12 +190,11 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
       return;
     }
 
-    // Validate linked waypoint orders belong to the same tenant
-    for (const wp of waypoints) {
-      if (wp.orderId) {
-        const ordDoc = await adminDb.collection('orders').doc(wp.orderId).get();
+    // Validate linked orders before making a route available to the tenant's drivers.
+    for (const orderId of linkedOrderIds) {
+        const ordDoc = await adminDb.collection('orders').doc(orderId).get();
         if (!ordDoc.exists) {
-          res.status(400).json({ error: `Pedido vinculado [${wp.orderId}] não encontrado.` });
+          res.status(400).json({ error: `Pedido vinculado [${orderId}] não encontrado.` });
           return;
         }
         const ordData = ordDoc.data() as OrderTransaction;
@@ -185,6 +205,25 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
           });
           return;
         }
+        if (ordData.type !== 'delivery' || ['completed', 'cancelled', 'delivered'].includes(ordData.status) || ordData.driverId) {
+          res.status(409).json({ error: 'O pedido não está disponível para uma nova rota.', code: 'ORDER_NOT_ROUTABLE' });
+          return;
+        }
+    }
+
+    if (linkedOrderIds.size > 0) {
+      const existingRoutes = await adminDb.collection('delivery_routes')
+        .where('tenantId', '==', assignedTenantId)
+        .get();
+      const alreadyRouted = existingRoutes.docs.some((routeDoc) => {
+        const route = routeDoc.data() as DeliveryRoute;
+        return route.status !== 'completed' && route.waypoints.some((waypoint) =>
+          waypoint.orderId && linkedOrderIds.has(waypoint.orderId)
+        );
+      });
+      if (alreadyRouted) {
+        res.status(409).json({ error: 'Um ou mais pedidos já pertencem a uma rota ativa.', code: 'ORDER_ALREADY_ROUTED' });
+        return;
       }
     }
 
@@ -262,7 +301,7 @@ logisticsRouter.post('/drivers', async (req: Request, res: Response) => {
   }
 
   const body = req.body;
-  if (!body.name) {
+  if (typeof body.name !== 'string' || body.name.trim().length < 2 || body.name.trim().length > 100) {
     res.status(400).json({ error: 'Driver name is required.' });
     return;
   }
@@ -280,6 +319,11 @@ logisticsRouter.post('/drivers', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'Entregadores da plataforma devem pertencer à frota marketplace.' });
     return;
   }
+  const vehicleType = body.vehicleType || 'moto';
+  if (!['moto', 'bike', 'carro'].includes(vehicleType)) {
+    res.status(400).json({ error: 'Tipo de veículo inválido.', code: 'INVALID_VEHICLE_TYPE' });
+    return;
+  }
 
   const driverRef = adminDb.collection('drivers').doc();
   const id = driverRef.id;
@@ -288,9 +332,9 @@ logisticsRouter.post('/drivers', async (req: Request, res: Response) => {
     tenantId: assignedTenantId,
     name: String(body.name).trim(),
     phone: typeof body.phone === 'string' ? body.phone.trim().slice(0, 32) : '',
-    vehicleType: body.vehicleType || 'moto',
-    licensePlate: body.licensePlate,
-    status: body.status || 'available',
+    vehicleType,
+    licensePlate: typeof body.licensePlate === 'string' ? body.licensePlate.trim().slice(0, 12) : undefined,
+    status: 'available',
     activeDeliveriesCount: 0,
     rating: 5.0,
     completedTodayCount: 0,

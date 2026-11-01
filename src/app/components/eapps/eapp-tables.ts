@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { TablesService } from '../../services/tables.service';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -9,7 +10,7 @@ import { TableInfo } from '../../models/ecosystem.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-eapp-tables',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule],
   template: `
     <div class="h-full flex flex-col bg-[#140b06] text-stone-200 font-mono select-none overflow-hidden p-4 space-y-4">
       
@@ -21,12 +22,27 @@ import { TableInfo } from '../../models/ecosystem.model';
           </div>
           <div>
             <h2 class="text-sm font-serif font-black text-white">Mapa de Mesas & Salão</h2>
-            <p class="text-[10px] text-stone-400">Protótipo de gestão de mesas; esta janela ainda não está conectada ao Store OS.</p>
+            <p class="text-[10px] text-stone-400">Mapa da unidade ativa; reservas e saldos são protegidos pelas regras do servidor.</p>
           </div>
         </div>
 
         <!-- STATS PILLS -->
         <div class="flex items-center gap-2 text-xs">
+          <button
+            type="button"
+            (click)="refreshTables()"
+            [disabled]="isLoading() || !canManageTables()"
+            aria-label="Atualizar mesas"
+            class="px-2.5 py-2 border border-[#593017] text-stone-300 rounded-xl disabled:opacity-50">
+            <mat-icon class="!text-sm !h-4 !w-4">refresh</mat-icon>
+          </button>
+          <button
+            type="button"
+            (click)="toggleCreateForm()"
+            [disabled]="!canManageTables()"
+            class="px-3 py-1.5 bg-amber-600 text-stone-950 font-black rounded-xl disabled:opacity-50">
+            {{ showCreateForm() ? 'Fechar cadastro' : 'Adicionar mesa' }}
+          </button>
           <span class="px-2.5 py-1 rounded-xl bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold">
             {{ availableCount() }} Livres
           </span>
@@ -40,6 +56,26 @@ import { TableInfo } from '../../models/ecosystem.model';
           }
         </div>
       </div>
+
+      @if (showCreateForm()) {
+        <form (ngSubmit)="createTable()" class="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-[#1c0d06] p-3 rounded-2xl border border-[#381c0c] shrink-0">
+          <label class="text-[10px] text-stone-400">Número
+            <input name="tableNumber" type="number" min="1" max="9999" required [(ngModel)]="newTable.number" class="mt-1 w-full rounded-lg bg-[#100803] border border-[#593017] px-2 py-2 text-white" />
+          </label>
+          <label class="text-[10px] text-stone-400">Capacidade
+            <input name="tableCapacity" type="number" min="1" max="100" required [(ngModel)]="newTable.capacity" class="mt-1 w-full rounded-lg bg-[#100803] border border-[#593017] px-2 py-2 text-white" />
+          </label>
+          <label class="text-[10px] text-stone-400">Área
+            <input name="tableZone" maxlength="60" required [(ngModel)]="newTable.zone" class="mt-1 w-full rounded-lg bg-[#100803] border border-[#593017] px-2 py-2 text-white" />
+          </label>
+          <div class="flex items-end">
+            <button type="submit" [disabled]="isSavingTable()" class="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50">
+              {{ isSavingTable() ? 'Salvando…' : 'Salvar mesa' }}
+            </button>
+          </div>
+          @if (formError()) { <p class="sm:col-span-4 text-xs text-rose-300">{{ formError() }}</p> }
+        </form>
+      }
 
       <!-- FILTRO DE ZONAS -->
       <div class="flex items-center gap-2 shrink-0 overflow-x-auto pb-1">
@@ -56,7 +92,16 @@ import { TableInfo } from '../../models/ecosystem.model';
 
       <!-- GRID DE MESAS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-        @if (filteredTables().length === 0) {
+        @if (!canManageTables()) {
+          <div class="h-full flex items-center justify-center p-8 text-center text-amber-300">A gestão de mesas está restrita ao proprietário ou operador da unidade.</div>
+        } @else if (isLoading()) {
+          <div class="h-full flex items-center justify-center p-8 text-center text-stone-400">Carregando mesas da unidade…</div>
+        } @else if (loadError()) {
+          <div class="h-full flex flex-col items-center justify-center gap-2 p-8 text-center text-rose-300">
+            <p>{{ loadError() }}</p>
+            <button type="button" (click)="refreshTables()" class="font-bold underline">Tentar novamente</button>
+          </div>
+        } @else if (filteredTables().length === 0) {
           <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-stone-500">
             <mat-icon class="text-4xl">table_restaurant</mat-icon>
             <p class="text-sm font-bold">Nenhuma mesa nesta área</p>
@@ -158,10 +203,26 @@ export class EAppTablesWindow {
   readonly tablesService = inject(TablesService);
   readonly ecosystem = inject(EcosystemService);
 
+  readonly isLoading = signal(false);
+  readonly isSavingTable = signal(false);
+  readonly loadError = signal<string | null>(null);
+  readonly formError = signal<string | null>(null);
+  readonly showCreateForm = signal(false);
+  readonly newTable = { number: 1, capacity: 2, zone: 'Salão' };
   readonly selectedZone = signal<string>('Todas');
   readonly selectedTableId = signal<string | null>(null);
   readonly updatingTableId = signal<string | null>(null);
-  readonly tables = computed(() => this.ecosystem.tables());
+  private fetchGeneration = 0;
+
+  readonly canManageTables = computed(() => {
+    const role = this.ecosystem.currentSession()?.role;
+    return role === 'tenant_owner' || role === 'operator';
+  });
+  readonly tables = computed(() => {
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!tenantId) return [];
+    return this.tablesService.tables().filter((table) => table.tenantId === tenantId);
+  });
   readonly selectedTable = computed(() =>
     this.tables().find((table) => table.id === this.selectedTableId()) || null
   );
@@ -179,6 +240,74 @@ export class EAppTablesWindow {
     if (z === 'Todas' || !this.zones().includes(z)) return this.tables();
     return this.tables().filter((table) => (table.zone || 'Salão') === z);
   });
+
+  constructor() {
+    effect(() => {
+      const tenantId = this.ecosystem.resolveOperationalTenantId();
+      const allowed = this.canManageTables();
+      const generation = ++this.fetchGeneration;
+      if (!allowed || !tenantId) {
+        this.isLoading.set(false);
+        this.loadError.set(tenantId ? null : 'Selecione uma unidade para consultar as mesas.');
+        return;
+      }
+      void this.loadTables(tenantId, generation);
+    });
+  }
+
+  toggleCreateForm() {
+    this.formError.set(null);
+    this.showCreateForm.update((isVisible) => !isVisible);
+  }
+
+  async refreshTables() {
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!this.canManageTables() || !tenantId) return;
+    const generation = ++this.fetchGeneration;
+    await this.loadTables(tenantId, generation);
+  }
+
+  private async loadTables(tenantId: string, generation: number) {
+    this.isLoading.set(true);
+    this.loadError.set(null);
+    try {
+      await this.tablesService.fetchTables(tenantId);
+    } catch {
+      if (generation === this.fetchGeneration) {
+        this.loadError.set('Não foi possível carregar as mesas desta unidade.');
+      }
+    } finally {
+      if (generation === this.fetchGeneration) this.isLoading.set(false);
+    }
+  }
+
+  async createTable() {
+    if (this.isSavingTable() || !this.canManageTables()) return;
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    const number = Number(this.newTable.number);
+    const capacity = Number(this.newTable.capacity);
+    const zone = this.newTable.zone.trim();
+    if (!tenantId || !Number.isInteger(number) || number < 1 || number > 9999 ||
+        !Number.isInteger(capacity) || capacity < 1 || capacity > 100 || !zone) {
+      this.formError.set('Informe número, capacidade e área válidos.');
+      return;
+    }
+
+    this.isSavingTable.set(true);
+    this.formError.set(null);
+    try {
+      await this.tablesService.createTable({ number, capacity, zone, tenantId });
+      this.newTable.number = 1;
+      this.newTable.capacity = 2;
+      this.newTable.zone = 'Salão';
+      this.showCreateForm.set(false);
+      this.ecosystem.notify('Mesa cadastrada.', this.ecosystem.isSimulationMode() ? 'info' : 'success');
+    } catch {
+      this.formError.set('Não foi possível cadastrar. Verifique se já existe uma mesa com este número.');
+    } finally {
+      this.isSavingTable.set(false);
+    }
+  }
 
   selectTable(t: TableInfo) {
     this.selectedTableId.set(t.id);
@@ -220,7 +349,6 @@ export class EAppTablesWindow {
     try {
       await this.tablesService.updateTable(tableId, {
         status: 'available',
-        currentTotal: 0,
         guests: 0,
         server: ''
       });

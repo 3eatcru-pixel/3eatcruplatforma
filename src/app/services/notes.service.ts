@@ -11,8 +11,9 @@ export class NotesService {
   
   readonly notes = signal<MemoNote[]>([]);
 
-  async fetchNotes(): Promise<MemoNote[]> {
-    const data = await firstValueFrom(this.http.get<MemoNote[]>('/api/notes'));
+  async fetchNotes(tenantId?: string): Promise<MemoNote[]> {
+    const url = tenantId ? `/api/notes?tenantId=${encodeURIComponent(tenantId)}` : '/api/notes';
+    const data = await firstValueFrom(this.http.get<MemoNote[]>(url));
     this.notes.set(data);
     return data;
   }

@@ -31,6 +31,32 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
   return clean as T;
 }
 
+function reservationsOverlap(candidate: Pick<Appointment, 'date' | 'time' | 'durationMinutes'>, existing: Appointment): boolean {
+  if (candidate.date !== existing.date) return false;
+  const toMinutes = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  const candidateStart = toMinutes(candidate.time);
+  const existingStart = toMinutes(existing.time);
+  const candidateEnd = candidateStart + (candidate.durationMinutes || 90);
+  const existingEnd = existingStart + (existing.durationMinutes || 90);
+  return candidateStart < existingEnd && existingStart < candidateEnd;
+}
+
+function canTransitionReservation(current: Appointment['status'], next: Appointment['status']): boolean {
+  if (current === next) return true;
+  const allowed: Record<Appointment['status'], readonly Appointment['status'][]> = {
+    pending: ['confirmed', 'cancelled'],
+    confirmed: ['seated', 'cancelled', 'no_show'],
+    seated: ['completed'],
+    cancelled: [],
+    completed: [],
+    no_show: []
+  };
+  return allowed[current].includes(next);
+}
+
 class ReservationDomainError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -51,7 +77,9 @@ reservationsRouter.post('/public', publicReservationRateLimiter, async (req: Req
   const customerPhone = String(body.customerPhone || '').trim();
   const date = String(body.date || '').trim();
   const time = String(body.time || '').trim();
-  const partySize = Math.min(30, Math.max(1, Number(body.partySize) || 2));
+  const requestedPartySize = Number(body.partySize) || 2;
+  const partySize = Math.min(30, Math.max(1, requestedPartySize));
+  const durationMinutes = Number(body.durationMinutes) || 90;
 
   if (!tenantId || customerName.length < 2 || customerPhone.replace(/\D/g, '').length < 8) {
     res.status(400).json({
@@ -66,6 +94,14 @@ reservationsRouter.post('/public', publicReservationRateLimiter, async (req: Req
       error: 'Data (YYYY-MM-DD) e horário (HH:mm) válidos são obrigatórios.',
       code: 'INVALID_DATETIME'
     });
+    return;
+  }
+  if (!Number.isInteger(requestedPartySize) || requestedPartySize < 1 || requestedPartySize > 30) {
+    res.status(400).json({ error: 'Grupo deve ter entre 1 e 30 pessoas.', code: 'INVALID_PARTY_SIZE' });
+    return;
+  }
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) {
+    res.status(400).json({ error: 'Duração deve estar entre 15 e 480 minutos.', code: 'INVALID_DURATION' });
     return;
   }
 
@@ -111,7 +147,7 @@ reservationsRouter.post('/public', publicReservationRateLimiter, async (req: Req
       serviceType: body.serviceType ? String(body.serviceType).slice(0, 80) : 'Reserva de Mesa',
       date,
       time,
-      durationMinutes: Number(body.durationMinutes) || 90,
+      durationMinutes,
       status: 'pending',
       notes: body.notes ? String(body.notes).slice(0, 300) : undefined,
       staffUids,
@@ -272,14 +308,35 @@ reservationsRouter.post('/', requireAuth, async (req: Request, res: Response) =>
   const desiredStatus: Appointment['status'] = VALID_STATUSES.has(body.status)
     ? body.status
     : 'confirmed';
+  if (body.status !== undefined && !VALID_STATUSES.has(body.status)) {
+    res.status(400).json({ error: 'Status de reserva inválido.', code: 'INVALID_STATUS' });
+    return;
+  }
+  if (!['pending', 'confirmed', 'seated'].includes(desiredStatus)) {
+    res.status(400).json({ error: 'Uma reserva nova só pode começar pendente, confirmada ou acomodada.', code: 'INVALID_INITIAL_STATUS' });
+    return;
+  }
   const requestedTableId = body.tableId ? String(body.tableId).trim() : undefined;
-  const partySize = Math.min(30, Math.max(1, Number(body.partySize) || 2));
+  const requestedPartySize = Number(body.partySize) || 2;
+  const partySize = Math.min(30, Math.max(1, requestedPartySize));
+  const durationMinutes = Number(body.durationMinutes) || 90;
+  if (!Number.isInteger(requestedPartySize) || requestedPartySize < 1 || requestedPartySize > 30) {
+    res.status(400).json({ error: 'Grupo deve ter entre 1 e 30 pessoas.', code: 'INVALID_PARTY_SIZE' });
+    return;
+  }
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 480) {
+    res.status(400).json({ error: 'Duração deve estar entre 15 e 480 minutos.', code: 'INVALID_DURATION' });
+    return;
+  }
 
   try {
     const created = await adminDb.runTransaction(async (tx) => {
       const tenantRef = adminDb.collection('tenants').doc(assignedTenantId);
       const tenantSnap = await tx.get(tenantRef);
       const tenantData = tenantSnap.exists ? (tenantSnap.data() as CompanyTenant) : undefined;
+      if (!tenantData) {
+        throw new ReservationDomainError(404, 'TENANT_NOT_FOUND', 'Estabelecimento não encontrado.');
+      }
       const staffUids = Array.isArray(tenantData?.staffUids)
         ? tenantData!.staffUids!.slice(0, 20)
         : req.user?.id
@@ -314,6 +371,22 @@ reservationsRouter.post('/', requireAuth, async (req: Request, res: Response) =>
             `Mesa ${table.number} já está ocupada no momento.`
           );
         }
+        if (partySize > Number(table.capacity || 0)) {
+          throw new ReservationDomainError(422, 'TABLE_CAPACITY_EXCEEDED', 'A mesa não comporta o grupo informado.');
+        }
+        if (desiredStatus === 'confirmed' || desiredStatus === 'seated') {
+          const tableReservations = await tx.get(
+            adminDb.collection('reservations').where('tableId', '==', requestedTableId)
+          );
+          const conflictingReservation = tableReservations.docs
+            .map((item) => item.data() as Appointment)
+            .find((item) => item.tenantId === assignedTenantId &&
+              (item.status === 'confirmed' || item.status === 'seated') &&
+              reservationsOverlap({ date, time, durationMinutes }, item));
+          if (conflictingReservation) {
+            throw new ReservationDomainError(409, 'TABLE_TIME_CONFLICT', 'A mesa já possui uma reserva neste horário.');
+          }
+        }
         resolvedTableNumber = table.number;
 
         if (desiredStatus === 'seated') {
@@ -341,7 +414,7 @@ reservationsRouter.post('/', requireAuth, async (req: Request, res: Response) =>
         serviceType: body.serviceType ? String(body.serviceType).slice(0, 80) : 'Reserva de Mesa',
         date,
         time,
-        durationMinutes: Number(body.durationMinutes) || 90,
+        durationMinutes,
         status: desiredStatus,
         notes: body.notes ? String(body.notes).slice(0, 300) : undefined,
         staffUids,
@@ -389,6 +462,14 @@ reservationsRouter.patch('/:id/status', requireAuth, async (req: Request, res: R
 
       const current = resSnap.data() as Appointment;
 
+      if (!canTransitionReservation(current.status, nextStatus)) {
+        throw new ReservationDomainError(
+          409,
+          'INVALID_RESERVATION_TRANSITION',
+          `Não é possível alterar uma reserva de ${current.status} para ${nextStatus}.`
+        );
+      }
+
       if (req.user?.role === 'consumer') {
         if (!current.customerId || current.customerId !== req.user.id || nextStatus !== 'cancelled') {
           throw new ReservationDomainError(
@@ -413,6 +494,13 @@ reservationsRouter.patch('/:id/status', requireAuth, async (req: Request, res: R
         );
       }
 
+      if (explicitTableId && !['confirmed', 'seated'].includes(nextStatus)) {
+        throw new ReservationDomainError(400, 'INVALID_TABLE_ASSIGNMENT', 'Mesa só pode ser atribuída ao confirmar ou acomodar a reserva.');
+      }
+      if (explicitTableId && current.tableId && explicitTableId !== current.tableId) {
+        throw new ReservationDomainError(409, 'RESERVATION_TABLE_ALREADY_ASSIGNED', 'Remova a mesa atual antes de atribuir outra.');
+      }
+
       const targetTableId = explicitTableId || current.tableId;
       let resolvedTableNumber = current.tableNumber;
 
@@ -432,6 +520,23 @@ reservationsRouter.patch('/:id/status', requireAuth, async (req: Request, res: R
               'Mesa pertence a outro estabelecimento.'
             );
           }
+          if ((current.partySize || 2) > Number(table.capacity || 0)) {
+            throw new ReservationDomainError(422, 'TABLE_CAPACITY_EXCEEDED', 'A mesa não comporta o grupo informado.');
+          }
+          if (nextStatus === 'confirmed' || nextStatus === 'seated') {
+            const tableReservations = await tx.get(
+              adminDb.collection('reservations').where('tableId', '==', targetTableId)
+            );
+            const conflictingReservation = tableReservations.docs
+              .filter((item) => item.id !== id)
+              .map((item) => item.data() as Appointment)
+              .find((item) => item.tenantId === current.tenantId &&
+                (item.status === 'confirmed' || item.status === 'seated') &&
+                reservationsOverlap(current, item));
+            if (conflictingReservation) {
+              throw new ReservationDomainError(409, 'TABLE_TIME_CONFLICT', 'A mesa já possui uma reserva neste horário.');
+            }
+          }
           resolvedTableNumber = table.number;
 
           if (nextStatus === 'seated') {
@@ -449,7 +554,14 @@ reservationsRouter.patch('/:id/status', requireAuth, async (req: Request, res: R
             (nextStatus === 'cancelled' || nextStatus === 'no_show') &&
             table.status === 'reserved'
           ) {
-            tx.update(tableRef, { status: 'available', guests: 0 });
+            const tableReservations = await tx.get(
+              adminDb.collection('reservations').where('tableId', '==', targetTableId)
+            );
+            const otherConfirmedReservation = tableReservations.docs
+              .filter((item) => item.id !== id)
+              .map((item) => item.data() as Appointment)
+              .some((item) => item.tenantId === current.tenantId && item.status === 'confirmed');
+            if (!otherConfirmedReservation) tx.update(tableRef, { status: 'available', guests: 0 });
           }
         }
       }

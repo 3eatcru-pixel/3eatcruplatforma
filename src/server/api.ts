@@ -12,6 +12,11 @@ import { paymentsRouter } from './routes/payments.router';
 import { crmRouter } from './routes/crm.router';
 import { reservationsRouter } from './routes/reservations.router';
 import { notesRouter } from './routes/notes.router';
+import { hrRouter } from './routes/hr.router';
+import { serviceOrdersRouter } from './routes/service-orders.router';
+import { suppliersRouter } from './routes/suppliers.router';
+import { stockAuditsRouter } from './routes/stock-audits.router';
+import { tasksRouter } from './routes/tasks.router';
 import { authContext } from './middleware/auth.middleware';
 import { apiGeneralRateLimiter } from './middleware/rate-limiter.middleware';
 
@@ -35,6 +40,11 @@ apiRouter.use('/logistics', logisticsRouter);
 apiRouter.use('/payments', paymentsRouter);
 apiRouter.use('/crm', crmRouter);
 apiRouter.use('/notes', notesRouter);
+apiRouter.use('/hr', hrRouter);
+apiRouter.use('/service-orders', serviceOrdersRouter);
+apiRouter.use('/suppliers', suppliersRouter);
+apiRouter.use('/stock-audits', stockAuditsRouter);
+apiRouter.use('/tasks', tasksRouter);
 apiRouter.use('/reservations', reservationsRouter);
 apiRouter.use('/appointments', reservationsRouter);
 

@@ -1098,6 +1098,13 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         role: 'operator',
         tenantId: 'tenant-b'
       });
+      mockTokens.set('tok-waiter-a', {
+        uid: 'uid-waiter-a',
+        email: 'salao@burgera.com.br',
+        email_verified: true,
+        role: 'waiter',
+        tenantId: 'tenant-a'
+      });
       mockTokens.set('tok-driver-1', {
         uid: 'uid-driver-1',
         email: 'driver1@motoboy.com',
@@ -1138,6 +1145,59 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
       });
 
       await withServer(async (baseUrl) => {
+        // 8.0 Table management is tenant-scoped and guards status/financial fields
+        const createdTableResponse = await fetch(`${baseUrl}/api/tables`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', number: 11, capacity: 4, zone: 'Salão' })
+        });
+        expect(createdTableResponse.status).toBe(201);
+        const createdTable = (await createdTableResponse.json()) as Record<string, unknown>;
+        const createdTableId = String(createdTable['id']);
+        expect(createdTable['status']).toBe('available');
+        expect(createdTable['currentTotal']).toBe(0);
+
+        const duplicateTableResponse = await fetch(`${baseUrl}/api/tables`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', number: 11, capacity: 2 })
+        });
+        expect(duplicateTableResponse.status).toBe(409);
+        expect(((await duplicateTableResponse.json()) as Record<string, unknown>)['code']).toBe('TABLE_NUMBER_EXISTS');
+
+        const waiterCreateTable = await fetch(`${baseUrl}/api/tables`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-waiter-a' },
+          body: JSON.stringify({ number: 12, capacity: 2 })
+        });
+        expect(waiterCreateTable.status).toBe(403);
+
+        const openTable = await fetch(`${baseUrl}/api/tables/${createdTableId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ status: 'occupied', guests: 2, server: 'Operador' })
+        });
+        expect(openTable.status).toBe(200);
+
+        const forgedBalanceUpdate = await fetch(`${baseUrl}/api/tables/${createdTableId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ currentTotal: 0 })
+        });
+        expect(forgedBalanceUpdate.status).toBe(400);
+
+        getCol('tables').set(createdTableId, {
+          ...getCol('tables').get(createdTableId)!,
+          currentTotal: 25
+        });
+        const releaseTableWithBalance = await fetch(`${baseUrl}/api/tables/${createdTableId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ status: 'available' })
+        });
+        expect(releaseTableWithBalance.status).toBe(409);
+        expect(((await releaseTableWithBalance.json()) as Record<string, unknown>)['code']).toBe('TABLE_BALANCE_OPEN');
+
         // 8.1 Public booking creates pending reservation on active store
         const pubRes = await fetch(`${baseUrl}/api/reservations/public`, {
           method: 'POST',
@@ -1219,6 +1279,14 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         expect(getCol('tables').get('tbl-a1')?.['status']).toBe('occupied');
         expect(getCol('tables').get('tbl-a1')?.['guests']).toBe(4);
 
+        const invalidReservationTransition = await fetch(`${baseUrl}/api/reservations/${resId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ status: 'cancelled' })
+        });
+        expect(invalidReservationTransition.status).toBe(409);
+        expect(((await invalidReservationTransition.json()) as Record<string, unknown>)['code']).toBe('INVALID_RESERVATION_TRANSITION');
+
         // 8.6 Assigning already-occupied tbl-a1 to a new walk-in reservation returns 409 TABLE_OCCUPIED
         const conflictRes = await fetch(`${baseUrl}/api/reservations`, {
           method: 'POST',
@@ -1256,6 +1324,21 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         expect(secondResResp.status).toBe(201);
         const secondCreated = (await secondResResp.json()) as Record<string, unknown>;
         expect(getCol('tables').get('tbl-a2')?.['status']).toBe('reserved');
+
+        const overlappingReservation = await fetch(`${baseUrl}/api/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({
+            customerName: 'Reserva em conflito',
+            partySize: 2,
+            date: '2026-11-15',
+            time: '21:30',
+            tableId: 'tbl-a2',
+            status: 'confirmed'
+          })
+        });
+        expect(overlappingReservation.status).toBe(409);
+        expect(((await overlappingReservation.json()) as Record<string, unknown>)['code']).toBe('TABLE_TIME_CONFLICT');
 
         const cancelSecond = await fetch(
           `${baseUrl}/api/reservations/${String(secondCreated['id'])}/status`,
@@ -1315,6 +1398,247 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         expect(takeoutOrder['type']).toBe('takeout');
         expect(takeoutOrder['tax']).toBe(0);
         expect(takeoutOrder['total']).toBe(takeoutOrder['subtotal']);
+      });
+    });
+
+    it('9. CRM protege perfil, fidelidade e campanhas por titular e unidade', async () => {
+      getCol('consumers').set('uid-consumer-1', {
+        id: 'uid-consumer-1',
+        name: 'Cliente Mariana',
+        email: 'cliente@gmail.com',
+        pointsBalance: 20,
+        loyaltyTier: 'silver'
+      });
+
+      await withServer(async (baseUrl) => {
+        const selfProfileUpdate = await fetch(`${baseUrl}/api/crm/consumers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-consumer-1' },
+          body: JSON.stringify({ name: 'Cliente Mariana', phone: '11999990000', pointsBalance: 9000, loyaltyTier: 'gold' })
+        });
+        expect(selfProfileUpdate.status).toBe(201);
+        expect(getCol('consumers').get('uid-consumer-1')?.['pointsBalance']).toBe(20);
+        expect(getCol('consumers').get('uid-consumer-1')?.['loyaltyTier']).toBe('silver');
+
+        const otherProfileUpdate = await fetch(`${baseUrl}/api/crm/consumers/uid-owner-a`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-consumer-1' },
+          body: JSON.stringify({ name: 'Alterado', pointsBalance: 9999 })
+        });
+        expect(otherProfileUpdate.status).toBe(403);
+
+        const loyaltyWrite = await fetch(`${baseUrl}/api/crm/loyalty`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-consumer-1' },
+          body: JSON.stringify({ consumerId: 'uid-owner-a', points: 9999 })
+        });
+        expect(loyaltyWrite.status).toBe(501);
+        expect(getCol('consumers').get('uid-owner-a')?.['pointsBalance']).toBeUndefined();
+
+        const consumerCampaignList = await fetch(`${baseUrl}/api/crm/campaigns`, {
+          headers: { Authorization: 'Bearer tok-consumer-1' }
+        });
+        expect(consumerCampaignList.status).toBe(403);
+
+        const createCampaign = await fetch(`${baseUrl}/api/crm/campaigns`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', title: 'Aviso da loja', platform: 'whatsapp', content: 'Mensagem de teste' })
+        });
+        expect(createCampaign.status).toBe(201);
+        const campaign = (await createCampaign.json()) as Record<string, unknown>;
+        expect(campaign['status']).toBe('draft');
+        expect(campaign['tenantId']).toBe('tenant-a');
+
+        const dispatchCampaign = await fetch(`${baseUrl}/api/crm/campaigns/${String(campaign['id'])}/dispatch`, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer tok-op-a' }
+        });
+        expect(dispatchCampaign.status).toBe(501);
+
+        const crossTenantCampaigns = await fetch(`${baseUrl}/api/crm/campaigns?tenantId=tenant-b`, {
+          headers: { Authorization: 'Bearer tok-op-a' }
+        });
+        expect(crossTenantCampaigns.status).toBe(403);
+      });
+    });
+
+    it('10. RH e notas respeitam vínculo da conta e da unidade', async () => {
+      getCol('hr_employees').set('legacy-hr-record', {
+        id: 'legacy-hr-record', tenantId: 'tenant-a', name: 'Registro legado', role: 'caixa', shift: 'integral',
+        hireDate: '2025-01-01', status: 'active', cpf: '12345678900', salary: 8500
+      });
+      await withServer(async (baseUrl) => {
+        const createEmployee = await fetch(`${baseUrl}/api/hr/employees`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-a' },
+          body: JSON.stringify({
+            tenantId: 'tenant-a', name: 'Joana Operações', role: 'atendente', shift: 'tarde', hireDate: '2026-10-20',
+            cpf: '12345678900', salary: 9000
+          })
+        });
+        expect(createEmployee.status).toBe(201);
+        const employee = await createEmployee.json() as Record<string, unknown>;
+        expect(employee['tenantId']).toBe('tenant-a');
+        expect(employee['cpf']).toBeUndefined();
+        expect(employee['salary']).toBeUndefined();
+
+        const employeeList = await fetch(`${baseUrl}/api/hr/employees`, {
+          headers: { Authorization: 'Bearer tok-owner-a' }
+        });
+        const employees = await employeeList.json() as Record<string, unknown>[];
+        const legacy = employees.find((item) => item['id'] === 'legacy-hr-record');
+        expect(legacy?.['cpf']).toBeUndefined();
+        expect(legacy?.['salary']).toBeUndefined();
+
+        const waiterCreate = await fetch(`${baseUrl}/api/hr/employees`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-waiter-a' },
+          body: JSON.stringify({ name: 'Não autorizado', role: 'atendente', shift: 'integral' })
+        });
+        expect(waiterCreate.status).toBe(403);
+
+        const crossTenantList = await fetch(`${baseUrl}/api/hr/employees?tenantId=tenant-a`, {
+          headers: { Authorization: 'Bearer tok-owner-b' }
+        });
+        expect(crossTenantList.status).toBe(403);
+
+        const clockIn = await fetch(`${baseUrl}/api/hr/employees/${String(employee['id'])}/clock`, {
+          method: 'POST', headers: { Authorization: 'Bearer tok-op-a' }
+        });
+        expect(clockIn.status).toBe(201);
+        expect((await clockIn.json() as Record<string, unknown>)['type']).toBe('in');
+        const clockOut = await fetch(`${baseUrl}/api/hr/employees/${String(employee['id'])}/clock`, {
+          method: 'POST', headers: { Authorization: 'Bearer tok-op-a' }
+        });
+        expect((await clockOut.json() as Record<string, unknown>)['type']).toBe('out');
+
+        const createNote = await fetch(`${baseUrl}/api/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', title: 'Abertura', content: 'Conferir salão', color: 'yellow' })
+        });
+        expect(createNote.status).toBe(201);
+        const note = await createNote.json() as Record<string, unknown>;
+        expect(note['tenantId']).toBe('tenant-a');
+
+        const crossTenantNote = await fetch(`${baseUrl}/api/notes?tenantId=tenant-b`, {
+          headers: { Authorization: 'Bearer tok-owner-a' }
+        });
+        expect(crossTenantNote.status).toBe(403);
+        const noteDeleteByOtherUser = await fetch(`${baseUrl}/api/notes/${String(note['id'])}`, {
+          method: 'DELETE', headers: { Authorization: 'Bearer tok-owner-b' }
+        });
+        expect(noteDeleteByOtherUser.status).toBe(404);
+      });
+    });
+
+    it('11. Ordens de serviço são isoladas por loja, com transição autorizada e sem liquidação fictícia', async () => {
+      await withServer(async (baseUrl) => {
+        const createOrder = await fetch(`${baseUrl}/api/service-orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', customerName: 'Cliente Serviço', description: 'Revisão preventiva', equipment: 'Forno', finalPrice: 900 })
+        });
+        expect(createOrder.status).toBe(201);
+        const order = await createOrder.json() as Record<string, unknown>;
+        expect(order['status']).toBe('open');
+        expect(order['tenantId']).toBe('tenant-a');
+        expect(order['finalPrice']).toBeUndefined();
+
+        const waiterTransition = await fetch(`${baseUrl}/api/service-orders/${String(order['id'])}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-waiter-a' },
+          body: JSON.stringify({ status: 'in_progress' })
+        });
+        expect(waiterTransition.status).toBe(403);
+
+        const crossTenantTransition = await fetch(`${baseUrl}/api/service-orders/${String(order['id'])}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-b' },
+          body: JSON.stringify({ status: 'in_progress' })
+        });
+        expect(crossTenantTransition.status).toBe(404);
+
+        const validTransition = await fetch(`${baseUrl}/api/service-orders/${String(order['id'])}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ status: 'in_progress', progress: 45 })
+        });
+        expect(validTransition.status).toBe(200);
+        expect((await validTransition.json() as Record<string, unknown>)['progressPercent']).toBe(45);
+
+        const fakeSettlement = await fetch(`${baseUrl}/api/service-orders/${String(order['id'])}/settle`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ paymentMethod: 'pix' })
+        });
+        expect(fakeSettlement.status).toBe(404);
+      });
+    });
+
+    it('12. Fornecedores e contagens de estoque persistem sem cruzar unidades ou ajustar saldo automaticamente', async () => {
+      getCol('products').set('prod-burger-b', {
+        id: 'prod-burger-b', tenantId: 'tenant-b', name: 'Produto Loja B', category: 'Geral', price: 10,
+        costPrice: 5, stock: 7, minStock: 1, barcode: '7892', sku: 'SKU-B', image: '', availableOnline: true, description: ''
+      });
+      getCol('suppliers').set('sup-b', {
+        id: 'sup-b', tenantId: 'tenant-b', name: 'Fornecedor B', category: 'Geral', contactName: '', phone: '', email: '', status: 'active'
+      });
+      await withServer(async (baseUrl) => {
+        const createSupplier = await fetch(`${baseUrl}/api/suppliers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', name: 'Distribuidora A', category: 'Bebidas', contactName: 'Ana', phone: '11999990000' })
+        });
+        expect(createSupplier.status).toBe(201);
+        const supplier = await createSupplier.json() as Record<string, unknown>;
+        expect(supplier['tenantId']).toBe('tenant-a');
+
+        const rivalSupplierList = await fetch(`${baseUrl}/api/suppliers?tenantId=tenant-a`, {
+          headers: { Authorization: 'Bearer tok-owner-b' }
+        });
+        expect(rivalSupplierList.status).toBe(403);
+
+        const crossTenantSupplierLink = await fetch(`${baseUrl}/api/products`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', name: 'Produto sem vínculo cruzado', price: 1, supplierId: 'sup-b' })
+        });
+        expect(crossTenantSupplierLink.status).toBe(400);
+
+        const count = await fetch(`${baseUrl}/api/stock-audits`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', entries: [{ productId: 'prod-burger-a', countedStock: 8 }] })
+        });
+        expect(count.status).toBe(201);
+        const audit = await count.json() as Record<string, unknown>;
+        const entries = audit['entries'] as Record<string, unknown>[];
+        expect(entries[0]?.['systemStock']).toBe(10);
+        expect(entries[0]?.['difference']).toBe(-2);
+        expect(getCol('products').get('prod-burger-a')?.['stock']).toBe(10);
+
+        const crossTenantCount = await fetch(`${baseUrl}/api/stock-audits`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-owner-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', entries: [{ productId: 'prod-burger-b', countedStock: 7 }] })
+        });
+        expect(crossTenantCount.status).toBe(403);
+
+        const createTask = await fetch(`${baseUrl}/api/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ tenantId: 'tenant-a', title: 'Conferir abertura', sector: 'Caixa' })
+        });
+        expect(createTask.status).toBe(201);
+        const task = await createTask.json() as Record<string, unknown>;
+        const completeTask = await fetch(`${baseUrl}/api/tasks/${String(task['id'])}/completed`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
+          body: JSON.stringify({ completed: true })
+        });
+        expect(completeTask.status).toBe(200);
+        expect((await completeTask.json() as Record<string, unknown>)['completed']).toBe(true);
       });
     });
   });

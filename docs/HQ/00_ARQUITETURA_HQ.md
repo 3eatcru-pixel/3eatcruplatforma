@@ -46,4 +46,4 @@ O HQ não é uma loja e não executa vendas de tenant. A autorização das rotas
 
 ## Validação
 
-Este mapa foi elaborado por inspeção de código e documentação. No ciclo de 2026-11-01, `npm run test:ci` passou com 90/90 testes e `npm run build` compilou para produção; os testes usam mocks e não comprovam homologação do HQ contra um Firestore real.
+Este mapa foi elaborado por inspeção de código e documentação. No ciclo de 2026-11-01, `npm run test:ci` passou com 94/94 testes e `npm run build` compilou para produção; os testes usam mocks e não comprovam homologação do HQ contra um Firestore real.

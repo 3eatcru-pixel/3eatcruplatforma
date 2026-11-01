@@ -177,6 +177,19 @@ productsRouter.post(
       return;
     }
 
+    if (body.supplierId) {
+      try {
+        const supplier = await adminDb.collection('suppliers').doc(String(body.supplierId)).get();
+        if (!supplier.exists || supplier.data()?.['tenantId'] !== body.tenantId) {
+          res.status(400).json({ error: 'Fornecedor não pertence à unidade informada.', code: 'INVALID_SUPPLIER' });
+          return;
+        }
+      } catch {
+        res.status(500).json({ error: 'Falha ao validar fornecedor.' });
+        return;
+      }
+    }
+
     const id = 'prod-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 5);
     const newProd: ProductItem = {
       id,
@@ -238,6 +251,14 @@ productsRouter.patch('/:id', requireAuth, async (req: Request, res: Response) =>
     const updates = { ...req.body };
     delete updates.id;
     delete updates.tenantId;
+
+    if (updates.supplierId) {
+      const supplier = await adminDb.collection('suppliers').doc(String(updates.supplierId)).get();
+      if (!supplier.exists || supplier.data()?.['tenantId'] !== prod.tenantId) {
+        res.status(400).json({ error: 'Fornecedor não pertence à unidade deste produto.', code: 'INVALID_SUPPLIER' });
+        return;
+      }
+    }
 
     if (updates.price !== undefined) {
       const price = Number(updates.price);

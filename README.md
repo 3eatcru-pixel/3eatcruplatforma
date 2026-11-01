@@ -2,7 +2,7 @@
 
 Este repositório contém a implementação web do ecossistema 3EATCRU. O estado dos módulos e seus limites estão no [mapa de maturidade](./MODULE_STATUS.md).
 
-> **Estado em 2026-11-01:** auditoria documental e correções em andamento. Build, testes e homologação operacional não foram executados nesta revisão.
+> **Estado em 2026-11-01:** auditoria e correções locais concluídas para os módulos descritos em `MODULE_STATUS.md`. Lint, suíte CI e build de produção foram executados nesta revisão; Firebase real, provedores externos e hardware ainda dependem de homologação.
 
 ## Arquitetura implementada
 
@@ -16,7 +16,7 @@ A stack descrita acima é a que está implementada neste checkout. O repositóri
 ## Ambientes e rotas
 
 - **HQ Central:** /hq. Governança de lojas, responsáveis, catálogo de planos e configurações da plataforma.
-- **Store OS Lojista:** /os. Desktop da unidade; o PDV operacional está na rota protegida /pos. A maioria dos atalhos do desktop ainda mostra interface não integrada.
+- **Store OS Lojista:** /os. Desktop da unidade; o PDV operacional está na rota protegida /pos. Há 21 eApps operacionais, três simuladores e oito módulos externos/administrativos em próxima etapa; o mapa por ID está na documentação de módulos.
 - **Público e Marketplace:** /home e /p/:id. Descoberta regional, vitrine e jornada de pedidos.
 - **Rotas web auxiliares:** /waiter e /driver. São interfaces web; este repositório não comprova APK, PWA instalado ou rastreamento nativo em segundo plano.
 
@@ -42,8 +42,8 @@ O índice canônico é [docs/INDEX.md](./docs/INDEX.md). O arquivo [docs/00_INDI
 
 ## Comandos disponíveis
 
-- Requer Node.js 24.12+ para atender aos requisitos do Firebase Client SDK, do Firebase Admin SDK e do Angular CLI presentes no lockfile.
-- `npm start` / `npm run dev`: servidor de desenvolvimento na porta 3000. Confere o `package-lock.json` e as dependências locais; roda `npm ci` somente se faltarem ou divergirem. A primeira inicialização sem `node_modules` pode levar alguns minutos; os starts seguintes reutilizam a instalação.
+- Requer Node.js 24.12+ conforme a engine de `@firebase/app` travada no lockfile; Firebase Admin requer Node 22+ e Angular 21 também é atendido por essa versão.
+- `npm start` / `npm run dev`: servidor de desenvolvimento na porta 3000. Os hooks `prestart`/`predev` conferem o `package-lock.json` e as dependências locais; rodam `npm ci` somente se faltarem ou divergirem. A primeira inicialização sem `node_modules` pode levar alguns minutos; os starts seguintes reutilizam a instalação.
 - `npm ci`: instalação manual e reproduzível a partir do lockfile, útil para build, testes e lint antes de iniciar a aplicação.
 - npm run lint: lint configurado no projeto.
 - npm run test:ci: testes configurados para execução sem watch.

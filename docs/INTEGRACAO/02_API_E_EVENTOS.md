@@ -8,6 +8,7 @@ Prefixos montados em src/server/api.ts:
 
 - /api/health, /api/auth, /api/hq, /api/tenants, /api/products, /api/orders.
 - /api/tables, /api/financials, /api/logistics, /api/payments, /api/crm, /api/notes.
+- /api/hr, /api/service-orders, /api/suppliers, /api/stock-audits, /api/tasks.
 - /api/reservations; /api/appointments é um alias para o mesmo roteador.
 
 ---
@@ -63,7 +64,7 @@ Prefixos montados em src/server/api.ts:
   - Serviços Angular em `src/app/services/` usam `HttpClient` para disparar as requisições, interceptadas automaticamente por `auth.interceptor.ts`.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta revisão, `npm run test:ci` passou com 90/90 testes e o build de produção passou. A suíte inclui mocks e cenários de API/segurança, mas não valida todos os endpoints individualmente nem substitui integração ao vivo com Firebase ou provedores de pagamento. Consulte [testes e recuperação](./04_TESTES_E_RECUPERACAO.md) para os comandos, medições e limites da validação.
+- Nesta revisão, `npm run test:ci` passou com 94/94 testes e o build de produção passou. A suíte inclui mocks e cenários de API/segurança, mas não valida todos os endpoints individualmente nem substitui integração ao vivo com Firebase ou provedores de pagamento. Consulte [testes e recuperação](./04_TESTES_E_RECUPERACAO.md) para os comandos, medições e limites da validação.
 
 ---
 
@@ -71,15 +72,20 @@ Prefixos montados em src/server/api.ts:
 
 | Roteador | Rota Base | Classificação | Arquivo de Código |
 |---|---|---|---|
-| Autenticação & Onboarding | `/api/auth` | Implementado (não retestado nesta revisão) | `src/server/routes/auth.router.ts` |
-| Estabelecimentos & Perfil | `/api/tenants` | Implementado (não retestado nesta revisão) | `src/server/routes/tenants.router.ts` |
-| Produtos & Cardápio | `/api/products` | Implementado (não retestado nesta revisão) | `src/server/routes/products.router.ts` |
-| Pedidos & Fluxo Comercial | `/api/orders` | Implementado (não retestado nesta revisão) | `src/server/routes/orders.router.ts` |
-| Pagamentos & Gateways | `/api/payments` | Implementado (não retestado nesta revisão) | `src/server/routes/payments.router.ts` |
-| Mesas do Salão | `/api/tables` | Implementado (não retestado nesta revisão) | `src/server/routes/tables.router.ts` |
-| Reservas & Fila de Espera | `/api/reservations` | Implementado (não retestado nesta revisão) | `src/server/routes/reservations.router.ts` |
-| Finanças & DRE | `/api/financials` | Implementado (não retestado nesta revisão) | `src/server/routes/financials.router.ts` |
-| Logística & Despacho | `/api/logistics` | Implementado (não retestado nesta revisão) | `src/server/routes/logistics.router.ts` |
-| Clientes & CRM | `/api/crm` | Implementado (não retestado nesta revisão) | `src/server/routes/crm.router.ts` |
-| Notas & Anotações | `/api/notes` | Implementado (não retestado nesta revisão) | `src/server/routes/notes.router.ts` |
-| Gabinete Executivo HQ | `/api/hq` | Implementado (não retestado nesta revisão) | `src/server/routes/hq.router.ts` |
+| Autenticação & Onboarding | `/api/auth` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/auth.router.ts` |
+| Estabelecimentos & Perfil | `/api/tenants` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/tenants.router.ts` |
+| Produtos & Cardápio | `/api/products` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/products.router.ts` |
+| Pedidos & Fluxo Comercial | `/api/orders` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/orders.router.ts` |
+| Pagamentos & Gateways | `/api/payments` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/payments.router.ts` |
+| Mesas do Salão | `/api/tables` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/tables.router.ts` |
+| Reservas & Fila de Espera | `/api/reservations` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/reservations.router.ts` |
+| Finanças & Livro-Caixa | `/api/financials` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/financials.router.ts` |
+| Logística & Despacho | `/api/logistics` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/logistics.router.ts` |
+| Clientes & CRM | `/api/crm` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/crm.router.ts` |
+| Notas & Anotações | `/api/notes` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/notes.router.ts` |
+| RH & Ponto | `/api/hr` | Implementado com cadastro operacional e registro manual; sem folha/CPF/salário | `src/server/routes/hr.router.ts` |
+| Ordens de Serviço | `/api/service-orders` | Implementado para abertura e transições; sem cobrança ou liquidação | `src/server/routes/service-orders.router.ts` |
+| Fornecedores | `/api/suppliers` | Diretório persistente por unidade; sem compras/recebimento | `src/server/routes/suppliers.router.ts` |
+| Contagem de estoque | `/api/stock-audits` | Registro de divergências sem ajuste automático do saldo | `src/server/routes/stock-audits.router.ts` |
+| Tarefas | `/api/tasks` | Checklist persistido por unidade | `src/server/routes/tasks.router.ts` |
+| Gabinete Executivo HQ | `/api/hq` | Implementado; suíte CI geral aprovada, cobertura por rota varia | `src/server/routes/hq.router.ts` |

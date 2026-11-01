@@ -28,4 +28,4 @@ OfflineSyncService executa a fila em sequência ao voltar a conexão, persiste c
 
 ## Validação
 
-Specs de resiliência existem em src/app/core/offline/offline-resilience.spec.ts e src/server/commerce_war_tests.spec.ts. Não foram executados nesta revisão; build e homologação de rede/dispositivos também não foram concluídos.
+As specs `src/app/core/offline/offline-resilience.spec.ts` e `src/server/commerce_war_tests.spec.ts` foram executadas em `npm run test:ci`; a suíte passou com 94/94 testes e o build passou. Os testes usam mocks; rede, recuperação física e Firestore real ainda não foram homologados.

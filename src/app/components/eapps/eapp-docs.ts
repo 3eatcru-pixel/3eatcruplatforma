@@ -39,8 +39,8 @@ import { MatIconModule } from '@angular/material/icon';
             </p>
             <ul class="text-xs text-stone-400 space-y-2 list-disc list-inside">
               <li><strong>HQ Central:</strong> Governança SaaS do dono da plataforma (planos, comissões, MDM).</li>
-              <li><strong>Store OS:</strong> Desktop da unidade, com PDV em rota própria; vários outros IDs ainda exibem placeholder.</li>
-              <li><strong>Marketplace Público:</strong> Experiência de compra do consumidor final e QR na Mesa.</li>
+              <li><strong>Store OS:</strong> Desktop da unidade com PDV em rota própria e janelas integradas de KDS, Mesas, Reservas, Estoque, Financeiro, Histórico, Relatórios, CRM e logística própria.</li>
+              <li><strong>Marketplace Público:</strong> Experiência de compra do consumidor final; a leitura de QR físico e totem não está homologada.</li>
             </ul>
           }
           @case ('pos') {

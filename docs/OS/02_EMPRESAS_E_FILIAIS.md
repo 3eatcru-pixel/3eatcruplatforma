@@ -40,7 +40,7 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
 - **Isolamento de Dados no Servidor (`src/server/core/commerce.engine.ts:87`):**
   - A função `resolveAuthoritativeTenantId` extrai obrigatoriamente o `tenantId` contido nas claims do usuário autenticado. Se o cliente tentar enviar um payload contendo outro `tenantId`, o servidor rejeita a transação com `403 TENANT_MISMATCH`.
 - **Interface de Configuração da Unidade:**
-  - O ID `store-manager` abre Minha Loja no desktop; `settings` continua como placeholder.
+  - O ID `store-manager` abre Minha Loja no desktop; `settings` abre preferências locais do desktop. Hardware e periféricos permanecem sem integração.
   - O endpoint de tenants existe; isso não significa que a edição esteja disponível por uma tela do Store OS.
 - **Seletor de Unidades no Ecossistema:**
   - Implementado em `src/app/services/ecosystem.service.ts:currentTenant`, onde o signal reativo mantém a unidade física ativa.
@@ -54,7 +54,7 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
 
 ### Perspectiva 4: Validação
 
-A suíte geral passou com 90/90 testes, mas usa mocks. Não houve homologação real de troca de unidade e isolamento entre filiais com dados do Firestore.
+A suíte geral passou com 94/94 testes, mas usa mocks. Não houve homologação real de troca de unidade e isolamento entre filiais com dados do Firestore.
 
 ---
 
@@ -63,7 +63,7 @@ A suíte geral passou com 90/90 testes, mas usa mocks. Não houve homologação 
 | Recurso Multiunidade | Classificação | Arquivo de Evidência | Observações |
 |---|---|---|---|
 | Isolamento Absoluto de Dados por Tenant | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:87` | Impossível ler ou gravar dados entre tenants distintos. |
-| Endpoint de alteração de dados da loja | 🟡 **Integrado parcialmente** | `src/server/routes/tenants.router.ts` e `src/app/components/eapps/eapp-store-manager.ts` | Minha Loja edita perfil, entrega e chave PIX; `settings` segue placeholder. A chave PIX é limitada a 77 caracteres, mas não tem validação de formato ou titularidade nem confirmação bancária automática. |
+| Endpoint de alteração de dados da loja | 🟡 **Integrado parcialmente** | `src/server/routes/tenants.router.ts` e `src/app/components/eapps/eapp-store-manager.ts` | Minha Loja edita perfil, entrega e chave PIX; `settings` mantém preferências locais e não configura dados da loja. A chave PIX é limitada a 77 caracteres, mas não tem validação de formato ou titularidade nem confirmação bancária automática. |
 | Controle de Abertura/Fechamento da Loja (`isOpen`) | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:221` | Loja fechada bloqueia pedidos online via código `422 STORE_CLOSED`. |
 | Proteção de Campos Corporativos pelo Servidor | 🟢 **Implementado e comprovado** | `src/server/routes/tenants.router.ts:194` | Lojista não consegue burlar plano ou limites de hardware. |
 | Seletor Rápido de Filiais no Topo do Desktop | 🟡 **Implementado parcialmente** | `src/app/services/ecosystem.service.ts` | O serviço suporta alternância de tenant; componente de dropdown visual entre filiais na barra de tarefas está ativo para donos multi-loja. |

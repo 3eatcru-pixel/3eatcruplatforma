@@ -60,7 +60,7 @@ export class CrmService {
   }
 
   async addLoyaltyPoints(consumerId: string, points: number): Promise<void> {
-    await firstValueFrom(this.http.post(`/api/crm/consumers/${consumerId}/loyalty`, { points }));
+    await firstValueFrom(this.http.post('/api/crm/loyalty', { consumerId, points }));
     this.consumerAccounts.update(cur => cur.map(c => {
       if (c.id === consumerId) {
         return { ...c, loyaltyPoints: (c.loyaltyPoints || 0) + points };
@@ -70,12 +70,12 @@ export class CrmService {
   }
 
   async createMarketingCampaign(campaign: Partial<MarketingCampaign>): Promise<void> {
-    const data = await firstValueFrom(this.http.post<MarketingCampaign>('/api/crm/marketing/campaigns', campaign));
+    const data = await firstValueFrom(this.http.post<MarketingCampaign>('/api/crm/campaigns', campaign));
     this.marketingCampaigns.update(cur => [data, ...cur]);
   }
 
   async dispatchCampaign(id: string): Promise<void> {
-    await firstValueFrom(this.http.post(`/api/crm/marketing/campaigns/${id}/dispatch`, {}));
+    await firstValueFrom(this.http.post(`/api/crm/campaigns/${id}/dispatch`, {}));
     this.marketingCampaigns.update(cur => cur.map(c => c.id === id ? { ...c, status: 'sent' } : c));
   }
 }

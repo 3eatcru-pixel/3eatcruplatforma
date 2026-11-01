@@ -2,7 +2,7 @@
 
 Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS / Omnichannel**. Caminhos e capacidades descritos aqui devem existir no repositório; presença de serviço/API não significa que exista uma tela integrada ao Store OS.
 
-**ESTADO DA AUDITORIA (2026-11-01)**: build de produção passou, lint passou e `npm run test:ci` passou com 90/90 testes. O bundle inicial mede 600,66 kB brutos (126,50 kB estimados em transferência), sem aviso de limite; avisos CommonJS de Leaflet e gRPC continuam. Não houve homologação com Firebase real nem validação de produção. O erro anterior de compilação por import de janela ausente não se reproduziu. O PDV segue como rota standalone `/pos`; KDS, Estoque e Financeiro agora abrem no desktop com escopos definidos abaixo. Consulte [testes e recuperação](./docs/INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para os limites da validação.
+**ESTADO DA AUDITORIA (2026-11-01)**: após as correções, lint e build de produção passaram e a suíte CI passou com 94/94 testes. O bundle inicial mede 604,53 kB brutos (129,08 kB estimados em transferência), sem aviso de limite; avisos CommonJS de Leaflet e gRPC continuam. Ainda não houve homologação com Firebase real. O PDV segue como rota standalone; os eApps integrados e seus limites estão discriminados abaixo. Consulte [testes e recuperação](./docs/INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para os limites da validação.
 
 ## Legenda Oficial de Classificação
 
@@ -31,7 +31,12 @@ Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS 
 | **Financials Router** (`routes/financials.router.ts`) | 🟢 **REAL** | Livro-razão por empresa (`income` / suprimento, `expense` / sangria, bloqueio de `sale` manual e estornos automáticos pelo `CommerceEngine`). |
 | **Universal Payment Proxy** (`routes/payments.router.ts`) | 🟡 **BETA** | Registra transações em `/payment_transactions`. PIX live pode ir direto à chave da loja, cadastrada em Minha Loja, mas a confirmação é manual. Dinheiro/voucher ficam sob gestão da loja. Cartão real é bloqueado enquanto não houver adquirente conectada ao tenant; a chave Stripe global não é usada para cobrar pedidos das lojas. Repetir a mesma tentativa pendente reutiliza a transação; trocar o meio fica bloqueado. Não há expiração/cancelamento automático, idempotência no PSP ou conciliação. |
 | **Logistics Router** (`routes/logistics.router.ts`) | 🟢 **REAL** | Rotas e entregadores (`/routes*`, `/drivers*`) desacoplados do `/api/hq`, aceite transacional com validação estrita de empresa/frota (`403 TENANT_MISMATCH`), vínculo `driverId` propagado aos pedidos e listagem restrita a pedidos atribuídos (`driverId === uid`). |
-| **CRM Router** (`routes/crm.router.ts`) | 🟡 **BETA** | Endpoint dedicado `/api/crm/consumers` desacoplado do namespace `/api/hq`, com escopo global para `hq_admin` e escopo por loja para `tenant_owner`/`operator`. |
+| **CRM Router** (`routes/crm.router.ts`) | 🟡 **BETA** | Diretório consumidor restrito ao HQ; campanhas são escopadas por loja e só permitem rascunhos. Pontos e envio externo retornam configuração pendente, sem alterar saldos ou alegar envio. |
+| **HR Router** (`routes/hr.router.ts`) | 🟡 **BETA** | Cadastro básico e ponto manual restritos a proprietário/operador da unidade; CPF, salário e folha não são coletados. |
+| **Service Orders Router** (`routes/service-orders.router.ts`) | 🟡 **BETA** | Criação/listagem e transições operacionais de O.S. por unidade; não registra valores recebidos nem liquidação. |
+| **Suppliers Router** (`routes/suppliers.router.ts`) | 🟡 **BETA** | Diretório persistente de fornecedores por unidade; produtos só podem referenciar fornecedor da mesma unidade. Compras/recebimento não fazem parte do fluxo. |
+| **Stock Audits Router** (`routes/stock-audits.router.ts`) | 🟡 **BETA** | Registro transacional de contagens e divergências, validando que todos os produtos pertencem ao tenant; não altera saldo de estoque. |
+| **Tasks Router** (`routes/tasks.router.ts`) | 🟡 **BETA** | Checklist persistido por unidade, com transição de conclusão protegida; atribuições individuais ainda não existem. |
 | **HQ Governance Router** (`routes/hq.router.ts`) | 🟡 **BETA** | Exclusivo `hq_admin` (exceto `GET /regional` público): visão global SaaS, planos, comissão (`{ percent }`), MDM de terminais, auditoria estrutural e separação `hq_settings` (privado) vs `public_regional` (público). |
 | **Camada Neutra Compartilhada** (`src/shared/`) | 🟢 **REAL** | Contratos tipados (`models/ecosystem.model.ts`) e motor puro de fila offline (`offline/offline-outbox.engine.ts`) compartilhados com **zero imports `src/app/` em `src/server/`**. |
 | **Arquivos Locais `.data/*.json`** | 🔴 **DISABLED** | Removidos definitivamente para eliminar duplicidade de fonte da verdade. |
@@ -46,19 +51,21 @@ Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS 
 | `OfflineSyncService` | 🟢 **REAL** | Fila offline do PDV com `X-Idempotency-Key`, detecção de conflito determinístico (`409 STOCK_CONFLICT`), cancelamento local auditável e alerta ao operador. |
 | `FirebaseService` | 🟢 **REAL** | Autenticação Google e *listeners* `onSnapshot` somente-leitura escopados por papel/tenant. |
 | `OrdersService` | 🟢 **REAL** | Consumo de `/api/orders` + projeção reativa em tempo real. |
-| `InventoryService` | 🟡 **BETA** | CRUD de produtos via `/api/products`; fixtures são carregadas somente no modo simulado. Promoções e fornecedores ainda não têm persistência (`🔵 MOCK`). |
+| `InventoryService` | 🟡 **BETA** | CRUD de produtos via `/api/products`; fixtures são carregadas somente no modo simulado. Promoções ainda são `🔵 MOCK`; fornecedores usam serviço/rota dedicada. |
 | `FinancialsService` | 🟢 **REAL** | Livro-razão hidratado exclusivamente por `/api/financials` (sem saldos fixos de `tenant-1`). |
 | `TenantsService` | 🟢 **REAL** | Gestão de estabelecimentos e vitrines públicas (`/api/tenants`). |
 | `TablesService` | 🟢 **REAL** | Mapa de mesas, setores e status `reserved`/`occupied` (`/api/tables`). |
 | `AppointmentsService` | 🟢 **REAL** | Reservas de mesa e fila de espera conectadas a `/api/reservations` e `/api/reservations/public`. |
 | `OsPreferencesService` | 🟢 **REAL** | Personalização persistente escopada por `(usuário, empresa)`, reordenação de atalhos, restauração de sessão de janelas e Perfis Operacionais por Segmento (`restaurant`, `retail_electro`, `pharmacy`, `automotive_services`). |
 | `MarketplaceService` | 🟢 **REAL** | Configuração regional (`/api/hq/regional`) e navegação para vitrines. |
-| `LogisticsService` / `HqService` / `CrmService` | 🟡 **BETA** | Conectados aos domínios segregados `/api/logistics/*`, `/api/hq/*` e `/api/crm/consumers`; submódulos de campanhas/crédito em homologação. |
+| `LogisticsService` / `HqService` / `CrmService` | 🟡 **BETA** | Conectados aos domínios segregados `/api/logistics/*`, `/api/hq/*` e `/api/crm/*`; pontos e despacho de campanhas permanecem desabilitados até configuração. |
+| `NotesService` | 🟡 **BETA** | Notas privadas persistidas por operador em `/api/notes`, filtradas pela unidade ativa quando informada. |
+| `HrService` / `ServiceOrdersService` | 🟡 **BETA** | Conectados aos novos routers `/api/hr/*` e `/api/service-orders/*`, com controle por unidade e papéis de gestão. |
+| `SuppliersService` / `StockAuditsService` / `TasksService` | 🟡 **BETA** | Diretório de fornecedores, registros de contagem e checklist operacional persistidos em coleções segregadas por tenant. |
 | `UiNotificationService` | 🟢 **REAL** | Serviço enxuto de notificações toast desacoplando guards de rota e preferências do OS do `EcosystemService`. |
 | `EcosystemService` | 🟡 **BETA** | Transformado em **Compatibility Facade** (`@deprecated` nos delegadores legados) sem `tenant-1` fixo, permitindo migração progressiva segura dos componentes. |
 | `GoogleDriveService` | 🟡 **BETA** | Fluxo OAuth client-side com token estritamente em memória. |
-| `CommunicationsService` / `NotesService` | 🔵 **MOCK** | Estado local em Signals para demonstração de chat social e notas rápidas. |
-| `HrService` / `ServiceOrdersService` | ⚪ **PLACEHOLDER** | Serviços prontos no cliente apontando para `/api/hr` e `/api/service-orders` (rotas de backend ainda não provisionadas). |
+| `CommunicationsService` | 🔵 **MOCK** | Estado local para demonstração de chat social; mensagens externas continuam sem provedor. |
 
 ---
 
@@ -74,7 +81,22 @@ O registro em `src/app/components/os/os-apps-registry.ts` contém atalhos, mas o
 | `store-manager` | 🟡 **BETA** | eApp Minha Loja integrado ao desktop. Edita perfil da vitrine, taxa de entrega, pedido mínimo e chave PIX do tenant; o cadastro de chave não valida titularidade. |
 | `inventory` | 🟡 **BETA — escopo parcial** | Janela integrada ao desktop; lista e cadastra produtos da unidade por `InventoryService` e `/api/products`. Ajuste de saldo, histórico de movimentos e fornecedores não estão disponíveis. |
 | `finance` | 🟡 **BETA — consulta somente leitura** | Janela integrada ao desktop; consulta lançamentos da unidade e soma vendas/entradas e saídas liquidadas. Não cria lançamentos, não produz DRE e não concilia adquirentes. |
-| `tables`, `suppliers`, `reconciliation`, `stock-audit`, `whatsapp`, `ifood`, `instagram`, `tasks`, `calendar`, `agenda`, `services`, `rh`, `drivers`, `history`, `reports`, `crm`, `docs`, `google-drive`, `calculator`, `notes`, `admin-hub`, `appstore`, `browser`, `settings`, `system` | ⚪ **PLACEHOLDER no desktop** | Os IDs constam no registro, mas não têm janela standalone integrada. `client-os.ts` exibe estado explícito de interface ausente. Serviços, APIs e rotas móveis existentes continuam avaliados nas seções próprias; não são evidência de eApp. |
+| `tables` | 🟡 **BETA — salão** | Janela integrada; consulta, abre e libera mesas, e permite cadastro para proprietário/operador. API limita campos, tenant e transições; não libera mesa com saldo positivo. |
+| `agenda` | 🟡 **BETA — reservas** | Janela integrada; lista por data e cria/atualiza reservas. API sincroniza a mesa em transação, valida capacidade, conflito de horário, papel e tenant. |
+| `history` | 🟡 **BETA — até 200 pedidos** | Histórico integrado, consulta os pedidos recentes da unidade com situação e pagamento; sem paginação/exportação. |
+| `reports` | 🟡 **BETA — resumo comercial** | Métricas de pagamentos aprovados, ticket médio e canais nos 200 pedidos recentes; sem DRE, margem ou conciliação. |
+| `crm` | 🟡 **BETA — consulta de clientes** | Agrupa clientes identificados em pedidos pagos recentes da unidade; não altera pontos nem envia campanhas. |
+| `drivers` | 🟡 **BETA — logística da loja** | Cadastra motoristas privados, cria rota manual para pedidos prontos e atribui rota a motorista da unidade. O valor registrado é referência combinada, sem pagamento pelo sistema. |
+| `suppliers` | 🟡 **BETA — diretório** | Cadastro e desativação de fornecedores da unidade; sem pedidos de compra ou recebimento. |
+| `stock-audit` | 🟡 **BETA — contagem** | Registra contagem e divergências; não ajusta automaticamente o saldo do produto. Em simulação, os dados ficam na sessão. |
+| `tasks` | 🟡 **BETA — checklist** | Tarefas e conclusão persistidas por unidade; sem atribuição individual ou recorrência. |
+| `calendar` | 🟡 **BETA — consulta de reservas** | Mostra reservas por data; `agenda` continua responsável por criar e alterar reservas. |
+| `services` | 🟡 **BETA — ordens de serviço** | Abre e avança O.S. da unidade; não registra cobrança ou pagamento. |
+| `rh` | 🟡 **BETA — equipe e ponto** | Cadastro operacional e batidas manuais; não coleta CPF/salário nem executa folha. |
+| `notes` | 🟡 **BETA — notas privadas** | Notas persistidas por usuário, com filtro de unidade. |
+| `settings` | 🟡 **BETA — preferências locais** | Tema, perfil operacional, atalhos e workspaces são persistidos por usuário/unidade; hardware continua sem configuração. |
+| `calculator`, `docs`, `system` | 🟡 **Utilitários locais** | Calculadora sem persistência, manual estático e resumo de sessão/unidade sem diagnóstico de hardware ou backend. |
+| `reconciliation`, `whatsapp`, `ifood`, `instagram`, `google-drive`, `admin-hub`, `appstore`, `browser` | ⚪ **PRÓXIMA ETAPA / dependência externa** | Provedores de pagamento/comunicação, OAuth, MDM, catálogo de apps ou superfície segura de navegação ainda não homologados; o desktop informa integração pendente. |
 | `/waiter`, `/driver`, `/hq`, vitrine pública | Aplicações/rotas separadas | Componentes próprios em `src/app/components/`; não são janelas do Store OS. |
 
 ### Correção do modo de estoque

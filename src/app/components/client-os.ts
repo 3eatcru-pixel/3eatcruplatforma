@@ -17,6 +17,23 @@ import { EAppStoreManagerWindow } from './eapps/eapp-store-manager';
 import { EAppInventoryWindow } from './eapps/eapp-inventory';
 import { EAppKdsWindow } from './eapps/eapp-kds';
 import { EAppFinanceWindow } from './eapps/eapp-finance';
+import { EAppTablesWindow } from './eapps/eapp-tables';
+import { EAppReservationsWindow } from './eapps/eapp-reservations';
+import { EAppOrderHistoryWindow } from './eapps/eapp-order-history';
+import { EAppReportsWindow } from './eapps/eapp-reports';
+import { EAppCrmWindow } from './eapps/eapp-crm';
+import { EAppDriversWindow } from './eapps/eapp-drivers';
+import { EAppSettingsWindow } from './eapps/eapp-settings';
+import { EAppCalculatorWindow } from './eapps/eapp-calculator';
+import { EAppDocsWindow } from './eapps/eapp-docs';
+import { EAppSystemWindow } from './eapps/eapp-system';
+import { EAppNotesWindow } from './eapps/eapp-notes';
+import { EAppRhWindow } from './eapps/eapp-rh';
+import { EAppServicesWindow } from './eapps/eapp-services';
+import { EAppSuppliersWindow } from './eapps/eapp-suppliers';
+import { EAppCalendarWindow } from './eapps/eapp-calendar';
+import { EAppTasksWindow } from './eapps/eapp-tasks';
+import { EAppStockAuditWindow } from './eapps/eapp-stock-audit';
 
 // OS Shell Components
 import { DesktopIconComponent } from './os/desktop-icon';
@@ -43,6 +60,23 @@ import { OsWindowShellComponent } from './os/os-window-shell';
     EAppInventoryWindow,
     EAppKdsWindow,
     EAppFinanceWindow,
+    EAppTablesWindow,
+    EAppReservationsWindow,
+    EAppOrderHistoryWindow,
+    EAppReportsWindow,
+    EAppCrmWindow,
+    EAppDriversWindow,
+    EAppSettingsWindow,
+    EAppCalculatorWindow,
+    EAppDocsWindow,
+    EAppSystemWindow,
+    EAppNotesWindow,
+    EAppRhWindow,
+    EAppServicesWindow,
+    EAppSuppliersWindow,
+    EAppCalendarWindow,
+    EAppTasksWindow,
+    EAppStockAuditWindow,
     DesktopIconComponent,
     TaskbarComponent,
     StartMenuComponent,
@@ -153,11 +187,29 @@ import { OsWindowShellComponent } from './os/os-window-shell';
                   @case ('inventory') { @defer (on timer(0ms)) { <app-eapp-inventory /> } }
                   @case ('kds') { @defer (on timer(0ms)) { <app-eapp-kds /> } }
                   @case ('finance') { @defer (on timer(0ms)) { <app-eapp-finance /> } }
+                  @case ('tables') { @defer (on timer(0ms)) { <app-eapp-tables /> } }
+                  @case ('agenda') { @defer (on timer(0ms)) { <app-eapp-reservations /> } }
+                  @case ('history') { @defer (on timer(0ms)) { <app-eapp-order-history /> } }
+                  @case ('reports') { @defer (on timer(0ms)) { <app-eapp-reports /> } }
+                  @case ('crm') { @defer (on timer(0ms)) { <app-eapp-crm /> } }
+                  @case ('drivers') { @defer (on timer(0ms)) { <app-eapp-drivers /> } }
+                  @case ('settings') { @defer (on timer(0ms)) { <app-eapp-settings /> } }
+                  @case ('calculator') { @defer (on timer(0ms)) { <app-eapp-calculator /> } }
+                  @case ('docs') { @defer (on timer(0ms)) { <app-eapp-docs /> } }
+                  @case ('system') { @defer (on timer(0ms)) { <app-eapp-system /> } }
+                  @case ('notes') { @defer (on timer(0ms)) { <app-eapp-notes /> } }
+                  @case ('rh') { @defer (on timer(0ms)) { <app-eapp-rh /> } }
+                  @case ('services') { @defer (on timer(0ms)) { <app-eapp-services /> } }
+                  @case ('suppliers') { @defer (on timer(0ms)) { <app-eapp-suppliers /> } }
+                  @case ('calendar') { @defer (on timer(0ms)) { <app-eapp-calendar /> } }
+                  @case ('tasks') { @defer (on timer(0ms)) { <app-eapp-tasks /> } }
+                  @case ('stock-audit') { @defer (on timer(0ms)) { <app-eapp-stock-audit /> } }
                   @default {
                     <section class="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-3 text-center text-stone-300">
+                      <span class="rounded-full border border-amber-700/60 bg-amber-950/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-300">Em breve</span>
                       <mat-icon class="text-amber-400">extension</mat-icon>
                       <h2 class="text-lg font-black text-white">{{ win.title }}</h2>
-                      <p class="text-sm text-stone-400">A interface deste módulo ainda não está integrada ao Store OS.</p>
+                      <p class="text-sm text-stone-400">A integração e a homologação deste módulo ainda estão pendentes; as ações não estão disponíveis.</p>
                     </section>
                   }
                 }

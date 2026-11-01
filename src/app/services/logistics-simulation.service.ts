@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { DeliveryRoute, StoreDriver } from '../models/ecosystem.model';
+import { DeliveryRoute, DeliveryWaypoint, StoreDriver } from '../models/ecosystem.model';
 import { SecurityService } from './security.service';
 
 @Injectable({ providedIn: 'root' })
@@ -117,6 +117,33 @@ export class LogisticsSimulationService {
       simulated
     ]);
     return simulated;
+  }
+
+  createRoute(waypoints: DeliveryWaypoint[], storeDriverCompensation = 0): DeliveryRoute {
+    const tenantId = this.security.currentSession()?.tenantId;
+    if (!tenantId) throw new Error('Selecione uma unidade para criar uma rota.');
+    const now = new Date().toISOString();
+    const route: DeliveryRoute = {
+      id: `sim-route-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      routeCode: `SIM-${Math.floor(1000 + Math.random() * 9000)}`,
+      tenantId,
+      date: now,
+      timeWindow: 'Imediato',
+      totalDistanceKm: waypoints.reduce((sum, waypoint) => sum + (waypoint.distanceKm || 0), 0),
+      estimatedDuration: `${waypoints.reduce((sum, waypoint) => sum + (waypoint.etaMinutes || 0), 0)} min`,
+      totalEarnings: storeDriverCompensation,
+      waypoints: waypoints.map((waypoint, index) => ({
+        ...waypoint,
+        sequenceNumber: index + 1,
+        status: 'pending'
+      })),
+      status: 'available',
+      totalDeliveredCount: 0,
+      isSimulated: true,
+      mode: 'simulation'
+    };
+    this.deliveryRoutes.update((routes) => [route, ...routes]);
+    return route;
   }
 
   updateDriver(id: string, updates: Partial<StoreDriver>): StoreDriver {

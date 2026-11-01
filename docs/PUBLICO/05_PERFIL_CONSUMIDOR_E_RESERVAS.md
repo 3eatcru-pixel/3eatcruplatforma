@@ -10,8 +10,8 @@ A existência do componente não comprova que todos os fluxos de histórico, end
 
 ## Reservas
 
-O servidor expõe rotas públicas e autenticadas em /api/reservations. O roteador valida o tenant e as regras de reserva e sincroniza estados de mesa nas operações cobertas pela implementação. A tela eapp-reservations.ts exibida no catálogo do Store OS é demonstrativa e não está integrada como janela desktop; consulte [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
+O servidor expõe rotas públicas e autenticadas em /api/reservations. O roteador valida o tenant e as regras de reserva e sincroniza estados de mesa nas operações cobertas pela implementação. O eApp `agenda` integra a consulta/criação/atualização de reservas ao desktop; `calendar` oferece consulta somente leitura por data. Consulte [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md) para os limites dos dois módulos.
 
 ## Estado da validação
 
-O build de produção passou e a suíte geral passou com 90/90 testes. Não houve teste ponta a ponta específico de perfil e reservas nem homologação com Firebase real.
+O build de produção passou e a suíte geral passou com 94/94 testes. Não houve teste ponta a ponta específico de perfil e reservas nem homologação com Firebase real.

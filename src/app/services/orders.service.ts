@@ -35,15 +35,21 @@ export class OrdersService {
     effect(() => this.syncExecutionMode());
   }
 
-  async fetchOrders(tenantId?: string): Promise<OrderTransaction[]> {
+  async fetchOrders(tenantId?: string, limit = 50): Promise<OrderTransaction[]> {
+    const pageLimit = Number.isFinite(limit) ? Math.min(200, Math.max(1, Math.floor(limit))) : 50;
     this.syncExecutionMode();
     if (this.lastModeIsSimulation) {
       const activeTenantId = tenantId || this.security.currentSession()?.tenantId;
-      return this.orders().filter((order) => !activeTenantId || order.tenantId === activeTenantId);
+      return this.orders()
+        .filter((order) => !activeTenantId || order.tenantId === activeTenantId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, pageLimit);
     }
     
     const fetchId = ++this.latestFetchId;
-    const url = tenantId ? `/api/orders?tenantId=${tenantId}` : '/api/orders';
+    const params = new URLSearchParams({ limit: String(pageLimit) });
+    if (tenantId) params.set('tenantId', tenantId);
+    const url = `/api/orders?${params.toString()}`;
     const data = await firstValueFrom(this.http.get<OrderTransaction[]>(url));
     this.syncExecutionMode();
     if (fetchId !== this.latestFetchId || this.lastModeIsSimulation) return this.orders();

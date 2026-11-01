@@ -13,6 +13,7 @@ import {
   FinancialRecord,
   AuditLog,
   StoreDriver,
+  DeliveryWaypoint,
   ConsumerAccount,
   SystemAuditReport,
   CartItem,
@@ -687,10 +688,6 @@ export class EcosystemService {
     await this.serviceOrdersService.updateStatus(id, status, progress);
   }
 
-  async settleServiceOrder(id: string, method: string) {
-    await this.serviceOrdersService.settle(id, method);
-  }
-
   async addAppointment(apt: Partial<Appointment>): Promise<Appointment> {
     const tenantId = this.resolveOperationalTenantId(apt.tenantId);
     const created = await this.appointmentsService.addAppointment({ ...apt, tenantId });
@@ -723,10 +720,14 @@ export class EcosystemService {
     this.notify('A configuração de taxas ainda não está conectada ao serviço logístico.', 'warning');
   }
 
-  async createDeliveryRoute(orders?: unknown, driverId?: string) {
-    void orders;
-    void driverId;
-    this.notify('A criação de rotas ainda não está conectada ao serviço logístico.', 'warning');
+  async createDeliveryRoute(
+    waypoints: DeliveryWaypoint[],
+    driverId?: string,
+    storeDriverCompensation = 0
+  ) {
+    const route = await this.logisticsService.createDeliveryRoute(waypoints, storeDriverCompensation);
+    if (driverId) await this.logisticsService.acceptDeliveryRoute(route.id, driverId);
+    return route;
   }
 
   async autoClusterAndCreateRoutes() {

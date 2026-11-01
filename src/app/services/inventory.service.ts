@@ -1,6 +1,6 @@
-import { Injectable, signal, inject, computed } from '@angular/core';
+import { Injectable, signal, inject, computed, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { ProductItem, Promotion, Supplier } from '../models/ecosystem.model';
+import { ProductItem, PublicCatalogProduct, Promotion, Supplier } from '../models/ecosystem.model';
 import { MOCK_PRODUCTS } from '../models/mock-data';
 import { firstValueFrom } from 'rxjs';
 import { SecurityService } from './security.service';
@@ -13,16 +13,52 @@ export class InventoryService {
   private readonly security = inject(SecurityService);
 
   readonly isSimulation = computed(() => this.security.isSimulated());
-  
-  readonly products = signal<ProductItem[]>(MOCK_PRODUCTS);
+  private lastModeIsSimulation = this.security.isSimulated();
+  private latestFetchId = 0;
+
+  readonly products = signal<ProductItem[]>(
+    this.lastModeIsSimulation ? this.getSimulationProducts() : []
+  );
+  readonly publicCatalog = signal<PublicCatalogProduct[]>([]);
   readonly promotions = signal<Promotion[]>([]);
   readonly suppliers = signal<Supplier[]>([]);
+  private publicCatalogRequestId = 0;
+
+  constructor() {
+    effect(() => {
+      this.syncExecutionMode();
+    });
+  }
 
   async fetchProducts(tenantId?: string): Promise<ProductItem[]> {
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
+      if (this.products().length === 0) this.products.set(this.getSimulationProducts());
+      return this.products();
+    }
+
+    const fetchId = ++this.latestFetchId;
     const url = tenantId ? `/api/products?tenantId=${tenantId}` : '/api/products';
     const data = await firstValueFrom(this.http.get<ProductItem[]>(url));
+    this.syncExecutionMode();
+    if (fetchId !== this.latestFetchId || this.lastModeIsSimulation) return this.products();
+
     this.products.set(data);
     return data;
+  }
+
+  private syncExecutionMode() {
+    const isSimulation = this.isSimulation();
+    if (isSimulation === this.lastModeIsSimulation) return;
+
+    this.lastModeIsSimulation = isSimulation;
+    this.latestFetchId += 1;
+    this.products.set(isSimulation ? this.getSimulationProducts() : []);
+  }
+
+  private getSimulationProducts(): ProductItem[] {
+    const tenantId = this.security.currentSession()?.tenantId || 'tenant-sp-001';
+    return MOCK_PRODUCTS.map(product => ({ ...product, tenantId }));
   }
 
   async createProduct(product: Partial<ProductItem>): Promise<ProductItem> {
@@ -71,9 +107,16 @@ export class InventoryService {
     return [];
   }
 
-  async fetchPublicCatalog(tenantId: string): Promise<ProductItem[]> {
-    const data = await firstValueFrom(this.http.get<ProductItem[]>(`/api/products/public?tenantId=${tenantId}`));
-    this.products.set(data);
-    return data;
+  async fetchPublicCatalog(tenantId: string): Promise<PublicCatalogProduct[]> {
+    const requestId = ++this.publicCatalogRequestId;
+    this.publicCatalog.set([]);
+    const data = await firstValueFrom(
+      this.http.get<PublicCatalogProduct[]>(`/api/products/public?tenantId=${tenantId}`)
+    );
+    if (requestId !== this.publicCatalogRequestId) return this.publicCatalog();
+
+    const scopedData = data.filter(product => product.tenantId === tenantId);
+    this.publicCatalog.set(scopedData);
+    return scopedData;
   }
 }

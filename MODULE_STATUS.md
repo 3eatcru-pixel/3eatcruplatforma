@@ -1,8 +1,8 @@
 # 📊 Mapa Oficial de Maturidade dos Módulos — 3EATCRU Platform (`MODULE_STATUS.md`)
 
-Este documento cataloga oficialmente cada motor, rota de API, serviço Angular e janela operacional da plataforma **3EATCRU ERP & POS / Omnichannel**. 
+Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS / Omnichannel**. Caminhos e capacidades descritos aqui devem existir no repositório; presença de serviço/API não significa que exista uma tela integrada ao Store OS.
 
-**ESTADO ATUAL**: 🟢 **100% HOMOLOGADO** (79 testes automatizados aprovados em 9 suítes Vitest). A arquitetura foi reconciliada para a hierarquia de **3 Ambientes de Produto** (HQ, OS, Público) com separação estrita de modos Real e Simulação.
+**ESTADO DA AUDITORIA (2026-11-01)**: em correção. A compilação do shell estava bloqueada por imports de janelas ausentes. O PDV está implementado como rota standalone `/pos`, com subcomponentes locais; telas integradas no desktop serão classificadas separadamente. Não há homologação declarada nesta revisão.
 
 ## Legenda Oficial de Classificação
 
@@ -11,7 +11,7 @@ Este documento cataloga oficialmente cada motor, rota de API, serviço Angular e
 | 🟢 **REAL** | Produção funcional | Persistência real no Cloud Firestore via Admin SDK, RBAC por Firebase ID Token + Custom Claims, validação multi-tenant e cobertura de testes automatizados. |
 | 🟡 **BETA** | Funciona, precisa homologação | Conectado ao backend/Firestore ou fluxo real, porém exige rodada de homologação operacional (ex.: hardware físico ESC/POS, integrações OAuth externas reais). |
 | 🔵 **MOCK** | Demonstração | Opera com estado reativo local (Signals) ou dados simulados para demonstração comercial de UX sem persistência dedicada no backend. |
-| ⚪ **PLACEHOLDER** | Interface sem backend | Tela/janela conceitual do Store OS sem endpoint correspondente em `/src/server/routes`. |
+| ⚪ **PLACEHOLDER** | Interface ausente ou não integrada | A janela do Store OS não existe/está conectada. O domínio pode ter serviços e endpoints próprios; avaliar esses itens separadamente. |
 | 🔴 **DISABLED** | Não usar em produção | Recursos legados desativados ou substituídos. |
 
 ---
@@ -46,7 +46,7 @@ Este documento cataloga oficialmente cada motor, rota de API, serviço Angular e
 | `OfflineSyncService` | 🟢 **REAL** | Fila offline do PDV com `X-Idempotency-Key`, detecção de conflito determinístico (`409 STOCK_CONFLICT`), cancelamento local auditável e alerta ao operador. |
 | `FirebaseService` | 🟢 **REAL** | Autenticação Google e *listeners* `onSnapshot` somente-leitura escopados por papel/tenant. |
 | `OrdersService` | 🟢 **REAL** | Consumo de `/api/orders` + projeção reativa em tempo real. |
-| `InventoryService` | 🟢 **REAL** | CRUD de produtos sincronizado com `/api/products`; promoções e fornecedores ainda em memória (`🔵 MOCK`). |
+| `InventoryService` | 🟡 **BETA** | CRUD de produtos via `/api/products`; fixtures são carregadas somente no modo simulado. Promoções e fornecedores ainda não têm persistência (`🔵 MOCK`). |
 | `FinancialsService` | 🟢 **REAL** | Livro-razão hidratado exclusivamente por `/api/financials` (sem saldos fixos de `tenant-1`). |
 | `TenantsService` | 🟢 **REAL** | Gestão de estabelecimentos e vitrines públicas (`/api/tenants`). |
 | `TablesService` | 🟢 **REAL** | Mapa de mesas, setores e status `reserved`/`occupied` (`/api/tables`). |
@@ -62,28 +62,20 @@ Este documento cataloga oficialmente cada motor, rota de API, serviço Angular e
 
 ---
 
-## 3. Aplicações Principais e Janelas do Store OS (`src/app/components/`)
+## 3. Interfaces e Janelas do Store OS
 
-### Aplicações de Topo (7 Pilares)
-| Aplicação | Status | Observações |
-|---|---|---|
-| **PDV / Frente de Caixa Adaptativo** (`pos-window.ts`) | 🟢 **REAL** | Adapta-se automaticamente aos 4 segmentos (`Restaurante`, `Varejo & Eletro`, `Farmácia`, `Auto & O.S.`), integrado ao `CommerceEngine`, Proxy Universal de Pagamentos (`/api/payments`), sangria/suprimento reais e banner de conflito offline. Cupom NFC-e e balança operam em modo simulador homologatório (`🟡 BETA`). |
-| **KDS Cozinha** (`kds-window.ts`) | 🟢 **REAL** | Transições reais de preparo/pronto/concluído via `CommerceEngine` e exibição das instruções de 3 tempos gastronômicos. |
-| **Gestão de Mesas, Reservas & App do Garçom** (`tables-window.ts`, `reservations-window.ts`, `waiter-app.ts`) | 🟢 **REAL** | Padrão Ouro Restaurante: reserva online ou na recepção (`/api/reservations`), 4 estados sincronizados (`available`, `reserved`, `occupied`, `billing`), cadência de 3 tempos no KDS, sync sem acesso a `/api/financials` e liquidação financeira única. |
-| **Vitrine da Loja & Marketplace Regional** (`customer-storefront.ts`, `regional-marketplace.ts`) | 🟢 **REAL** | Consomem catálogo público sanitizado, hidratam links diretos `/p/:id`, preservam modalidades exatas (`delivery`, `takeout` sem frete e `dine-in` QR na Mesa) no `CommerceEngine` e permitem reserva online (`POST /api/reservations/public`). |
-| **HQ Central & Manual V7.0** (`hq-central.ts`, `hq-documentation-modal.ts`) | 🟡 **BETA** | Governança multi-tenant, planos, MDM, auditoria conectados a `/api/hq/*` e manual técnico integrado dos 7 Pilares. |
-| **App do Entregador** (`driver-app.ts`) | 🟡 **BETA** | Identidade travada para `role === 'driver'`, filtro por compatibilidade de frota (`own` vs `platform`/`hybrid`), aceite/entrega via `/api/logistics/*`, limpeza de timers/Leaflet e métricas reais de ganhos. |
+O registro em `src/app/components/os/os-apps-registry.ts` contém atalhos, mas o registro sozinho não comprova que uma tela existe. A renderização ocorre em `src/app/components/client-os.ts`.
 
-### Demais Janelas do Store OS (`os-windows/`)
-| Janela | Status | Observações |
+| ID / grupo | Estado da interface | Evidência no repositório |
 |---|---|---|
-| `reservations-window.ts` / `inventory-window.ts` / `finance-window.ts` / `order-history-window.ts` / `store-manager-window.ts` / `settings-window.ts` | 🟢 **REAL** | Operam sobre APIs reais de reservas, estoque, financeiro, histórico de pedidos e dados do estabelecimento. |
-| `calendar-window.ts` / `drivers-window.ts` / `crm-window.ts` / `admin-hub-window.ts` / `system-window.ts` / `reports-window.ts` | 🟡 **BETA** | Consomem dados reais agregados (`calendar-window` projeta reservas reais de `/api/reservations` junto a compromissos locais). |
-| `ifood-window.ts` / `whatsapp-window.ts` | 🟡 **BETA** | Aprovação de pedido e pausa de cardápio já convergem no `CommerceEngine` real; recepção de webhooks externos usa simulador de homologação até credenciamento OAuth oficial da loja. |
-| `google-drive-window.ts` | 🟡 **BETA** | Integração OAuth Google Workspace sob demanda do usuário. |
-| `reconciliation-window.ts` / `stock-audit-window.ts` / `suppliers-window.ts` | 🔵 **MOCK** | Fluxos visuais demonstrativos apoiados parcialmente na memória local. |
-| `instagram-window.ts` / `notes-window.ts` / `tasks-window.ts` / `calculator-window.ts` / `docs-window.ts` | 🔵 **MOCK** | Utilitários de produtividade local do Store OS sem necessidade de transação comercial. |
-| `rh-window.ts` / `services-window.ts` | ⚪ **PLACEHOLDER** | Interfaces prontas aguardando implementação futura dos routers `/api/hr` e `/api/service-orders`. |
+| `pos` | 🟡 **BETA — rota standalone** | `/pos` carrega `src/app/components/pos-terminal.ts`; a janela do OS oferece navegação para essa rota. Os subcomponentes estão em `src/app/components/eapps/pos/`. A rota depende de build e homologação operacional ainda não registradas nesta auditoria. |
+| `waiter-sim`, `driver-sim`, `consumer-sim` | 🔵 **MOCK — simuladores integrados** | `src/app/components/eapps/eapp-waiter-sim.ts`, `eapp-driver-sim.ts` e `eapp-consumer-sim.ts`; são molduras de demonstração para telas móveis/web. |
+| `tables`, `kds`, `inventory`, `finance`, `suppliers`, `reconciliation`, `stock-audit`, `store-manager`, `whatsapp`, `ifood`, `instagram`, `tasks`, `calendar`, `agenda`, `services`, `rh`, `drivers`, `history`, `reports`, `crm`, `docs`, `google-drive`, `calculator`, `notes`, `admin-hub`, `appstore`, `browser`, `settings`, `system` | ⚪ **PLACEHOLDER no desktop** | Os IDs constam no registro, mas não têm janela standalone integrada. `client-os.ts` exibe estado explícito de interface ausente. Serviços, APIs e rotas móveis existentes continuam avaliados nas seções próprias; não são evidência de eApp. |
+| `/waiter`, `/driver`, `/hq`, vitrine pública | Aplicações/rotas separadas | Componentes próprios em `src/app/components/`; não são janelas do Store OS. |
+
+### Correção do modo de estoque
+
+`InventoryService` inicia sem produtos no modo real. `MOCK_PRODUCTS` só é aplicado no modo de simulação; uma falha em `/api/products` deixa a lista vazia em vez de exibir estoque de demonstração como estoque da loja.
 
 ---
 

@@ -41,9 +41,9 @@ Na unidade física da loja, os terminais de atendimento (PDVs e KDSs) são frequ
   - Endpoint `POST /api/auth/assign-role` (`src/server/routes/auth.router.ts:306`).
   - Permite ao gestor da loja (`isTenantManagerRole(caller.role)`) atribuir os papéis `'operator'`, `'waiter'` e `'driver'` exclusivamente para usuários de sua própria unidade (`requestedTenantId === caller.tenantId`).
   - O `targetUid` é anexado ao array `staffUids` do tenant no Firestore.
-- **Controle de Acesso por Tela no Frontend:**
-  - A janela de Finanças (`src/app/components/os-windows/finance-window.ts`) e o Admin Hub (`src/app/components/os-windows/admin-hub-window.ts`) exigem permissões de gerência (`tenant_owner` ou `operator`).
-  - Garçons acessando a plataforma têm sua navegação direcionada prioritariamente para o aplicativo de salão (`/waiter`).
+- **Controle de Acesso:**
+  - As janelas de Finanças e Admin Hub não estão integradas ao desktop; seus IDs mostram placeholder (ver `03_APLICATIVOS_E_MODULOS.md`). Endpoints financeiros aplicam autorização no servidor.
+  - Garçons acessam o aplicativo de salão pela rota separada `/waiter`.
 - **Tela de Bloqueio por PIN:**
   - Componente: `src/app/components/os/lock-screen.ts`.
   - Exibe relógio digital, data, nome da loja e o nome do operador ativo.
@@ -67,11 +67,9 @@ Na unidade física da loja, os terminais de atendimento (PDVs e KDSs) são frequ
   - As vendas realizadas no PDV carregam o operador logado no campo `operatorName` ou `createdByUid`.
   - Na rota `/api/financials`, caso um garçom tente registrar movimentação financeira avulsa, o servidor responde com `403 Forbidden`.
 
-### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Testes Automatizados:**
-  - `src/server/security_phase1.spec.ts`: Garante que gestor só pode atribuir papéis de sua própria loja (`TENANT_MISMATCH` testado).
-  - `src/app/services/ecosystem.service.spec.ts`: Valida alternância de papéis e comportamentos no ecossistema.
-- **Resultado:** 100% de testes aprovados.
+### Perspectiva 4: Validação
+
+Este documento descreve o código encontrado. A suíte de testes não foi executada nesta revisão, portanto não há resultado de homologação declarado.
 
 ---
 
@@ -83,5 +81,5 @@ Na unidade física da loja, os terminais de atendimento (PDVs e KDSs) são frequ
 | Cadastro de Funcionários da Loja (`assign-role`) | 🟢 **Implementado e comprovado** | `src/server/routes/auth.router.ts:306` | Gestor associa operadores ao seu `staffUids`. |
 | Bloqueio Visual do Desktop (`app-os-lock-screen`) | 🟢 **Implementado e comprovado** | `src/app/components/os/lock-screen.ts` | Oculta a área de trabalho e exige inserção de código numérico. |
 | Teclado Virtual Numérico Integrado | 🟢 **Implementado e comprovado** | `src/app/components/os/lock-screen.ts:60` | Compatível com monitores touchscreen e mouse. |
-| Extensão de PIN para 6 Dígitos Bancários | 🟢 **Implementado e comprovado** | `src/app/components/os/lock-screen.ts:43-138` | Teclado e display com 6 pontos reativos (`[0, 1, 2, 3, 4, 5]`), PIN padrão `123456` e compatibilidade com 4 dígitos legados. |
+| Validação visual de PIN de 4 dígitos | 🔵 **Demonstração local** | `src/app/components/os/lock-screen.ts` | A tela valida o valor de demonstração `1234`; não é autenticação forte nem PIN persistido por usuário. |
 | Armazenamento de PIN Criptografado por Operador no Firestore | 🔵 **Planejado, ainda não implementado** | `src/shared/models/ecosystem.model.ts` | O PIN atual é validado no componente de interface; hash seguro de PIN por colaborador está desenhado no backlog. |

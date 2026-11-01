@@ -1,86 +1,28 @@
-# 🏬 Store OS — 09: Persistência, Sincronização e Tolerância a Falhas Offline
+# Store OS — 09: Persistência e sincronização offline
 
-## 📌 1. Visão Geral da Arquitetura de Resiliência Offline
+## Implementação encontrada
 
-Em operações reais de varejo e restaurantes, oscilações na rede de internet são inevitáveis. O **Store OS** adota uma estratégia de contingência local baseada no padrão **Offline Outbox Pattern**, utilizando o banco de dados nativo do navegador (**IndexedDB**) e cabeçalhos de idempotência estritos (**`X-Idempotency-Key`**).
+| Responsabilidade | Código |
+|---|---|
+| Detectar conectividade e repetir ações | src/app/core/offline/offline-sync.service.ts |
+| Persistir fila, conflitos e itens rejeitados | src/app/core/offline/indexed-db.service.ts |
+| Definir replay serializado e idempotência | src/shared/offline/offline-outbox.engine.ts |
+| Enfileirar pedido do PDV | EcosystemService.addOrder |
+| Validar pedido e estoque no retorno da conexão | src/server/core/commerce.engine.ts |
 
-```text
-                                OPERAÇÃO DE VENDA NO CAIXA
-                                            │
-                                            ▼
-                             🌐 A INTERNET ESTÁ ATIVA?
-                             ┌──────────────┴──────────────┐
-                           SIM                            NÃO
-                             │                             │
-                             ▼                             ▼
-              [POST /api/orders DIRETO]       [SALVA NA FILA OUTBOX]
-              Transação ACID no Firestore      IndexedDB: 'offline_orders'
-                             │                 Gera X-Idempotency-Key
-                             │                             │
-                             │                             ▼
-                             │                 🌐 QUANDO A REDE RETORNA
-                             │                 Serviço de Sincronização
-                             │                 despacha a fila em ordem
-                             ▼                             ▼
-              ┌─────────────────────────────────────────────────────────┐
-              │           RESPOSTA DETERMINÍSTICA DO SERVIDOR           │
-              ├─────────────────────────────┬───────────────────────────┤
-              │ 🟢 HTTP 200 / 201           │ 🔴 HTTP 409 STOCK_CONFLICT│
-              │ Venda liquidada com sucesso │ Estoque esgotado durante  │
-              │ e baixada no banco mestre   │ o período offline. Notifi-│
-              │                             │ cação ao operador do PDV  │
-              └─────────────────────────────┴───────────────────────────┘
-```
+O IndexedDB usa o banco 3eatcru_commercial_os_db e os stores outbox_queue, conflicts, dead_letter e entity_cache. Se IndexedDB não estiver disponível, IndexedDbPersistenceService usa localStorage como fallback. Esse fluxo não mantém um cache offline de produtos usado pelo InventoryService.
 
----
+## Comportamento de pagamento offline
 
-## 🔬 2. Análise Sob as Quatro Perspectivas
+- Cartão e PIX são desabilitados e bloqueados no handler enquanto o navegador está offline, pois precisam de autorização conectada.
+- Venda em dinheiro pode ser registrada localmente pelo operador e enfileirada com chave idempotente. A tela marca o pedido como pendente e informa que aguarda sincronização.
+- A conclusão comercial e a baixa de estoque dependem da resposta do servidor após o replay. Se o estoque não permitir a venda, o servidor retorna conflito e o pedido local é marcado como cancelado.
+- Nenhum estado local pendente comprova liquidação ou lançamento financeiro persistido.
 
-### Perspectiva 1: O que deveria fazer (Responsabilidade Funcional)
-- Permitir que o operador do caixa continue lançando pedidos e recebendo em dinheiro ou cartão físico mesmo se o link de internet cair completamente.
-- Armazenar localmente as operações com garantia de não perda caso o navegador seja fechado ou a máquina reiniciada.
-- Sincronizar em lote e em segundo plano assim que a conexão for restabelecida, sem congelar a tela do usuário.
-- Garantir que nenhum pedido seja processado duas vezes no servidor (idempotência obrigatória).
-- Detectar e tratar de forma amigável cenários de conflito de estoque ocorridos enquanto a loja esteve desconectada.
+## Replay e conflitos
 
-### Perspectiva 2: Como foi implementado (Realidade do Código)
-- **Motor de Outbox na Camada Neutra (`src/shared/offline/offline-outbox.engine.ts`):**
-  - Implementa a fila serializada com métodos `enqueue()`, `peek()`, `dequeue()` e tratamento de retentativas exponenciais com limite máximo.
-  - Gera chaves determinísticas de idempotência no formato: `idempotencyKey = 'ord-off-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6)`.
-- **Serviço de IndexedDB do Cliente (`src/app/core/offline/indexed-db.service.ts`):**
-  - Abre banco local `3eatcru_offline_db` (ObjectStore: `pending_transactions`, `cached_products`).
-  - Cache de leitura dos produtos para consulta offline imediata de preços e códigos de barras.
-- **Serviço de Sincronização Reativa (`src/app/core/offline/offline-sync.service.ts`):**
-  - Escuta eventos `window.addEventListener('online')` e `window.addEventListener('offline')`.
-  - Dispara esvaziamento da fila de forma sequencial com cabeçalho `X-Idempotency-Key`.
-- **Backend Idempotente (`src/server/core/commerce.engine.ts:149`):**
-  - Primeira etapa da transação no Firestore: Se o `idempotencyKey` já existir no banco, retorna o pedido existente com `alreadyExisted: true`, garantindo que retentativas de rede jamais dupliquem cobranças ou saídas de estoque.
-  - Se outro canal vendeu o estoque durante a queda, o servidor rejeita com `409 STOCK_CONFLICT`, capturado pelo cliente para aviso em tela.
+OfflineSyncService executa a fila em sequência ao voltar a conexão, persiste conflitos e dead letters e notifica o aplicativo via handlers. O CommerceEngine revalida tenant, produtos, estoque e pagamento no servidor. Reenvios usam chave de idempotência para evitar repetição comercial.
 
-### Perspectiva 3: Como se conecta (Topologia de Integração)
-- **Entrada:** `submitSale()` no PDV disparado com `navigator.onLine === false`.
-- **Armazenamento:** Gravação síncrona no IndexedDB local antes de limpar a tela do PDV para a próxima venda.
-- **Saída:** Requisição HTTP POST `/api/orders` enviada automaticamente na volta do sinal.
+## Validação
 
-### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Testes Automatizados:**
-  - `src/app/core/offline/offline-resilience.spec.ts`:
-    - Simulação de desconexão e gravação na fila Outbox.
-    - Validação de envio com sucesso e tratamento determinístico de `409 STOCK_CONFLICT`.
-  - `src/server/commerce_war_tests.spec.ts`:
-    - **Guerra 2:** Replay offline concorrente com disputa de estoque e resolução determinística com código 409.
-    - **Guerra 4:** Idempotência tripla em reenvios de pacotes de rede idênticos.
-- **Resultado:** 100% aprovado.
-
----
-
-## 📊 3. Matriz de Classificação de Maturidade
-
-| Capacidade de Resiliência Offline | Classificação | Arquivo de Evidência | Observações |
-|---|---|---|---|
-| Armazenamento em IndexedDB Local | 🟢 **Implementado e comprovado** | `src/app/core/offline/indexed-db.service.ts` | Salva pedidos na fila local de contingência. |
-| Fila Outbox com Retry Exponencial | 🟢 **Implementado e comprovado** | `src/shared/offline/offline-outbox.engine.ts` | Processa transações em ordem com controle de falhas. |
-| Chave de Idempotência Obrigatória (`X-Idempotency-Key`) | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:149` | Evita duplicidade de pedidos em conexões instáveis. |
-| Detecção Determinística de Conflito de Estoque (`409`) | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:250` | Alerta operador se mercadoria foi vendida por outro canal. |
-| Detecção Automática de Status Online/Offline | 🟢 **Implementado e comprovado** | `src/app/core/offline/offline-sync.service.ts` | Monitora eventos de rede do navegador em tempo real. |
-| Sincronização Bidirecional de Cadastros Offline para Desktop | 🟡 **Implementado parcialmente** | `src/app/core/offline/indexed-db.service.ts` | Vendas offline operam integralmente; alteração de preços e cadastro de novos produtos em modo offline exigem conexão. |
+Specs de resiliência existem em src/app/core/offline/offline-resilience.spec.ts e src/server/commerce_war_tests.spec.ts. Não foram executados nesta revisão; build e homologação de rede/dispositivos também não foram concluídos.

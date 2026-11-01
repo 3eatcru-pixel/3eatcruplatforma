@@ -27,6 +27,10 @@ export const ALLOWED_ORDER_TRANSITIONS: Record<
   cancelled: []
 };
 
+function throwTransitionError(status: number, code: string, message: string): never {
+  throw { status, code, message } satisfies CommercialEngineError;
+}
+
 export interface CommercialEngineError {
   status: number;
   code: string;
@@ -466,6 +470,20 @@ export async function executeCommercialOrder(
           message: 'Transação de pagamento pertence a outro estabelecimento.'
         } satisfies CommercialEngineError;
       }
+      if (txData.orderId !== orderId) {
+        throw {
+          status: 409,
+          code: 'PAYMENT_ORDER_MISMATCH',
+          message: 'A transação de pagamento já está vinculada a outro pedido.'
+        } satisfies CommercialEngineError;
+      }
+      if (txData.status !== 'approved' && txData.status !== 'pending_pix') {
+        throw {
+          status: 409,
+          code: 'PAYMENT_NOT_USABLE',
+          message: 'A transação informada não está aprovada nem aguardando confirmação.'
+        } satisfies CommercialEngineError;
+      }
       if (Math.abs(txData.amount - total) > 0.05) {
         throw {
           status: 422,
@@ -483,12 +501,14 @@ export async function executeCommercialOrder(
     const isVerifiedCashPosSale =
       orderType === 'pos-counter' &&
       isPosOperation &&
+      (user?.role === 'hq_admin' || user?.role === 'tenant_owner' || user?.role === 'operator') &&
       paymentMethod === 'cash' &&
       body['cashConfirmedByOperator'] === true;
 
     const isVerifiedGatewayPosSale =
       orderType === 'pos-counter' &&
       isPosOperation &&
+      (user?.role === 'hq_admin' || user?.role === 'tenant_owner' || user?.role === 'operator') &&
       verifiedPaymentRecord !== null &&
       verifiedPaymentRecord.status === 'approved';
 
@@ -511,6 +531,27 @@ export async function executeCommercialOrder(
     const isSimulated =
       (canOperatePos && Boolean(body['isSimulated'])) ||
       verifiedPaymentRecord?.mode === 'simulation';
+
+    const posCashPaymentRecord: PaymentTransactionRecord | undefined = isVerifiedCashPosSale && user
+      ? {
+          id: `cash-${orderId}`,
+          orderId,
+          tenantId: tenant.id,
+          amount: total,
+          feeDeducted: 0,
+          netAmount: total,
+          method: 'cash',
+          status: 'approved',
+          gateway: `Caixa Físico do Lojista (Operador: ${user.name || user.id})`,
+          authorizationCode: `CASH-POS-${Date.now().toString().slice(-6)}`,
+          environment: isSimulated ? 'sandbox' : 'live',
+          mode: isSimulated ? 'simulation' : 'real',
+          isSimulated,
+          createdByUid: user.id,
+          createdAt: nowIso,
+          confirmedAt: nowIso
+        }
+      : undefined;
 
     const resolvedDeviceType: OrderTransaction['deviceType'] =
       body['deviceType'] === 'terminal' ||
@@ -551,8 +592,11 @@ export async function executeCommercialOrder(
       discount,
       total,
       paymentMethod,
-      ...(verifiedPaymentRecord ? { paymentTransactionId: verifiedPaymentRecord.id } : {}),
+      ...(verifiedPaymentRecord || posCashPaymentRecord
+        ? { paymentTransactionId: verifiedPaymentRecord?.id || posCashPaymentRecord!.id }
+        : {}),
       paymentStatus: resolvedPaymentStatus,
+      ...(isVerifiedCashPosSale ? { cashConfirmedByOperator: true } : {}),
       channel: resolvedChannel,
       ...(typeof body['deviceId'] === 'string' && body['deviceId'].trim()
         ? { deviceId: body['deviceId'].trim().slice(0, 64) }
@@ -600,9 +644,8 @@ export async function executeCommercialOrder(
       });
     }
 
-    // Bind orderId back onto payment_transactions record if created before order
-    if (paymentTxRef && verifiedPaymentRecord && verifiedPaymentRecord.orderId !== orderId) {
-      transaction.update(paymentTxRef, { orderId });
+    if (posCashPaymentRecord) {
+      transaction.set(adminDb.collection('payment_transactions').doc(posCashPaymentRecord.id), posCashPaymentRecord);
     }
 
     // 7. Persist Unified Commercial Order
@@ -661,11 +704,10 @@ export async function transitionCommercialOrderStatus(
       order.driverId === user.id &&
       ['dispatched', 'delivered', 'completed'].includes(newStatus);
 
-    const isHqAdminIntervention = user?.role === 'hq_admin' && user?.tenantId !== order.tenantId;
-    const isAuthorized =
-      user?.role === 'hq_admin' ||
-      (isTenantStaffRole(user?.role) && user?.tenantId === order.tenantId) ||
-      isDriverAuthorized;
+    const isHqAdmin = user?.role === 'hq_admin';
+    const isTenantStaff = isTenantStaffRole(user?.role) && user?.tenantId === order.tenantId;
+    const isTenantManager = user?.role === 'tenant_owner' || user?.role === 'operator';
+    const isAuthorized = isHqAdmin || isTenantStaff || isDriverAuthorized;
 
     if (!isAuthorized) {
       throw {
@@ -674,6 +716,48 @@ export async function transitionCommercialOrderStatus(
         message: 'Acesso negado para atualizar este pedido.'
       } satisfies CommercialEngineError;
     }
+
+    // Drivers only report delivery progress; financial settlement remains with the payment flow.
+    if (user?.role === 'driver' && !['dispatched', 'delivered'].includes(newStatus)) {
+      throwTransitionError(403, 'FORBIDDEN_DRIVER_TRANSITION', 'Entregadores só podem atualizar o andamento da entrega.');
+    }
+
+    // The documented waiter app places and tracks orders; KDS status transitions belong to Store OS.
+    if (user?.role === 'waiter') {
+      throwTransitionError(403, 'FORBIDDEN_STAFF_TRANSITION', 'A transição de status deve ser feita pelo Store OS.');
+    }
+
+    if (newStatus === 'cancelled' && (currentStatus === 'completed' || order.paymentStatus === 'approved')) {
+      throwTransitionError(409, 'REFUND_REQUIRED', 'Pedidos com pagamento aprovado exigem um fluxo de estorno antes do cancelamento.');
+    }
+
+    // A status update must never manufacture payment approval or a financial sale. Verify the
+    // authoritative server-side transaction in the same Firestore transaction as the transition.
+    let verifiedPayment: PaymentTransactionRecord | undefined;
+    if (newStatus === 'completed') {
+      if (!order.paymentTransactionId || order.paymentStatus !== 'approved') {
+        throwTransitionError(409, 'PAYMENT_NOT_CONFIRMED', 'O pedido só pode ser concluído após confirmação de pagamento.');
+      }
+      const paymentRef = adminDb.collection('payment_transactions').doc(order.paymentTransactionId);
+      const paymentSnap = await transaction.get(paymentRef);
+      if (!paymentSnap.exists) {
+        throwTransitionError(409, 'PAYMENT_NOT_FOUND', 'A transação aprovada do pedido não foi localizada.');
+      }
+      verifiedPayment = paymentSnap.data() as PaymentTransactionRecord;
+      if (
+        verifiedPayment.status !== 'approved' ||
+        verifiedPayment.tenantId !== order.tenantId ||
+        verifiedPayment.orderId !== order.id ||
+        Math.abs(verifiedPayment.amount - order.total) > 0.05
+      ) {
+        throwTransitionError(409, 'PAYMENT_NOT_VERIFIED', 'A transação não corresponde ao valor e estabelecimento deste pedido.');
+      }
+      if (isTenantStaff && !isTenantManager && user?.role !== 'hq_admin') {
+        throwTransitionError(403, 'FORBIDDEN_SETTLEMENT', 'A conclusão financeira exige perfil de gerente ou operador.');
+      }
+    }
+
+    const isHqAdminIntervention = isHqAdmin && user?.tenantId !== order.tenantId;
 
     if (isHqAdminIntervention) {
       const auditId = `aud-com-${Date.now().toString(36)}`;
@@ -784,8 +868,8 @@ export async function transitionCommercialOrderStatus(
         channel: order.channel,
         ...(order.deviceId ? { deviceId: order.deviceId } : {}),
         referenceId: orderId,
-        isSimulated: Boolean(order.isSimulated),
-        mode: order.mode
+        isSimulated: Boolean(order.isSimulated || verifiedPayment?.mode === 'simulation'),
+        mode: order.isSimulated || verifiedPayment?.mode === 'simulation' ? 'simulation' : 'real'
       };
       transaction.set(finSaleRef, saleRecord);
     }

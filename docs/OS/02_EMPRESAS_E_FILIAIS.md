@@ -39,9 +39,9 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
     - `supportsDelivery`, `supportsTakeout`, `supportsReservation`
 - **Isolamento de Dados no Servidor (`src/server/core/commerce.engine.ts:87`):**
   - A função `resolveAuthoritativeTenantId` extrai obrigatoriamente o `tenantId` contido nas claims do usuário autenticado. Se o cliente tentar enviar um payload contendo outro `tenantId`, o servidor rejeita a transação com `403 TENANT_MISMATCH`.
-- **Janela de Configuração da Unidade:**
-  - `src/app/components/os-windows/store-manager-window.ts` (Gerenciador da Loja Pública) e `src/app/components/os-windows/settings-window.ts` (Painel de Controle).
-  - Permite a edição dos dados cadastrais e horários da loja via `PATCH /api/tenants/:id`.
+- **Interface de Configuração da Unidade:**
+  - Os IDs `store-manager` e `settings` estão registrados, mas suas janelas ainda não estão integradas ao desktop. O shell exibe placeholder.
+  - O endpoint de tenants existe; isso não significa que a edição esteja disponível por uma tela do Store OS.
 - **Seletor de Unidades no Ecossistema:**
   - Implementado em `src/app/services/ecosystem.service.ts:currentTenant`, onde o signal reativo mantém a unidade física ativa.
 
@@ -52,11 +52,9 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
 - **Impacto no Marketplace Regional:**
   - Ao marcar `isOpen: false` no Store OS, a loja é imediatamente rotulada como "Fechada" no Marketplace e no Storefront do consumidor, bloqueando checkout online com código `422 STORE_CLOSED`.
 
-### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Testes Automatizados:**
-  - `src/server/security_phase1.spec.ts`: Asserção de que `tenant_owner` só pode consultar e editar seu próprio `tenantId`.
-  - `src/server/commerce_war_tests.spec.ts` (Guerra 7 - Cross-Tenant Block): Validação de bloqueio de injeção cruzada de pedidos ou produtos entre tenants distintos.
-- **Resultado:** 100% de sucesso.
+### Perspectiva 4: Validação
+
+A descrição separa comportamento do servidor e presença de interface. Testes e homologação não foram executados nesta revisão.
 
 ---
 
@@ -65,7 +63,7 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
 | Recurso Multiunidade | Classificação | Arquivo de Evidência | Observações |
 |---|---|---|---|
 | Isolamento Absoluto de Dados por Tenant | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:87` | Impossível ler ou gravar dados entre tenants distintos. |
-| Edição Autônoma de Dados da Loja (Horário/Frete) | 🟢 **Implementado e comprovado** | `src/server/routes/tenants.router.ts:181` | Lojista edita horário, raio e opções sem depender do HQ. |
+| Endpoint de alteração de dados da loja | 🟡 **API encontrada; tela não integrada** | `src/server/routes/tenants.router.ts` | O endpoint existe; os atalhos `store-manager` e `settings` ainda mostram placeholder no desktop. |
 | Controle de Abertura/Fechamento da Loja (`isOpen`) | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:221` | Loja fechada bloqueia pedidos online via código `422 STORE_CLOSED`. |
 | Proteção de Campos Corporativos pelo Servidor | 🟢 **Implementado e comprovado** | `src/server/routes/tenants.router.ts:194` | Lojista não consegue burlar plano ou limites de hardware. |
 | Seletor Rápido de Filiais no Topo do Desktop | 🟡 **Implementado parcialmente** | `src/app/services/ecosystem.service.ts` | O serviço suporta alternância de tenant; componente de dropdown visual entre filiais na barra de tarefas está ativo para donos multi-loja. |

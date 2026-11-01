@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, ActivatedRoute } from '@angular/router';
 import { EcosystemService } from '../services/ecosystem.service';
-import { ProductItem, OrderTransaction, TableInfo, Appointment } from '../models/ecosystem.model';
+import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appointment } from '../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -686,9 +686,8 @@ export class CustomerStorefrontComponent {
 
   onlineProducts = computed(() => {
     const activeId = this.activeStore().id;
-    const all = this.ecosystem.products().filter(p => p.availableOnline);
-    const storeSpecific = all.filter(p => p.tenantId === activeId);
-    return storeSpecific.length > 0 ? storeSpecific : all;
+    return this.ecosystem.inventoryService.publicCatalog()
+      .filter(product => product.tenantId === activeId && product.availableOnline);
   });
 
   totalCartCount = computed(() => this.customerCart().reduce((sum, i) => sum + i.quantity, 0));
@@ -701,15 +700,37 @@ export class CustomerStorefrontComponent {
     this.ecosystem.openRegionalMarketplace();
   }
 
-  addToCustomerCart(product: ProductItem) {
+  addToCustomerCart(product: ProductItem | PublicCatalogProduct) {
+    const cartProduct = this.toCartProduct(product);
     this.ecosystem.customerCart.update(c => {
-      const existing = c.find(i => i.product.id === product.id);
+      const existing = c.find(i => i.product.id === cartProduct.id);
       if (existing) {
-        return c.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return c.map(i => i.product.id === cartProduct.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...c, { product, quantity: 1 }];
+      return [...c, { product: cartProduct, quantity: 1 }];
     });
     this.showCartModal.set(true);
+  }
+
+  private toCartProduct(product: ProductItem | PublicCatalogProduct): ProductItem {
+    if ('inStock' in product) {
+      return {
+        id: product.id,
+        tenantId: product.tenantId,
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        costPrice: 0,
+        stock: product.inStock ? 1 : 0,
+        minStock: 0,
+        barcode: '',
+        sku: product.id,
+        image: product.image,
+        availableOnline: product.availableOnline,
+        description: product.description
+      };
+    }
+    return product;
   }
 
   removeFromCart(productId: string) {

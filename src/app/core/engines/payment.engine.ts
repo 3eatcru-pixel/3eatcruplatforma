@@ -12,7 +12,6 @@ export interface PaymentTransactionRequest {
   customerName?: string;
   installments?: number;
   tenantId: string;
-  isPlatformDelivery?: boolean;
 }
 
 export interface PaymentTransactionResult {

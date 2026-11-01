@@ -3,7 +3,7 @@ import {
   OrderTransaction,
   PaymentTransactionRecord
 } from '../../shared/models/ecosystem.model';
-import { isTenantStaffRole, requireAuth } from '../middleware/auth.middleware';
+import { isTenantStaffRole, requireAuth, requireRoles } from '../middleware/auth.middleware';
 import { adminDb } from '../firebase-admin';
 import { transitionCommercialOrderStatus } from '../core/commerce.engine';
 import { paymentProcessRateLimiter } from '../middleware/rate-limiter.middleware';
@@ -11,6 +11,9 @@ import { paymentProcessRateLimiter } from '../middleware/rate-limiter.middleware
 export const paymentsRouter = Router();
 
 paymentsRouter.use(requireAuth);
+// Payments are available to consumers for their own orders and to tenant managers/operators.
+// The documented waiter app can place and track orders, but does not process/confirm payments.
+paymentsRouter.use(requireRoles(['hq_admin', 'tenant_owner', 'operator', 'consumer']));
 paymentsRouter.use(paymentProcessRateLimiter);
 
 const VALID_METHODS: readonly PaymentTransactionRecord['method'][] = [
@@ -218,8 +221,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
   const method = String(body['method'] || '').trim() as PaymentTransactionRecord['method'];
   const requestedTenantId =
     typeof body['tenantId'] === 'string' ? body['tenantId'].trim() : '';
-  const isPlatformDelivery = Boolean(body['isPlatformDelivery']);
-  const cashConfirmedByOperator = Boolean(body['cashConfirmedByOperator']);
+  const cashConfirmedByOperator = body['cashConfirmedByOperator'] === true;
 
   // P0.1 Requirement: Mandatory order existence, positive finite amount, and valid method
   if (!orderId || !Number.isFinite(amount) || amount <= 0 || !VALID_METHODS.includes(method)) {
@@ -323,6 +325,19 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     const merchantCity = (tenantData?.['address']?.['city'] as string) || 'SAO PAULO';
     const pixKey = (tenantData?.['pixKey'] as string) || 'pix@3eatcru.com.br';
 
+    // Escrow labeling is derived from the tenant fleet and server-side driver assignment;
+    // a caller cannot classify an own-fleet order as platform delivery in the request body.
+    let isPlatformDelivery =
+      orderData.type === 'delivery' && tenantData?.['deliveryFleetType'] === 'platform';
+    if (
+      orderData.type === 'delivery' &&
+      tenantData?.['deliveryFleetType'] === 'hybrid' &&
+      orderData.driverId
+    ) {
+      const driverDoc = await adminDb.collection('drivers').doc(orderData.driverId).get();
+      isPlatformDelivery = driverDoc.exists && driverDoc.data()?.['driverType'] === 'platform';
+    }
+
     const psp = getActivePspProvider();
     const pspProvider = psp?.provider || null;
     const isLive = psp?.isLive || false;
@@ -349,8 +364,9 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
 
     // CASE 1: CASH / VOUCHER (Physical Currency)
     if (method === 'cash' || method === 'voucher') {
-      const isOperatorAtCounter = isTenantStaffRole(caller.role) || caller.role === 'hq_admin';
-      if (isOperatorAtCounter && (cashConfirmedByOperator || orderData.type === 'pos-counter')) {
+      const isOperatorAtCounter =
+        caller.role === 'tenant_owner' || caller.role === 'operator' || caller.role === 'hq_admin';
+      if (isOperatorAtCounter && cashConfirmedByOperator) {
         // Confirmed physically by authorized cashier operator
         status = 'approved';
         gatewayLabel = `Caixa Físico do Lojista (Operador: ${caller.name || caller.id})`;
@@ -476,7 +492,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     if (
       record.status === 'approved' &&
       orderData.type === 'pos-counter' &&
-      isTenantStaffRole(caller.role)
+      (caller.role === 'tenant_owner' || caller.role === 'operator' || caller.role === 'hq_admin')
     ) {
       await transitionCommercialOrderStatus({
         orderId,
@@ -532,7 +548,7 @@ paymentsRouter.post('/:id/confirm', async (req: Request, res: Response) => {
     // P0-01 Security Fix: Only HQ Admins or Tenant Staff (cashier/manager) can confirm pending payments. Consumers MUST NOT confirm their own payments.
     const isAuthorized =
       caller.role === 'hq_admin' ||
-      (isTenantStaffRole(caller.role) && caller.tenantId === tx.tenantId);
+      ((caller.role === 'tenant_owner' || caller.role === 'operator') && caller.tenantId === tx.tenantId);
 
     if (!isAuthorized) {
       res.status(403).json({ error: 'Sem permissão para confirmar esta transação.', code: 'FORBIDDEN' });
@@ -587,7 +603,7 @@ paymentsRouter.post('/:id/confirm', async (req: Request, res: Response) => {
           orderData.status !== 'completed' &&
           orderData.status !== 'cancelled' &&
           (caller.role === 'hq_admin' ||
-            (isTenantStaffRole(caller.role) && caller.tenantId === tx.tenantId))
+            ((caller.role === 'tenant_owner' || caller.role === 'operator') && caller.tenantId === tx.tenantId))
         ) {
           settledOrder = await transitionCommercialOrderStatus({
             orderId: tx.orderId,

@@ -39,10 +39,9 @@ export function createRateLimiter(options: RateLimitOptions) {
   }
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const forwarded = req.headers['x-forwarded-for'];
-    const clientIp = typeof forwarded === 'string'
-      ? forwarded.split(',')[0]?.trim() || req.ip || 'unknown'
-      : (Array.isArray(forwarded) ? forwarded[0] : req.ip) || 'unknown';
+    // Express resolves req.ip using the server's explicit trust-proxy configuration.
+    // Do not parse X-Forwarded-For here: callers can supply that header themselves.
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
 
     // Disambiguate authenticated requests by user id or tenant
     const userId = req.user?.id ? `user:${req.user.id}` : '';

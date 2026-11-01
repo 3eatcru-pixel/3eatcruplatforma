@@ -74,5 +74,5 @@ A plataforma 3EATCRU opera como intermediadora comercial no marketplace regional
 | Parametrização da Taxa pelo HQ (0% a 50%) | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:188` | Atualização auditada e persistida em `/hq_settings/global`. |
 | Livro-Razão Executivo Consolidado | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:407` | Listagem auditável com paginação e totais de comissões retidas. |
 | Bloqueio de Auto-Liquidação sem Gateway/Operador | 🟢 **Implementado e comprovado** | `src/server/routes/payments.router.ts:184` | Rejeita payloads com `status: 'completed'` forjados pelo cliente. |
-| Conciliação Bancária com Adquirentes Externos | 🟡 **Implementado parcialmente** | `src/app/components/os-windows/reconciliation-window.ts` | Interface de conciliação construída; integração de extrato OFX/EDI bancário em homologação. |
+| Conciliação Bancária com Adquirentes Externos | ⚪ **Não localizada no Store OS** | ID `reconciliation` no registro de apps | O desktop mostra placeholder; integração de extrato OFX/EDI não foi encontrada nesta auditoria. |
 | Split Nativo Direto na Conta do Adquirente (Stripe Connect) | 🟡 **Implementado parcialmente** | `src/server/routes/payments.router.ts` | Arquitetura contábil segregada no Firestore; automação de payout de split bancário via transferências Stripe Connect planejada. |

@@ -9,35 +9,7 @@ import { EAppWindowManagerService } from '../services/eapp-window-manager.servic
 import { OSAppId, OSWindow, OSAppDefinition } from '../models/os.model';
 import { OS_APPS_REGISTRY } from './os/os-apps-registry';
 
-// Embedded OS Apps (eApps)
-import { EAppPosWindow } from './eapps/eapp-pos';
-import { EAppTablesWindow } from './eapps/eapp-tables';
-import { EAppKdsWindow } from './eapps/eapp-kds';
-import { EAppInventoryWindow } from './eapps/eapp-inventory';
-import { EAppFinanceWindow } from './eapps/eapp-finance';
-import { EAppSettingsWindow } from './eapps/eapp-settings';
-import { EAppSystemWindow } from './eapps/eapp-system';
-import { EAppTasksWindow } from './eapps/eapp-tasks';
-import { EAppWhatsappWindow } from './eapps/eapp-whatsapp';
-import { EAppInstagramWindow } from './eapps/eapp-instagram';
-import { EAppIfoodWindow } from './eapps/eapp-ifood';
-import { EAppCalculatorWindow } from './eapps/eapp-calculator';
-import { EAppNotesWindow } from './eapps/eapp-notes';
-import { EAppServicesWindow } from './eapps/eapp-services';
-import { EAppReservationsWindow } from './eapps/eapp-reservations';
-import { EAppDocsWindow } from './eapps/eapp-docs';
-import { EAppReportsWindow } from './eapps/eapp-reports';
-import { EAppOrderHistoryWindow } from './eapps/eapp-order-history';
-import { EAppCrmWindow } from './eapps/eapp-crm';
-import { EAppStoreManagerWindow } from './eapps/eapp-store-manager';
-import { EAppRhWindow } from './eapps/eapp-rh';
-import { EAppDriversWindow } from './eapps/eapp-drivers';
-import { EAppAdminHubWindow } from './eapps/eapp-admin-hub';
-import { EAppCalendarWindow } from './eapps/eapp-calendar';
-import { EAppSuppliersWindow } from './eapps/eapp-suppliers';
-import { EAppReconciliationWindow } from './eapps/eapp-reconciliation';
-import { EAppStockAuditWindow } from './eapps/eapp-stock-audit';
-import { EAppGoogleDriveWindow } from './eapps/eapp-google-drive';
+// Embedded OS Apps (eApps) available in this shell
 import { EAppWaiterSimWindow } from './eapps/eapp-waiter-sim';
 import { EAppDriverSimWindow } from './eapps/eapp-driver-sim';
 import { EAppConsumerSimWindow } from './eapps/eapp-consumer-sim';
@@ -60,34 +32,6 @@ import { OsWindowShellComponent } from './os/os-window-shell';
   imports: [
     CommonModule,
     MatIconModule,
-    EAppPosWindow,
-    EAppTablesWindow,
-    EAppKdsWindow,
-    EAppInventoryWindow,
-    EAppFinanceWindow,
-    EAppSettingsWindow,
-    EAppSystemWindow,
-    EAppTasksWindow,
-    EAppWhatsappWindow,
-    EAppInstagramWindow,
-    EAppIfoodWindow,
-    EAppCalculatorWindow,
-    EAppNotesWindow,
-    EAppServicesWindow,
-    EAppReservationsWindow,
-    EAppDocsWindow,
-    EAppReportsWindow,
-    EAppOrderHistoryWindow,
-    EAppCrmWindow,
-    EAppStoreManagerWindow,
-    EAppRhWindow,
-    EAppDriversWindow,
-    EAppAdminHubWindow,
-    EAppCalendarWindow,
-    EAppSuppliersWindow,
-    EAppReconciliationWindow,
-    EAppStockAuditWindow,
-    EAppGoogleDriveWindow,
     EAppWaiterSimWindow,
     EAppDriverSimWindow,
     EAppConsumerSimWindow,
@@ -184,37 +128,26 @@ import { OsWindowShellComponent } from './os/os-window-shell';
 
               <div class="h-full p-4">
                 @switch (win.id) {
-                  @case ('store-manager') { @defer (on timer(0ms)) { <app-eapp-store-manager /> } }
-                  @case ('docs') { @defer (on timer(0ms)) { <app-eapp-docs /> } }
-                  @case ('pos') { @defer (on timer(0ms)) { <app-eapp-pos /> } }
-                  @case ('tables') { @defer (on timer(0ms)) { <app-eapp-tables /> } }
-                  @case ('kds') { @defer (on timer(0ms)) { <app-eapp-kds /> } }
-                  @case ('inventory') { @defer (on timer(0ms)) { <app-eapp-inventory /> } }
-                  @case ('finance') { @defer (on timer(0ms)) { <app-eapp-finance /> } }
-                  @case ('settings') { @defer (on timer(0ms)) { <app-eapp-settings /> } }
-                  @case ('system') { @defer (on timer(0ms)) { <app-eapp-system /> } }
-                  @case ('tasks') { @defer (on timer(0ms)) { <app-eapp-tasks /> } }
-                  @case ('whatsapp') { @defer (on timer(0ms)) { <app-eapp-whatsapp /> } }
-                  @case ('instagram') { @defer (on timer(0ms)) { <app-eapp-instagram /> } }
-                  @case ('ifood') { @defer (on timer(0ms)) { <app-eapp-ifood /> } }
-                  @case ('agenda') { @defer (on timer(0ms)) { <app-eapp-reservations /> } }
-                  @case ('calendar') { @defer (on timer(0ms)) { <app-eapp-calendar /> } }
-                  @case ('services') { @defer (on timer(0ms)) { <app-eapp-services initialTab="dashboard" /> } }
-                  @case ('calculator') { @defer (on timer(0ms)) { <app-eapp-calculator /> } }
-                  @case ('notes') { @defer (on timer(0ms)) { <app-eapp-notes /> } }
-                  @case ('reports') { @defer (on timer(0ms)) { <app-eapp-reports /> } }
-                  @case ('history') { @defer (on timer(0ms)) { <app-eapp-order-history /> } }
-                  @case ('crm') { @defer (on timer(0ms)) { <app-eapp-crm /> } }
-                  @case ('rh') { @defer (on timer(0ms)) { <app-eapp-rh /> } }
-                  @case ('drivers') { @defer (on timer(0ms)) { <app-eapp-drivers /> } }
-                  @case ('admin-hub') { @defer (on timer(0ms)) { <app-eapp-admin-hub /> } }
-                  @case ('suppliers') { @defer (on timer(0ms)) { <app-eapp-suppliers /> } }
-                  @case ('reconciliation') { @defer (on timer(0ms)) { <app-eapp-reconciliation /> } }
-                  @case ('stock-audit') { @defer (on timer(0ms)) { <app-eapp-stock-audit /> } }
-                  @case ('google-drive') { @defer (on timer(0ms)) { <app-eapp-google-drive /> } }
+                  @case ('pos') {
+                    <section class="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-4 text-center text-stone-200">
+                      <mat-icon class="!h-12 !w-12 !text-5xl text-amber-400">point_of_sale</mat-icon>
+                      <h2 class="text-xl font-black text-white">Frente de Caixa</h2>
+                      <p class="text-sm text-stone-400">O PDV operacional está disponível na rota protegida /pos.</p>
+                      <button type="button" (click)="openPosRoute()" class="rounded-xl bg-amber-500 px-5 py-3 text-sm font-black text-stone-950 hover:bg-amber-400">
+                        Abrir PDV
+                      </button>
+                    </section>
+                  }
                   @case ('waiter-sim') { @defer (on timer(0ms)) { <app-eapp-waiter-sim /> } }
                   @case ('driver-sim') { @defer (on timer(0ms)) { <app-eapp-driver-sim /> } }
                   @case ('consumer-sim') { @defer (on timer(0ms)) { <app-eapp-consumer-sim /> } }
+                  @default {
+                    <section class="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-3 text-center text-stone-300">
+                      <mat-icon class="text-amber-400">extension</mat-icon>
+                      <h2 class="text-lg font-black text-white">{{ win.title }}</h2>
+                      <p class="text-sm text-stone-400">A interface deste módulo ainda não está integrada ao Store OS.</p>
+                    </section>
+                  }
                 }
               </div>
             </app-os-window-shell>
@@ -343,8 +276,8 @@ export class ClientOsComponent implements OnInit, OnDestroy {
   private timeInterval?: ReturnType<typeof setInterval>;
 
   async onBootstrapComplete() {
-    this.bootstrapped.set(true);
     await this.ecosystem.syncEssentialStoreMetadata();
+    this.bootstrapped.set(true);
   }
 
   readonly currentWallpaper = computed(() => this.prefsService.prefs().wallpaper);
@@ -406,6 +339,10 @@ export class ClientOsComponent implements OnInit, OnDestroy {
   openApp(id: OSAppId) {
     this.winManager.openApp(id);
     this.showStartMenu.set(false);
+  }
+
+  openPosRoute() {
+    void this.router.navigateByUrl('/pos');
   }
 
   startDraggingWindow(event: PointerEvent, win: OSWindow) {

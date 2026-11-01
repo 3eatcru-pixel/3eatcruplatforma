@@ -1,45 +1,23 @@
-# Auditoria de Mapeamento Profundo (Trabalho)
+# Auditoria de mapeamento — HQ e Store OS
 
-## Objetivo
-Mapear funcionalidades HQ e OS para alimentar a documentação do 3EATCRU seguindo as 4 perspectivas solicitadas.
+Atualizado em 2026-11-01 por leitura estática do repositório. Este arquivo resume o estado encontrado; não declara build, testes ou homologação executados. O mapa detalhado está em MODULE_STATUS.md e docs/OS/03_APLICATIVOS_E_MODULOS.md.
 
-## Estrutura de Classificação
-- [I] Implementado e comprovado
-- [P] Implementado parcialmente
-- [L] Planejado, ainda não implementado
-- [X] Não localizado no código
-- [!] Inconsistente ou com defeito
+## HQ Central
 
----
+- Há componentes em src/app/components/hq/ e rota protegida /hq.
+- Há serviços/rotas de governança em src/app/services/hq.service.ts e src/server/routes/hq.router.ts.
+- Presença de componente, serviço ou rota não confirma por si só homologação do fluxo.
 
-## 1. HQ Central
-## 1. HQ Central
-- **Funcionalidades:**
-    - Gestão de Empresas (Tenants): `hq-tenants-list.ts`, `hq-tenant-governance-modal.ts` [I]
-    - CRM Global: `hq-crm.ts` [I]
-    - Gestão de Planos/Pricing: `hq-plans-pricing.ts` [L]
-    - Auditoria e Governança: `hq-audit.ts` [L]
-    - Configurações do Sistema: `hq-system-config.ts` [L]
-    - Gestão de Dispositivos: `hq-devices-list.ts` [L]
-- **Perspectiva Funcional:** Central de comando para administradores da plataforma.
-- **Implementação:** Standalone components em Angular, servidos pelo `EcosystemService`.
+## Store OS Lojista
 
-## 2. OS Lojista
-- **Funcionalidades:**
-    - PDV: `pos-window.ts`, `pos-cart.ts` [I]
-    - Estoque: `inventory-window.ts`, `inventory-table.ts` [I]
-    - Financeiro: `finance-window.ts`, `finance-ledger.ts` [I]
-    - CRM de Loja: `crm-window.ts` [L]
-    - Garçom: `waiter-app.ts` [I]
-    - Entregador: `driver-app.ts` [I]
-- **Perspectiva Funcional:** Operação de ponta a ponta do lojista.
-- **Implementação:** Componentes de janelas e apps dedicados.
+| Domínio | Código encontrado | Estado da interface |
+|---|---|---|
+| Desktop | src/app/components/client-os.ts | Shell com janelas; IDs sem renderizador mostram estado placeholder. |
+| PDV | src/app/components/pos-terminal.ts e src/app/components/eapps/pos/ | Rota standalone /pos; encaminhada pelo atalho do desktop. |
+| Produtos e pedidos | Serviços Angular e routers do servidor | APIs presentes; janelas de estoque, KDS e histórico não integradas. |
+| Financeiro e mesas | Serviços Angular e routers do servidor | APIs presentes; janelas financeiras e de mesas não integradas. |
+| Garçom e entregador | src/app/components/waiter-app.ts e driver-app.ts | Rotas standalone /waiter e /driver. |
 
----
-## 3. Integração HQ-OS
-- **Status:** [P] Baseado no `EcosystemService` e `hq-api.service.ts`.
+## Integração HQ–OS
 
----
-## Notas
-- Baseado na análise inicial de `src/app/components/hq` e `src/app/components/os-windows`.
-- Próximo passo: Análise detalhada dos arquivos.
+Os clientes usam serviços HTTP e a autenticação é aplicada pelos guards/interceptors e pelo middleware do servidor. O escopo efetivo de cada endpoint deve ser verificado na respectiva rota; este resumo não declara sincronização/homologação além do que o código permite afirmar.

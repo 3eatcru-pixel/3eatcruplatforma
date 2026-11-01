@@ -11,7 +11,7 @@ import { OfflineSyncService } from '../core/offline/offline-sync.service';
 import { PaymentEngine, PaymentTransactionResult } from '../core/engines/payment.engine';
 import { ProductItem, CartItem, OrderTransaction, CustomerProfile } from '../models/ecosystem.model';
 
-import { PosScannerComponent, PosSectorMode } from './eapps/pos/pos-scanner';
+import { PosScannerComponent } from './eapps/pos/pos-scanner';
 import { PosGridComponent } from './eapps/pos/pos-grid';
 import { PosCartComponent } from './eapps/pos/pos-cart';
 import { PosCashOpModal } from './eapps/pos/pos-cash-op-modal';
@@ -153,13 +153,8 @@ interface HeldSale {
           <!-- COLUNA ESQUERDA: LEITOR DE CÓDIGO, CATÁLOGO TOUCH E ATALHOS (8 Colunas) -->
           <div class="lg:col-span-8 flex flex-col gap-3 h-full min-h-0 overflow-hidden">
             <app-pos-scanner
-              [(posSector)]="posSector"
-              [(isWholesale)]="isWholesale"
               [(fastScanMode)]="fastScanMode"
               [(tableOrComanda)]="tableOrComanda"
-              [(technicianName)]="technicianName"
-              [(serialOrBatch)]="serialOrBatch"
-              [(prescriptionRef)]="prescriptionRef"
               [(searchQuery)]="searchQuery"
               [heldSalesCount]="heldSales().length"
               (openScale)="showScaleModal.set(true)"
@@ -190,6 +185,7 @@ interface HeldSale {
               [cartPromotionsDiscount]="cartPromotionsDiscount()"
               [cartTax]="cartTax()"
               [cartTotal]="cartTotal()"
+              [isOnline]="offlineSync.isOnline()"
               (holdSale)="holdSale()"
               (clearCart)="clearCart()"
               (removeCustomer)="selectedCustomer.set(null)"
@@ -237,11 +233,11 @@ interface HeldSale {
         />
       }
 
-      @if (showNfceCouponModal(); as order) {
+      @if (showReceiptModal(); as order) {
         <app-pos-receipt-modal
           [order]="order"
           [customerCpf]="customerCpf()"
-          (closeRequest)="showNfceCouponModal.set(null)"
+          (closeRequest)="showReceiptModal.set(null)"
         />
       }
 
@@ -318,20 +314,15 @@ export class PosTerminalComponent {
   readonly cartDiscount = signal<number>(0);
 
   // Sector modes
-  readonly posSector = signal<PosSectorMode>('restaurant');
-  readonly isWholesale = signal<boolean>(false);
   readonly fastScanMode = signal<boolean>(true);
   readonly tableOrComanda = signal<string>('');
-  readonly technicianName = signal<string>('');
-  readonly serialOrBatch = signal<string>('');
-  readonly prescriptionRef = signal<string>('');
 
   // Modals
   readonly showScaleModal = signal<boolean>(false);
   readonly applyDiscountModal = signal<boolean>(false);
   readonly showRecallModal = signal<boolean>(false);
   readonly showSangriaModal = signal<boolean>(false);
-  readonly showNfceCouponModal = signal<OrderTransaction | null>(null);
+  readonly showReceiptModal = signal<OrderTransaction | null>(null);
   readonly pendingPixModal = signal<{ order: OrderTransaction; payment: PaymentTransactionResult } | null>(null);
   readonly confirmingPix = signal<boolean>(false);
 
@@ -373,11 +364,7 @@ export class PosTerminalComponent {
 
   readonly cartSubtotal = computed(() =>
     this.cart().reduce((sum, item) => {
-      const price =
-        this.isWholesale() && item.product.wholesalePrice
-          ? item.product.wholesalePrice
-          : item.product.price;
-      return sum + price * item.quantity;
+      return sum + item.product.price * item.quantity;
     }, 0)
   );
 
@@ -419,8 +406,10 @@ export class PosTerminalComponent {
 
   constructor() {
     effect(() => {
+      const isSimulation = this.security.isSimulated();
       const tid = this.ecosystem.resolveOperationalTenantId();
       if (tid) {
+        if (isSimulation) this.cart.set([]);
         this.inventoryService.fetchProducts(tid).catch(() => []);
       }
     });
@@ -434,7 +423,8 @@ export class PosTerminalComponent {
     let targetCode = query;
     if (query.includes('*')) {
       const parts = query.split('*');
-      mult = parseInt(parts[0], 10) || 1;
+      const requestedQuantity = Number.parseInt(parts[0] || '', 10);
+      mult = Number.isInteger(requestedQuantity) && requestedQuantity > 0 ? requestedQuantity : 1;
       targetCode = parts[1].trim();
     }
 
@@ -557,46 +547,44 @@ export class PosTerminalComponent {
     this.customerSearchResults.set(results);
   }
 
-  onExecuteCashOperation(event: { type: 'sangria' | 'suprimento' | 'close'; amount: number; reason: string }) {
+  async onExecuteCashOperation(event: { type: 'sangria' | 'suprimento'; amount: number; reason: string }) {
+    if (!this.offlineSync.isOnline()) {
+      this.ecosystem.notify('Sangria e suprimento exigem conexão e não foram registrados.', 'warning');
+      this.showSangriaModal.set(false);
+      return;
+    }
+
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    if (event.type === 'sangria') {
-      this.financialsService.addRecord({
+    try {
+      await this.financialsService.addRecord({
         date: new Date().toISOString(),
-        type: 'expense',
-        category: 'Sangria de Caixa',
-        description: `Sangria Gaveta: ${event.reason}`,
+        type: event.type === 'sangria' ? 'expense' : 'income',
+        category: event.type === 'sangria' ? 'Sangria de Caixa' : 'Suprimento / Aporte',
+        description: `${event.type === 'sangria' ? 'Sangria Gaveta' : 'Suprimento Fundo de Troco'}: ${event.reason}`,
         amount: event.amount,
         paymentMethod: 'Dinheiro',
         tenantId,
         channel: 'POS',
         deviceId: this.activeDeviceId(),
         status: 'cleared',
-        referenceId: 'sangria-' + Date.now()
+        referenceId: `${event.type}-${Date.now()}`
       });
-      this.ecosystem.notify(`Sangria de R$ ${event.amount.toFixed(2)} registrada no caixa.`, 'warning');
-    } else if (event.type === 'suprimento') {
-      this.financialsService.addRecord({
-        date: new Date().toISOString(),
-        type: 'income',
-        category: 'Suprimento / Aporte',
-        description: `Suprimento Fundo de Troco: ${event.reason}`,
-        amount: event.amount,
-        paymentMethod: 'Dinheiro',
-        tenantId,
-        channel: 'POS',
-        deviceId: this.activeDeviceId(),
-        status: 'cleared',
-        referenceId: 'suprimento-' + Date.now()
-      });
-      this.ecosystem.notify(`Suprimento de R$ ${event.amount.toFixed(2)} inserido no caixa.`, 'success');
-    } else {
-      this.ecosystem.notify('Fechamento de turno concluído! Relatório Z gerado.', 'info');
+      this.ecosystem.notify(
+        `${event.type === 'sangria' ? 'Sangria' : 'Suprimento'} de R$ ${event.amount.toFixed(2)} registrada no caixa.`,
+        event.type === 'sangria' ? 'warning' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Falha ao registrar operação de caixa no financeiro.', 'error');
     }
     this.showSangriaModal.set(false);
   }
 
   async checkout(method: 'cash' | 'card' | 'pix') {
     if (this.cart().length === 0) return;
+    if (!this.offlineSync.isOnline() && method !== 'cash') {
+      this.ecosystem.notify('Cartão e PIX exigem conexão. Use dinheiro para registrar uma venda em contingência.', 'warning');
+      return;
+    }
     const subtotal = this.cartSubtotal();
     const tax = this.cartTax();
     const discount = this.cartDiscount() + this.cartPromotionsDiscount();
@@ -626,10 +614,12 @@ export class PosTerminalComponent {
         });
 
         this.ecosystem.notify(
-          `Venda R$ ${cashOrder.total.toFixed(2)} liquidada em Dinheiro no terminal!`,
-          'success'
+          this.offlineSync.isOnline()
+            ? `Venda R$ ${cashOrder.total.toFixed(2)} liquidada em Dinheiro no terminal!`
+            : `Venda R$ ${cashOrder.total.toFixed(2)} registrada em contingência; aguardando sincronização.`,
+          this.offlineSync.isOnline() ? 'success' : 'warning'
         );
-        this.showNfceCouponModal.set(cashOrder);
+        this.showReceiptModal.set(cashOrder);
         this.clearCart();
         return;
       }
@@ -703,7 +693,7 @@ export class PosTerminalComponent {
         `Venda R$ ${cardOrder.total.toFixed(2)} liquidada via Cartão (AUT: ${paymentResult.authorizationCode})!`,
         'success'
       );
-      this.showNfceCouponModal.set(cardOrder);
+      this.showReceiptModal.set(cardOrder);
       this.clearCart();
     } catch (err: unknown) {
       const msg =
@@ -730,7 +720,7 @@ export class PosTerminalComponent {
         await this.financialsService.fetchRecords(tenantId).catch(() => []);
       }
       this.pendingPixModal.set(null);
-      this.showNfceCouponModal.set(settledOrder);
+      this.showReceiptModal.set(settledOrder);
       this.ecosystem.notify(`PIX confirmado! Venda ${settledOrder.orderNumber} liquidada no caixa.`, 'success');
     } catch {
       this.ecosystem.notify('Falha ao confirmar liquidação PIX.', 'error');

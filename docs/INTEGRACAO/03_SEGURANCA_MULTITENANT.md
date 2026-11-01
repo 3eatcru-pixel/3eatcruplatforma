@@ -2,7 +2,7 @@
 
 ## 📌 1. Visão Geral da Arquitetura Zero-Trust
 
-O ecossistema 3EATCRU adota uma postura de segurança **Zero-Trust (Confiança Zero)** em todas as camadas da aplicação. Sob este princípio, nenhuma requisição proveniente da interface do usuário é considerada confiável por padrão. A autoridade de acesso e o escopo de dados são determinados estritamente no servidor através de **Tokens Criptografados com Custom Claims** e regras de segurança rígidas no **Cloud Firestore (`firestore.rules`)**.
+O ecossistema combina validação de Firebase ID Tokens, middlewares de autorização no servidor e regras do Cloud Firestore (`firestore.rules`). As garantias são específicas de cada rota e coleção; o uso desses controles não certifica, por si só, o isolamento de todos os fluxos.
 
 ```text
                                         REQUISIÇÃO HTTP CLIENTE
@@ -23,16 +23,15 @@ O ecossistema 3EATCRU adota uma postura de segurança **Zero-Trust (Confiança Z
                                                    ▼
                                ┌───────────────────────────────────────┐
                                │     3. ISOLAMENTO MULTIEMPRESA        │
-                               │  Rejeita se payload declarar outro    │
-                               │  tenantId (403 TENANT_MISMATCH)       │
+                               │  Rotas com escopo de tenant comparam │
+                               │  tenantId conforme seu middleware    │
                                └───────────────────┬───────────────────┘
                                                    │
                                                    ▼
                                ┌───────────────────────────────────────┐
                                │      4. FIRESTORE SECURITY RULES      │
-                               │  Default Deny em 100% das coleções.   │
-                               │  Escritas no banco bloqueadas para o  │
-                               │  Client SDK (somente via Express)     │
+                               │  Regra-curinga nega acesso sem regra │
+                               │  explícita; exceções são por coleção │
                                └───────────────────────────────────────┘
 ```
 
@@ -44,7 +43,8 @@ O ecossistema 3EATCRU adota uma postura de segurança **Zero-Trust (Confiança Z
 - Impedir que qualquer usuário autenticado (seja lojista, garçom, motorista ou cliente) acerte queries em documentos pertencentes a outro estabelecimento.
 - Bloquear a escalação de privilégios onde um lojista comum tenta se autoproclamar Super Admin (`hq_admin`).
 - Garantir que motoristas só visualizem e transicionem pedidos que foram expressamente atribuídos a eles (`order.driverId === req.user.id`).
-- Eliminar o risco de ataques por injeção direta via Firebase Client SDK.
+- Manter rotas disponíveis restritas ao tenant do motorista `private`; o pool aberto da rede `marketplace` fica indisponível enquanto a operação da plataforma estiver em breve.
+- Restringir acessos diretos pelo Firebase Client SDK conforme as regras de cada coleção.
 
 ### Perspectiva 2: Como foi implementado (Realidade do Código)
 - **Default-Deny Global em `firestore.rules:8`:**
@@ -58,7 +58,7 @@ O ecossistema 3EATCRU adota uma postura de segurança **Zero-Trust (Confiança Z
     ```javascript
     allow create, update, delete: if false;
     ```
-    Isso força que **100% das mutações** sejam mediadas pelo backend Express, onde transações ACID e validações de regras de negócio são obrigatoriamente aplicadas.
+    Nessas coleções, as mutações do Client SDK são bloqueadas. Rotas que usam Admin SDK precisam validar autorização e dados no backend; as regras Firestore não substituem essas verificações.
 - **Isolamento de Entregadores em `firestore.rules:59`:**
   - Função `isAssignedDriver(data)`:
     ```javascript

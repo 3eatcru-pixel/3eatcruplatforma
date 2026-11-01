@@ -12,10 +12,10 @@ Em nível de produto, a plataforma se organiza em **3 ambientes**, complementado
 
 ```text
  ┌─────────────────────────────────────────────────────────────────────────────────┐
- │                      1. HQ CENTRAL (GABINETE EXEC-SAAS)                         │
+ │                              1. HQ CENTRAL                                      │
  │ Rota: /hq | Role: hq_admin                                                      │
- │ • Governança SaaS Multi-Tenant        • Taxa de Split de 8% da Franqueadora    │
- │ • Planos Pro / Enterprise             • Gestão de Frota MDM & Terminais Hardware │
+ │ • Governança de tenants e planos     • Comissão de entregas em breve        │
+ │ • Inventário de dispositivos         • Configuração regional e auditoria     │
  └──────────────────────────────────────┬──────────────────────────────────────────┘
                                         │
              ┌──────────────────────────┴──────────────────────────┐
@@ -37,9 +37,9 @@ Em nível de produto, a plataforma se organiza em **3 ambientes**, complementado
  └──────────────────────────────────────┬──────────────────────────────────────────┘
                                         │
  ┌──────────────────────────────────────▼──────────────────────────────────────────┐
- │ INFRAESTRUTURA TRANSACIONAL & SEGURANÇA ZERO-TRUST                              │
- │ • Backend Express 5 (/api/*)         • Contratos Compartilhados (src/shared/)   │
- │ • Cloud Firestore Live (18 coleções) • Outbox Offline & Sincronização           │
+ │ BACKEND, PERSISTÊNCIA E CONTROLES DE ACESSO                                     │
+ │ • API Express (/api/*)              • Contratos Compartilhados (src/shared/)   │
+ │ • Firestore e fluxos de sincronização por módulo                                │
  └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -72,7 +72,7 @@ A plataforma separa rigorosamente a **Autorização de Pagamento** do **Lançame
 É CRITICAL não confundir **Ambientes de Produto** com **Modos de Execução**.
 
 ### 1. Ambientes de Produto (Onde você está)
-- **HQ Central (`/hq`)**: Gestão SaaS, Auditoria Master, Split de Taxas.
+- **HQ Central (`/hq`)**: Governança de tenants e planos, configuração “Em breve” para a futura comissão da rede de entregadores, inventário e auditoria estrutural.
 - **Store OS (`/os`, `/pos`)**: Operação da Loja (Caixa, Cozinha, Estoque).
 - **Marketplace & Público (`/home`, `/p/:id`)**: Descoberta, Cardápio e Compra pelo Consumidor.
 
@@ -90,24 +90,21 @@ A plataforma separa rigorosamente a **Autorização de Pagamento** do **Lançame
 
 ---
 
-## 🛡️ Segurança & Auditoria Zero-Trust
+## Segurança e autorização
 
-A plataforma opera sob um modelo de **Confiança Zero**:
-- **HQ Admin** tem visão global, mas não pode operar mesas de uma loja sem auditoria.
-- **Tenant Staff** é restrito ao seu `tenantId` e não pode ver dados da HQ ou de outras lojas.
-Qualquer tentativa de cruzamento de dados (Cross-Tenant) é bloqueada tanto pelas `firestore.rules` quanto pela validação no `commerce.engine.ts`.
+A autorização é aplicada por rota no servidor, com Firebase ID Tokens, middlewares de papel/tenant e regras de acesso do Firestore. As garantias variam por endpoint e coleção; este documento não afirma isolamento universal nem certificação integral. Consulte os manuais de segurança e valide cada fluxo nas fontes correspondentes.
 
 ---
 
-## 📚 Mapa da Documentação Técnica Profunda (5 Núcleos & 28 Manuais)
+## 📚 Mapa da documentação por módulo (5 núcleos, 32 arquivos)
 
-Para uma análise detalhada baseada no código real com as 4 perspectivas (Responsabilidade Funcional, Implementação Real, Conexões e Validação Empírica), consulte os manuais modulares:
+Consulte os manuais modulares para responsabilidades, fontes de implementação, integrações e limites observados. Cada documento identifica sua própria situação de validação:
 
 | Núcleo de Documentação | Diretório | Escopo Principal |
 |---|---|---|
-| **1. HQ Central — Governança** | [`docs/HQ/`](./HQ/) | 7 manuais (`00_ARQUITETURA_HQ.md` a `06_OPERACOES_E_AUDITORIA.md`) cobrindo governança de tenants, planos, split 8%, MDM e auditoria. |
-| **2. Store OS — Operação da Loja** | [`docs/OS/`](./OS/) | 10 manuais (`00_ARQUITETURA_OS.md` a `09_PERSISTENCIA_E_SINCRONIZACAO.md`); consulte `03_APLICATIVOS_E_MODULOS.md` para o estado verificado dos eApps. |
-| **3. Espaços Públicos & Marketplace** | [`docs/PUBLICO/`](./PUBLICO/) | 6 manuais (`00_ARQUITETURA_PUBLICO.md` a `05_PERFIL_CONSUMIDOR_E_RESERVAS.md`) cobrindo praça regional, vitrine, takeout sem taxa, QR Mesa e Pix. |
-| **4. Aplicações auxiliares** | [`docs/APPS_MOBILE/`](./APPS_MOBILE/) | Os documentos 00–02 apontam para as fontes consolidadas; não declaram instalação PWA, empacotamento nativo, câmera ou GPS em segundo plano sem evidência no código. |
-| **5. Contrato e Integração Transversal** | [`docs/INTEGRACAO/`](./INTEGRACAO/) | 5 manuais (`00_CONTRATO_HQ_OS.md` a `04_TESTES_E_RECUPERACAO.md`) cobrindo regras de dados, 17 coleções Firestore, 12 rotas Express e suíte de testes de estresse. |
+| **1. HQ Central — Governança** | [`docs/HQ/`](./HQ/) | 7 manuais sobre tenants, identidade, planos cadastrados, futura comissão da plataforma, inventário e operações do HQ. |
+| **2. Store OS — Operação da Loja** | [`docs/OS/`](./OS/) | 10 manuais (`00_ARQUITETURA_OS.md` a `09_PERSISTENCIA_E_SINCRONIZACAO.md`) sobre as superfícies e dados do lojista. |
+| **3. Espaços Públicos & Marketplace** | [`docs/PUBLICO/`](./PUBLICO/) | 6 manuais (`00_ARQUITETURA_PUBLICO.md` a `05_PERFIL_CONSUMIDOR_E_RESERVAS.md`) sobre marketplace, vitrines e jornadas públicas. |
+| **4. Aplicações auxiliares** | [`docs/APPS_MOBILE/`](./APPS_MOBILE/) | 4 manuais sobre escopo e fluxos móveis. A existência de um manual não comprova pacote nativo ou integração de sensores. |
+| **5. Contrato e Integração Transversal** | [`docs/INTEGRACAO/`](./INTEGRACAO/) | 5 manuais sobre modelo de dados, APIs, segurança multitenant e recuperação. Os números de coleções, rotas e cenários devem ser conferidos no código atual. |
 

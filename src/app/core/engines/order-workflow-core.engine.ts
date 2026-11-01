@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { CompanyTenant, OrderTransaction, ProductItem } from '../../models/ecosystem.model';
+import { OrderTransaction, ProductItem } from '../../models/ecosystem.model';
 import { FinancialCoreEngine } from './financial-core.engine';
 
 @Injectable({
@@ -18,7 +18,6 @@ export class OrderWorkflowCoreEngine {
   advanceOrderStatus(
     order: OrderTransaction,
     newStatus: OrderTransaction['status'],
-    tenant: CompanyTenant,
     products: ProductItem[]
   ) {
     const updatedOrder: OrderTransaction = {
@@ -26,15 +25,15 @@ export class OrderWorkflowCoreEngine {
       status: newStatus
     };
 
-    const financialSplitResult =
-      newStatus === 'completed' || newStatus === 'delivered'
-        ? this.financialEngine.processOrderFinancialSplit(updatedOrder, tenant)
+    const financialSalePreview =
+      newStatus === 'completed'
+        ? this.financialEngine.projectStoreSaleRecord(updatedOrder)
         : null;
 
     return {
       order: updatedOrder,
       updatedProducts: products,
-      financialSplitResult
+      financialSalePreview
     };
   }
 }

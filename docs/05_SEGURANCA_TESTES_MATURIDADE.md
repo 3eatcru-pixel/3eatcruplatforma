@@ -10,7 +10,7 @@ A plataforma implementa segurança em camadas com validação criptográfica no 
 |---|---|---|
 | `admins` | ❌ Privado | Registro de Super Admins da plataforma |
 | `users` | ❌ Privado | Perfis RBAC (leitura própria ou HQ Admin) |
-| `hq_settings` | ❌ Privado | Configurações globais (manutenção, taxa split) |
+| `hq_settings` | ❌ Privado | Configurações globais (manutenção, taxa de referência e status `coming_soon` da comissão futura da plataforma) |
 | `public_regional` | 🟢 Público | Banners e metadados regionais do Marketplace |
 | `plans` | 🟢 Público | Listagem de planos SaaS disponíveis |
 | `tenants` | Leitura (lojas abertas) | Dados do estabelecimento (privado ao staff/owner) |

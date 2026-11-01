@@ -47,7 +47,7 @@ import { SecurityService } from '../../services/security.service';
             <span>Console de Governança e Banco Global</span>
           </div>
           <p class="text-[11px] leading-relaxed text-stone-300">
-            Este portal é reservado exclusivamente para os diretores do ecossistema para gerenciar tenants, auditoria do split de 8%, controle de frota MDM e praças regionais.
+            Este portal é reservado aos diretores do ecossistema para gerenciar tenants, acompanhar a preparação da futura comissão das entregas da plataforma, o inventário de dispositivos e as praças regionais.
           </p>
         </div>
 

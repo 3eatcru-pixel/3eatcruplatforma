@@ -486,7 +486,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                           </span>
                           <span class="text-stone-600">•</span>
                           <span [class]="store.deliveryFleetType === 'own' ? 'text-emerald-800' : 'text-purple-800'">
-                            {{ store.deliveryFleetType === 'own' ? '🛵 Frota Própria' : '⚡ Frota 3EAT' }}
+                            {{ store.deliveryFleetType === 'own' ? '🛵 Entrega pela loja' : '🛵 Entrega pela loja · 3EAT em breve' }}
                           </span>
                         </div>
                       </div>

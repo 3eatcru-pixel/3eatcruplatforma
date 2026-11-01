@@ -55,13 +55,9 @@ export class LogisticsCoreEngine {
     });
 
     const rateConfig = tenant.driverRateConfig;
-    const baseFee = rateConfig?.baseFee || 7.00;
-    const extraKmFee = rateConfig?.extraKmFee || 1.50;
-    const includedKm = rateConfig?.includedKm || 3.0;
-    const extraStopBonus = (orderedWaypoints.length - 1) * (rateConfig?.extraStopBonus || 3.00);
-
-    const extraKm = Math.max(0, totalDistanceKm - includedKm);
-    const totalEarnings = Number((baseFee + (extraKm * extraKmFee) + extraStopBonus).toFixed(2));
+    const totalEarnings = rateConfig
+      ? Number((rateConfig.baseFee + (Math.max(0, totalDistanceKm - rateConfig.includedKm) * rateConfig.extraKmFee) + (Math.max(0, orderedWaypoints.length - 1) * rateConfig.extraStopBonus)).toFixed(2))
+      : 0;
     const estimatedDuration = `${Math.ceil(totalDistanceKm * 4 + 12)} min`;
 
     return {

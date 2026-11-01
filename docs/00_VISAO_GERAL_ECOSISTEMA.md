@@ -8,10 +8,10 @@ O ecossistema **3EATCRU** é uma plataforma comercial SaaS com interfaces web pa
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                   AMBIENTE 1: HQ CENTRAL                                       │
 │                                (Gabinete Executivo SaaS /hq)                                   │
-│  Governança de Redes • Gestão de Tenants • Split de Taxas (8%) • Planos SaaS • MDM Global      │
+│  Gestão de Tenants • Comissão das entregas 3EAT (em breve) • Planos SaaS • Inventário        │
 └────────────────────────────────────────┬───────────────────────────────────────────────────────┘
                                          │ Contrato de Governança
-                                         │ (Ativação, Licenças, Split & MDM)
+                                         │ (Ativação, Licenças, Comissão futura & Inventário)
                                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                  AMBIENTE 2: STORE OS LOJISTA                                  │

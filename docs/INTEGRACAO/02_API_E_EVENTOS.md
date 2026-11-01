@@ -18,7 +18,7 @@ O backend do 3EATCRU é estruturado como uma API RESTful unificada em Express 5 
 │    DRE & Livro-Caixa│   Frotas & Rotas   │    Reservas de Mesas         │
 ├────────────────────┼────────────────────┼──────────────────────────────┤
 │ 10./api/crm        │ 11./api/notes      │ 12./api/hq                   │
-│    Clientes & Base │    Memos Internos  │    Governança & Split        │
+│    Clientes & Base │    Memos Internos  │ Governança & Entregas 3EAT   │
 └────────────────────┴────────────────────┴──────────────────────────────┘
 ```
 
@@ -34,6 +34,8 @@ O backend do 3EATCRU é estruturado como uma API RESTful unificada em Express 5 
 
 ### Perspectiva 2: Como foi implementado (Realidade do Código)
 - **Centralização da API:** `src/server/api.ts` importa e monta os 12 roteadores.
+- **Logística da loja:** `POST /api/logistics/routes` aceita `storeDriverCompensation` como valor definido pelo lojista; se omitido, grava `0` e a interface mostra “A combinar com a loja”. O valor da rota não é pagamento processado nem comprovante de recebimento. O app do entregador atende motoristas vinculados à loja.
+- **Comissão da plataforma:** o status padrão de `platformDeliveryCommissionStatus` é `coming_soon`. Os 8% ficam fora das vendas e dos motoristas da loja; sua ativação depende da futura rede própria e da inteligência operacional.
 - **Middleware de Rate Limiting (`src/server/middleware/rate-limiter.middleware.ts`):**
   - `authRegisterRateLimiter`: Limita tentativas repetidas de cadastro de estabelecimentos para mitigar ataques de força bruta ou criação em massa de lojas falsas.
 - **Dicionário Canônico de Códigos de Erro da Plataforma:**

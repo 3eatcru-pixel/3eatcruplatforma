@@ -29,9 +29,12 @@
   - Conferência de itens no balcão da loja e confirmação de coleta.
   - Navegação visual de rota e atualização do estado das paradas.
   - Baixa de entrega na interface.
+- **Responsabilidade operacional**: até a implantação de uma rede própria da plataforma, a loja organiza as entregas com seus motoristas. O motorista pode usar este app para consultar rotas e atualizar etapas; a loja define a remuneração e paga diretamente.
+- **Valores de rota**: um valor exibido é apenas o informado pela loja para aquela rota. A tela não calcula saldo, confirma recebimento ou processa pagamento.
 - **Modo simulado**: carrega um motorista e duas rotas de demonstração locais; nenhuma alteração é persistida no servidor.
 - **Limites atuais**: o mapa movimenta um marcador de prévia apenas na simulação e não usa a geolocalização do dispositivo. O leitor de QR não está conectado; início de turno é manual. Código, assinatura e foto da entrega são campos visuais, sem validação ou persistência. A conclusão não envia WhatsApp automaticamente; em modo real, apenas prepara um link de atendimento.
 - **Fronteira de Segurança**:
+  - O motorista `private` consulta rotas disponíveis somente da loja à qual está vinculado; o aceite exige correspondência exata entre a loja do motorista e a rota.
   - O entregador visualiza **apenas os pedidos atribuídos ao seu ID** (`order.driverId === user.id`).
   - Não possui acesso a configurações da loja nem dados de outros entregadores.
 

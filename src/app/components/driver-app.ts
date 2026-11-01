@@ -186,8 +186,12 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                     <strong class="text-sm font-black text-white">{{ route.estimatedDuration }}</strong>
                   </div>
                   <div class="bg-white/5 border border-white/10 rounded-3xl p-4 text-center">
-                    <span class="text-[8px] font-black text-purple-400 uppercase tracking-widest block mb-1">Ganhos</span>
-                    <strong class="text-sm font-black text-purple-500">R$ {{ route.totalEarnings.toFixed(2) }}</strong>
+                    <span class="text-[8px] font-black text-purple-400 uppercase tracking-widest block mb-1">Valor indicado pela loja</span>
+                    @if (route.totalEarnings > 0) {
+                      <strong class="text-sm font-black text-purple-500">R$ {{ route.totalEarnings.toFixed(2) }}</strong>
+                    } @else {
+                      <strong class="text-[10px] font-black text-amber-300">A combinar com a loja</strong>
+                    }
                   </div>
                 </div>
               </div>
@@ -231,7 +235,11 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                         <div class="text-[10px] text-purple-400 font-black uppercase tracking-widest mt-1">{{ route.waypoints.length }} Entregas</div>
                       </div>
                       <div class="text-right">
-                        <strong class="text-lg font-black text-white">R$ {{ route.totalEarnings.toFixed(2) }}</strong>
+                        @if (route.totalEarnings > 0) {
+                          <strong class="text-lg font-black text-white">R$ {{ route.totalEarnings.toFixed(2) }}</strong>
+                        } @else {
+                          <span class="text-[9px] font-black text-amber-300 uppercase">A combinar com a loja</span>
+                        }
                       </div>
                     </div>
                     <button (click)="acceptRoute(route.id)" class="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-purple-600 hover:border-purple-500 transition-all cursor-pointer">
@@ -317,7 +325,7 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
           @if (activeTab() === 'financial') {
             <div class="space-y-6 animate-in slide-in-from-left duration-500">
                <div class="flex items-center justify-between">
-                <h3 class="text-lg font-black text-white uppercase tracking-tight">Financeiro</h3>
+                <h3 class="text-lg font-black text-white uppercase tracking-tight">Valores das rotas</h3>
               </div>
 
               <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
@@ -327,30 +335,39 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
               </div>
 
               <div class="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 space-y-4">
-                 <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ganhos do dia</p>
+                 <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Valores indicados em rotas concluídas</p>
                  <div class="flex items-center justify-between">
-                    <strong class="text-4xl font-black text-emerald-500">R$ {{ driverEarningsTotal().toFixed(2) }}</strong>
-                    <div class="flex items-center gap-1 text-emerald-500 font-black">
-                       <mat-icon class="text-sm">arrow_upward</mat-icon>
-                       <span class="text-xs">12%</span>
-                    </div>
+                    @if (driverDefinedRouteAmountTotal() > 0) {
+                      <strong class="text-4xl font-black text-emerald-500">R$ {{ driverDefinedRouteAmountTotal().toFixed(2) }}</strong>
+                    } @else {
+                      <strong class="text-lg font-black text-amber-300">Nenhum valor definido</strong>
+                    }
                  </div>
                  <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{{ driverCompletedCount() }} Entregas concluídas</p>
+                 <p class="text-[10px] text-amber-300 font-bold">Este app não registra pagamentos. A loja combina e paga diretamente ao entregador.</p>
                  
                   <div class="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
                     <div class="space-y-1">
-                       <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Por rota</span>
-                       <p class="text-sm font-black text-white">R$ {{ avgEarningsPerRoute().toFixed(2) }}</p>
+                       <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Média indicada por rota</span>
+                       @if (avgStoreDefinedValuePerRoute() > 0) {
+                         <p class="text-sm font-black text-white">R$ {{ avgStoreDefinedValuePerRoute().toFixed(2) }}</p>
+                       } @else {
+                         <p class="text-sm font-black text-amber-300">A definir</p>
+                       }
                     </div>
                     <div class="space-y-1">
-                       <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Por entrega</span>
-                       <p class="text-sm font-black text-white">R$ {{ avgEarningsPerDelivery().toFixed(2) }}</p>
+                       <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Média indicada por entrega</span>
+                       @if (avgStoreDefinedValuePerDelivery() > 0) {
+                         <p class="text-sm font-black text-white">R$ {{ avgStoreDefinedValuePerDelivery().toFixed(2) }}</p>
+                       } @else {
+                         <p class="text-sm font-black text-amber-300">A definir</p>
+                       }
                     </div>
                   </div>
               </div>
 
               <div class="space-y-4">
-                 <h4 class="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">Histórico de ganhos</h4>
+                 <h4 class="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">Valores informados nas rotas</h4>
                  @for (route of routesForSelectedDriver(); track route.id) {
                    <div class="flex items-center justify-between p-5 bg-white/5 border border-white/10 rounded-3xl group hover:bg-white/10 transition-all">
                       <div class="flex items-center gap-4">
@@ -363,7 +380,11 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                          </div>
                       </div>
                       <div class="text-right">
-                         <p class="text-xs font-black text-emerald-500">R$ {{ route.totalEarnings.toFixed(2) }}</p>
+                         @if (route.totalEarnings > 0) {
+                           <p class="text-xs font-black text-emerald-500">R$ {{ route.totalEarnings.toFixed(2) }}</p>
+                         } @else {
+                           <p class="text-[9px] font-black text-amber-300 uppercase">A combinar com a loja</p>
+                         }
                          <p class="text-[8px] text-slate-600 font-black uppercase tracking-widest">{{ formatRouteTimestamp(route.date) }}</p>
                       </div>
                    </div>
@@ -507,17 +528,14 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
 
                    <div class="pt-6 border-t border-white/5 space-y-2">
                       <div class="flex justify-between items-center text-[11px] font-bold text-slate-400">
-                         <span>Valor da rota</span>
-                         <span>R$ {{ (completedRoute.totalEarnings || 0).toFixed(2) }}</span>
+                         <span>Valor indicado pela loja</span>
+                         @if (completedRoute.totalEarnings > 0) {
+                           <span>R$ {{ completedRoute.totalEarnings.toFixed(2) }}</span>
+                         } @else {
+                           <span class="text-amber-300">A combinar com a loja</span>
+                         }
                       </div>
-                      <div class="flex justify-between items-center text-[11px] font-bold text-slate-400">
-                         <span>Adicionais</span>
-                         <span>R$ 0,00</span>
-                      </div>
-                      <div class="flex justify-between items-center pt-2 mt-2 border-t border-white/5">
-                         <span class="text-xs font-black text-white uppercase tracking-widest">Total recebido</span>
-                         <span class="text-lg font-black text-emerald-500">R$ {{ (completedRoute.totalEarnings || 0).toFixed(2) }}</span>
-                      </div>
+                      <p class="pt-3 text-[10px] font-bold text-amber-300">Pagamento não registrado neste app. Combine e receba diretamente da loja.</p>
                    </div>
 
                    <button class="w-full flex items-center justify-between p-5 bg-white/5 border border-white/10 rounded-2xl group hover:bg-white/10 transition-all cursor-pointer">
@@ -555,7 +573,7 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
           </button>
           <button (click)="activeTab.set('financial')" [class.text-purple-500]="activeTab() === 'financial'" class="flex flex-col items-center gap-1 text-slate-500 hover:text-white transition-all cursor-pointer">
              <mat-icon class="text-2xl">account_balance_wallet</mat-icon>
-             <span class="text-[8px] font-black uppercase tracking-widest">Financeiro</span>
+             <span class="text-[8px] font-black uppercase tracking-widest">Valores das rotas</span>
           </button>
           <button (click)="activeTab.set('profile')" [class.text-purple-500]="activeTab() === 'profile'" class="flex flex-col items-center gap-1 text-slate-500 hover:text-white transition-all cursor-pointer">
              <mat-icon class="text-2xl">person</mat-icon>
@@ -748,33 +766,29 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     const drv = this.activeDriverProfile();
     return this.ecosystem.deliveryRoutes().filter(r => {
       if (r.status !== 'available') return false;
-      if (drv?.tenantId) {
-        return r.tenantId === drv.tenantId;
-      }
-      if (r.tenantId) {
-        const tenant = this.ecosystem.tenants().find(t => t.id === r.tenantId);
-        if (tenant?.deliveryFleetType === 'own') return false;
-      }
-      return true;
+      return Boolean(drv?.tenantId && r.tenantId === drv.tenantId && drv.driverType === 'private');
     });
   });
 
-  readonly driverEarningsTotal = computed(() => {
-    return this.routesForSelectedDriver().reduce((sum, r) => sum + r.totalEarnings, 0);
+  readonly driverDefinedRouteAmountTotal = computed(() => {
+    return this.routesForSelectedDriver()
+      .filter((route) => route.status === 'completed')
+      .reduce((sum, route) => sum + Math.max(0, route.totalEarnings || 0), 0);
   });
 
   readonly driverCompletedCount = computed(() => {
     return this.routesForSelectedDriver().filter(r => r.status === 'completed').reduce((sum, r) => sum + r.totalDeliveredCount, 0);
   });
 
-  readonly avgEarningsPerRoute = computed(() => {
-    const routes = this.routesForSelectedDriver();
-    return routes.length > 0 ? this.driverEarningsTotal() / routes.length : 0;
+  readonly avgStoreDefinedValuePerRoute = computed(() => {
+    const routes = this.routesForSelectedDriver().filter((route) => route.status === 'completed');
+    return routes.length > 0 ? this.driverDefinedRouteAmountTotal() / routes.length : 0;
   });
 
-  readonly avgEarningsPerDelivery = computed(() => {
-    const deliveries = this.routesForSelectedDriver().reduce((sum, r) => sum + Math.max(1, r.waypoints.length), 0);
-    return deliveries > 0 ? this.driverEarningsTotal() / deliveries : 0;
+  readonly avgStoreDefinedValuePerDelivery = computed(() => {
+    const completedRoutes = this.routesForSelectedDriver().filter((route) => route.status === 'completed');
+    const deliveries = completedRoutes.reduce((sum, route) => sum + route.totalDeliveredCount, 0);
+    return deliveries > 0 ? this.driverDefinedRouteAmountTotal() / deliveries : 0;
   });
 
   readonly lastCompletedRoute = computed(() => {

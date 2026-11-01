@@ -325,19 +325,8 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     const merchantCity = (tenantData?.['address']?.['city'] as string) || 'SAO PAULO';
     const pixKey = (tenantData?.['pixKey'] as string) || 'pix@3eatcru.com.br';
 
-    // Escrow labeling is derived from the tenant fleet and server-side driver assignment;
-    // a caller cannot classify an own-fleet order as platform delivery in the request body.
-    let isPlatformDelivery =
-      orderData.type === 'delivery' && tenantData?.['deliveryFleetType'] === 'platform';
-    if (
-      orderData.type === 'delivery' &&
-      tenantData?.['deliveryFleetType'] === 'hybrid' &&
-      orderData.driverId
-    ) {
-      const driverDoc = await adminDb.collection('drivers').doc(orderData.driverId).get();
-      isPlatformDelivery = driverDoc.exists && driverDoc.data()?.['driverType'] === 'platform';
-    }
-
+    // This route settles the tenant's order payment. The platform courier commission is
+    // evaluated separately by HQ after a real delivery is marked delivered.
     const psp = getActivePspProvider();
     const pspProvider = psp?.provider || null;
     const isLive = psp?.isLive || false;
@@ -409,7 +398,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
         });
 
         if (stripeResult.success) {
-          status = isPlatformDelivery ? 'platform_escrow_hold' : 'approved';
+          status = 'approved';
           gatewayLabel = stripeResult.gateway;
           authCode = stripeResult.authorizationCode;
           externalTransactionId = stripeResult.externalId;
@@ -430,7 +419,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
           return;
         }
         // Honest Sandbox Simulation (Strictly force sandbox/simulation flags)
-        status = isPlatformDelivery ? 'platform_escrow_hold' : 'approved';
+        status = 'approved';
         gatewayLabel = 'SIMULADOR TEF (SANDBOX DEMO - Sem PSP Real Configurado)';
         authCode = `SIM-${Math.floor(100000 + Math.random() * 900000)}`;
         simulationWarning =
@@ -441,10 +430,6 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     const effectiveEnvironment: PaymentTransactionRecord['environment'] = (gatewayLabel.includes('SIMULADOR') || !isLive) ? 'sandbox' : 'live';
     const effectiveMode: PaymentTransactionRecord['mode'] = (gatewayLabel.includes('SIMULADOR') || !isLive) ? 'simulation' : 'real';
 
-    const platformEscrowNote = isPlatformDelivery && method !== 'cash'
-      ? 'Pagamento retido em Escrow Centralizado (Entrega realizada por Entregador da Plataforma).'
-      : undefined;
-
     const record: PaymentTransactionRecord = {
       id: txId,
       orderId,
@@ -453,7 +438,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       feeDeducted,
       netAmount,
       method,
-      status: status === 'platform_escrow_hold' ? 'approved' : status,
+      status,
       gateway: gatewayLabel,
       authorizationCode: authCode,
       environment: effectiveEnvironment,
@@ -461,7 +446,6 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       ...(externalTransactionId ? { externalTransactionId } : {}),
       ...(qrCodePix ? { qrCodePix } : {}),
       ...(pixCopyPaste ? { pixCopyPaste } : {}),
-      ...(platformEscrowNote ? { platformEscrowNote } : {}),
       createdByUid: caller.id,
       createdAt: nowIso,
       ...(status === 'approved' ? { confirmedAt: nowIso } : {})
@@ -515,8 +499,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       environment: record.environment,
       mode: record.mode,
       isSimulation: record.mode === 'simulation',
-      ...(simulationWarning ? { simulationWarning } : {}),
-      platformEscrowNote: record.platformEscrowNote
+      ...(simulationWarning ? { simulationWarning } : {})
     });
   } catch (err) {
     console.error('Payment Proxy Error:', err);

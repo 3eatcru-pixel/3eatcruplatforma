@@ -122,8 +122,8 @@ import { animate, inView } from "motion";
                   <div class="text-[8px] font-bold text-slate-500 uppercase">Tenants</div>
                 </div>
                 <div class="bg-black/40 p-4 rounded-2xl border border-white/5">
-                  <div class="text-xl font-black text-white">8%</div>
-                  <div class="text-[8px] font-bold text-slate-500 uppercase">Fee Split</div>
+                  <div class="text-xl font-black text-white">Em breve</div>
+                  <div class="text-[8px] font-bold text-slate-500 uppercase">Entregas da plataforma</div>
                 </div>
               </div>
             </div>

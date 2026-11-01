@@ -59,7 +59,7 @@ export class LogisticsSimulationService {
           timeWindow: 'Imediato',
           totalDistanceKm: 2.4,
           estimatedDuration: '18 min',
-          totalEarnings: 12.5,
+          totalEarnings: 0,
           waypoints: [waypoint],
           status: 'accepted',
           totalDeliveredCount: 0,
@@ -74,7 +74,7 @@ export class LogisticsSimulationService {
           timeWindow: 'Imediato',
           totalDistanceKm: 4.1,
           estimatedDuration: '25 min',
-          totalEarnings: 16.5,
+          totalEarnings: 0,
           waypoints: [{ ...waypoint, id: `sim-waypoint-${tenantId}-02`, customerName: 'Bruno Cliente' }],
           status: 'available',
           totalDeliveredCount: 0,
@@ -263,6 +263,9 @@ export class LogisticsSimulationService {
     }
 
     const session = this.security.currentSession();
+    if (!session?.tenantId) {
+      throw new Error('O entregador precisa estar vinculado a uma loja para usar as rotas nesta versão.');
+    }
     const driver: StoreDriver = {
       id: driverId,
       tenantId: session?.tenantId,
@@ -273,7 +276,7 @@ export class LogisticsSimulationService {
       activeDeliveriesCount: 0,
       rating: 5,
       completedTodayCount: 0,
-      driverType: session?.tenantId ? 'private' : 'platform',
+      driverType: 'private',
       isSimulated: true,
       mode: 'simulation'
     };

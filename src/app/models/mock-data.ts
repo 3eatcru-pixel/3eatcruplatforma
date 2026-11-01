@@ -51,13 +51,7 @@ export const MOCK_TENANTS: CompanyTenant[] = [
     aboutText: 'Hamburgueria artesanal de alta gastronomia com cortes nobres selecionados, pães de fermentação natural e chopps artesanais locais.',
     highlightedProductIds: ['prod-1', 'prod-3'],
     minOrderValue: 25.00,
-    deliveryFleetType: 'platform',
-    driverRateConfig: {
-      baseFee: 7.00,
-      includedKm: 3.0,
-      extraKmFee: 1.50,
-      extraStopBonus: 3.00
-    }
+    deliveryFleetType: 'own'
   },
   {
     id: 'tenant-2',

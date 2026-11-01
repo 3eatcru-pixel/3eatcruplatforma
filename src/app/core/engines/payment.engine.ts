@@ -16,7 +16,7 @@ export interface PaymentTransactionRequest {
 
 export interface PaymentTransactionResult {
   transactionId: string;
-  status: 'approved' | 'pending_pix' | 'declined' | 'platform_escrow_hold';
+  status: 'approved' | 'pending_pix' | 'declined';
   gateway: string;
   qrCodePix?: string;
   pixCopyPaste?: string;
@@ -26,7 +26,6 @@ export interface PaymentTransactionResult {
   netAmount: number;
   environment?: 'sandbox' | 'live';
   mode: SystemExecutionMode;
-  platformEscrowNote?: string;
 }
 
 export interface PaymentConfirmResult {

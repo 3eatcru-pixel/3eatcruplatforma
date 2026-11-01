@@ -2,7 +2,7 @@
 
 ## 📌 1. Visão Geral do Contrato Arquitetural HQ ↔ OS
 
-A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um contrato rígido de responsabilidades. O princípio basilar é a **autonomia operacional local sob governança de rede**: o HQ dita as regras do jogo (planos, taxas de split, bloqueios de segurança e homologação de hardware), enquanto o Store OS é o soberano exclusivo de sua operação cotidiana (estoque, vendas, comandas e equipe).
+A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um contrato de responsabilidades. O HQ administra planos e tenants. O Store OS mantém a operação cotidiana do lojista, incluindo estoque, vendas, comandas, caixa e motoristas próprios. A comissão da rede de entregadores da plataforma está configurada como “Em breve”.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -11,14 +11,14 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 │ Entidade de Dados            │ Criador Primário │ Proprietário dos Dados│
 ├──────────────────────────────┼──────────────────┼──────────────────────┤
 │ Planos SaaS (/plans)         │ HQ Central       │ HQ Central           │
-│ Taxa Global (/hq_settings)   │ HQ Central       │ HQ Central           │
+│ Taxa da Rede (/hq_settings)  │ HQ Central       │ HQ Central           │
 │ Tenant Status & Licença      │ HQ Central       │ HQ Central           │
 │ Produtos e Cardápio          │ Store OS         │ Estabelecimento      │
 │ Pedidos e Vendas Balcão      │ Store OS         │ Estabelecimento      │
 │ Mapa de Mesas e Comandas     │ Store OS         │ Estabelecimento      │
 │ Livro-Caixa e Despesas       │ Store OS         │ Estabelecimento      │
 │ Dispositivos Físicos (/dev)  │ Store OS / HQ    │ Compartilhado (MDM)  │
-│ Split e Comissões (/ledger)  │ Backend Automát. │ Compartilhado        │
+│ Estimativa HQ de entregas   │ HQ (consulta)    │ Derivada; sem escrita │
 └──────────────────────────────┴──────────────────┴──────────────────────┘
 ```
 
@@ -50,7 +50,8 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 ### Perspectiva 3: Como se conecta (Topologia de Integração)
 - **Fluxo do HQ para o OS:** O Store OS assina ou consulta dados do tenant via `GET /api/tenants/:id` e telemetria de dispositivos via `GET /api/hq/devices?tenantId=:id`.
 - **Fluxo do OS para o HQ:** O Store OS reporta dados agregados de venda e status de dispositivos (`lastPing`, `batteryLevel`, `appVersion`).
-- **Split Financeiro:** Ao fechar cada venda no PDV ou Storefront, o backend calcula a fatia de 8% do SaaS e 92% da loja, gravando em `/financials` e refletindo em `/api/hq/ledger`.
+- **Motoristas da loja:** São cadastrados como `private`; a loja usa o App do Entregador para facilitar rotas e baixas e decide a remuneração. O app não processa o pagamento.
+- **Comissão da plataforma:** O estado `platformDeliveryCommissionStatus` começa como `coming_soon`. Não há cálculo nem cobrança ativos. O futuro processo de 8% ficará separado do plano SaaS e do caixa do lojista e dependerá da rede própria e da inteligência operacional.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
 - **Testes Automatizados:**

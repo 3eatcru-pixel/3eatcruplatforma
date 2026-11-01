@@ -161,8 +161,8 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                   <span>Taxa Delivery: {{ (activeStore().deliveryFee ?? 0) === 0 ? 'Grátis' : 'R$ ' + (activeStore().deliveryFee || 0).toFixed(2) }}</span>
                 </span>
                 <span [class]="activeStore().deliveryFleetType === 'own' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' : 'bg-purple-950/80 text-purple-300 border-purple-700/60'" class="border px-2.5 py-1 rounded-xl flex items-center gap-1">
-                  <mat-icon class="text-xs">{{ activeStore().deliveryFleetType === 'own' ? 'store' : 'flash_on' }}</mat-icon>
-                  <span>{{ activeStore().deliveryFleetType === 'own' ? 'Frota Própria da Loja' : 'Frota Parceira 3EAT' }}</span>
+                  <mat-icon class="text-xs">store</mat-icon>
+                  <span>{{ activeStore().deliveryFleetType === 'own' ? 'Entrega pela loja' : 'Entrega pela loja · rede 3EAT em breve' }}</span>
                 </span>
               </div>
 

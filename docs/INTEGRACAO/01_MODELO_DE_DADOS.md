@@ -14,7 +14,7 @@ O ecossistema 3EATCRU utiliza o **Cloud Firestore** em modo Enterprise como font
 │  /payment_transactions/{txId}     ──► Registros autoritativos de gateways (Pix/Cartão) │
 │  /tables/{tableId}                ──► Mesas do salão e ocupação em tempo real           │
 │  /reservations/{resId}            ──► Reservas de mesas e fila de espera               │
-│  /financials/{finId}              ──► Livro-caixa, despesas e receitas com split       │
+│  /financials/{finId}              ──► Livro-caixa e lançamentos da operação do tenant  │
 │  /delivery_routes/{routeId}       ──► Rotas de entrega e despacho para motoristas      │
 │  /drivers/{driverId}              ──► Cadastro e posição reportada do entregador        │
 │  /consumers/{consumerId}          ──► Perfis de clientes consumidores                  │
@@ -27,6 +27,8 @@ O ecossistema 3EATCRU utiliza o **Cloud Firestore** em modo Enterprise como font
 │  /social_messages/{msgId}         ──► Mensageria social e notificações WhatsApp         │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calcula comissão. Motoristas da loja são registros `private` em `/drivers`; a loja organiza rotas e define a remuneração fora de um fluxo de pagamento do app. A futura comissão da plataforma deverá usar uma rede separada e não será gravada em `/financials` do tenant.
 
 ---
 

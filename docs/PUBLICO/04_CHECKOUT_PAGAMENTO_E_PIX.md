@@ -26,7 +26,7 @@ O checkout do ecossistema 3EATCRU foi projetado para oferecer a menor fricção 
                         COMMERCE ENGINE: LIQUIDAÇÃO ACID
                         - Status do Pedido: 'completed' ou 'preparing'
                         - Geração de Entrada: /financials/fin-sale-{orderId}
-                        - Retenção do Split SaaS (8%) e Net da Loja (92%)
+                        - O caixa e os pagamentos do lojista permanecem no fluxo financeiro do Store OS; a comissão da plataforma está em breve
 ```
 
 ---
@@ -37,7 +37,7 @@ O checkout do ecossistema 3EATCRU foi projetado para oferecer a menor fricção 
 - Permitir que o cliente pague instantaneamente via Pix em qualquer banco (Nubank, Itaú, Bradesco, Inter, etc.) com cópia facilitada do código BR Code.
 - Suportar pagamento online com cartão de crédito com tokenização segura sem expor os dados do cartão ao servidor do lojista (padrão PCI-DSS).
 - Impedir que um cliente forje a resposta do gateway e marque seu próprio pedido como "Pago" sem ter transferido o dinheiro.
-- Executar a divisão automática da comissão da plataforma no momento exato da liquidação financeira.
+- Manter o caixa do lojista independente. A futura comissão da rede da plataforma não está ativa nem é calculada ou deduzida pela liquidação de venda do Store OS.
 
 ### Perspectiva 2: Como foi implementado (Realidade do Código)
 - **Roteador de Pagamentos (`src/server/routes/payments.router.ts`):**
@@ -83,7 +83,7 @@ O checkout do ecossistema 3EATCRU foi projetado para oferecer a menor fricção 
 |---|---|---|---|
 | Geração de Pix Dinâmico (QR Code & Copia-e-Cola) | 🟢 **Implementado e comprovado** | `src/server/routes/payments.router.ts:24` | Gera código BR Code em conformidade com o Banco Central. |
 | Barreira Anti-Fraude de Auto-Liquidação | 🟢 **Implementado e comprovado** | `src/server/routes/payments.router.ts:184` | Impede cliente de forjar status `completed` no pedido. |
-| Liquidação Atômica no Livro-Caixa (`fin-sale-*`) | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:600` | Cria registro financeiro com split do SaaS (8%). |
+| Liquidação Atômica no Livro-Caixa (`fin-sale-*`) | 🟢 **Implementado** | `src/server/core/commerce.engine.ts` | Cria o registro da venda do tenant. Não aplica comissão da plataforma nem cria split. |
 | Checkout Cartão com Gateway Stripe | 🟢 **Implementado e comprovado** | `src/server/routes/payments.router.ts:110` | Utiliza Stripe Payment Intent em modo seguro. |
 | Modo Sandbox / Simulação para Testes | 🟢 **Implementado e comprovado** | `src/server/routes/payments.router.ts:140` | Opera em simulação automática na ausência de chaves de produção. |
 | Webhooks Oficiais de Adquirentes (Mercado Pago / Asaas / EFI) | 🟡 **Implementado parcialmente** | `src/server/routes/payments.router.ts` | Endpoint de recepção ativo; conectores nativos específicos de cada banco em homologação. |

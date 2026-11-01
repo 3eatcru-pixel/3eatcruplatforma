@@ -16,7 +16,7 @@ A estabilidade e confiabilidade do ecossistema 3EATCRU são comprovadas através
 │ 4. api.spec        │ Contratos REST Express e Healthcheck de Servidor  │
 │ 5. offline-resil   │ Enfileiramento IndexedDB e Recuperação Offline    │
 │ 6. ecosystem.serv  │ Fluxos multi-papel integrados (Garçom/PDV/HQ)     │
-│ 7. hq-api.serv     │ Contratos de Governança, Split e MDM              │
+│ 7. hq-api.serv     │ Governança, planos e status futuro da comissão da plataforma │
 │ 8. store-os-api    │ Operações do Lojista e Terminal Físico            │
 │ 9. google-drive    │ Segurança de Tokens OAuth Workspace em Memória    │
 │ 10. app.spec       │ Inicialização Zoneless Angular 21                 │
@@ -36,7 +36,7 @@ No arquivo `src/server/commerce_war_tests.spec.ts`, foram modeladas as 8 condiç
 3. **Guerra 3 — Liquidação Financeira Única:**
    Múltiplas chamadas simultâneas de webhook ou cliques do operador no botão de confirmação de pagamento geram apenas uma entrada contábil no livro-razão (`fin-sale-*`), sem duplicação de caixa.
 4. **Guerra 4 — Idempotência Tripla:**
-   Um cliente envia 3 requisições idênticas com o mesmo cabeçalho `X-Idempotency-Key`. O servidor processa a primeira e responde às duas seguintes com o mesmo pedido já gravado (`alreadyExisted: true`), sem reprocessar débito de estoque ou comissão.
+   Um cliente envia 3 requisições idênticas com o mesmo cabeçalho `X-Idempotency-Key`. O servidor processa a primeira e responde às duas seguintes com o mesmo pedido já gravado (`alreadyExisted: true`), sem reprocessar a baixa de estoque nem duplicar o lançamento de venda. A comissão da plataforma permanece em breve e não participa dessa liquidação.
 5. **Guerra 5 — Duplo Cancelamento Simultâneo:**
    Dois operadores tentam cancelar o mesmo pedido ao mesmo tempo. O sistema efetua o estorno do estoque exatamente uma vez, impedindo duplicação de saldo em prateleira.
 6. **Guerra 6 — Cinco Canais de Venda Simultâneos:**

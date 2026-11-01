@@ -7,11 +7,14 @@ export interface HqOverviewResponse {
   tenantsCount: number;
   activeTenantsCount: number;
   totalDevices: number;
-  onlineDevices: number;
+  deviceRecordsMarkedOnline: number;
   totalOrders: number;
   grossPlatformVolume: number;
-  hqCommissionRevenue: number;
-  defaultCommissionPercent: number;
+  platformDeliveryCommissionStatus: 'coming_soon' | 'active';
+  platformDeliveryOrdersCount: number | null;
+  platformDeliveryGrossVolume: number | null;
+  estimatedCommissionRevenue: number | null;
+  defaultCommissionPercent: number | null;
   maintenanceMode: boolean;
   globalBroadcastMessage: string | null;
   serverUptimeSeconds: number;
@@ -23,16 +26,19 @@ export interface HqLedgerEntry {
   orderNumber: string;
   tenantId: string;
   channel: string;
+  driverId: string;
+  driverName: string;
   date: string;
   orderTotal: number;
-  platformFeeRate: string;
-  platformFeeAmount: number;
-  storeNetAmount: number;
+  currentCommissionRatePercent: number;
+  estimatedCommissionAmount: number;
 }
 
 export interface HqLedgerResponse {
-  totalPlatformFees: number;
-  platformSplitPercent: number;
+  commissionStatus: 'coming_soon' | 'active';
+  totalEligibleDeliveryVolume: number | null;
+  totalEstimatedCommission: number | null;
+  currentCommissionRatePercent: number | null;
   recordsCount: number;
   entries: HqLedgerEntry[];
 }
@@ -46,28 +52,10 @@ export class HqApiService {
 
   // 1. Overview & SaaS Metrics
   async getOverview(): Promise<HqOverviewResponse> {
-    try {
-      const res = await firstValueFrom(this.http.get<HqOverviewResponse>(`${this.baseUrl}/hq/overview`));
-      return res;
-    } catch {
-      return {
-        tenantsCount: 0,
-        activeTenantsCount: 0,
-        totalDevices: 0,
-        onlineDevices: 0,
-        totalOrders: 0,
-        grossPlatformVolume: 0,
-        hqCommissionRevenue: 0,
-        defaultCommissionPercent: 8,
-        maintenanceMode: false,
-        globalBroadcastMessage: null,
-        serverUptimeSeconds: 0,
-        timestamp: new Date().toISOString()
-      };
-    }
+    return firstValueFrom(this.http.get<HqOverviewResponse>(`${this.baseUrl}/hq/overview`));
   }
 
-  // 2. MDM Devices Fleet
+  // 2. HQ device inventory
   async getDevices(tenantId?: string): Promise<POSDevice[]> {
     const url = tenantId && tenantId !== 'all'
       ? `${this.baseUrl}/hq/devices?tenantId=${encodeURIComponent(tenantId)}`
@@ -75,7 +63,7 @@ export class HqApiService {
     return firstValueFrom(this.http.get<POSDevice[]>(url));
   }
 
-  async pairDevice(device: {
+  async registerDevice(device: {
     tenantId: string;
     deviceName: string;
     serialNumber: string;
@@ -112,11 +100,11 @@ export class HqApiService {
     return firstValueFrom(this.http.post<{ globalBroadcastMessage: string | null }>(`${this.baseUrl}/hq/system/broadcast`, { message }));
   }
 
-  async setMaintenance(enabled?: boolean): Promise<{ maintenanceMode: boolean }> {
+  async setMaintenance(enabled: boolean): Promise<{ maintenanceMode: boolean }> {
     return firstValueFrom(this.http.post<{ maintenanceMode: boolean }>(`${this.baseUrl}/hq/system/maintenance`, { enabled }));
   }
 
-  // 5. Consolidated SaaS Ledger (8% split)
+  // 5. Estimated commission summary over completed platform-courier deliveries
   async getLedger(): Promise<HqLedgerResponse> {
     return firstValueFrom(this.http.get<HqLedgerResponse>(`${this.baseUrl}/hq/ledger`));
   }
@@ -152,7 +140,7 @@ export class HqApiService {
     return firstValueFrom(this.http.post<{ config: RegionalMarketplaceConfig }>(`${this.baseUrl}/hq/regional`, config));
   }
 
-  // 9. MDM Drivers Telematics
+  // 9. Driver records
   async getDrivers(): Promise<StoreDriver[]> {
     return firstValueFrom(this.http.get<StoreDriver[]>(`${this.baseUrl}/logistics/drivers`));
   }

@@ -8,38 +8,11 @@ import {
   ROLE_PERMISSION_MATRIX
 } from '../middleware/auth.middleware';
 import { authRegisterRateLimiter } from '../middleware/rate-limiter.middleware';
+import { isValidCnpj } from '../utils/cnpj';
+
+export { isValidCnpj } from '../utils/cnpj';
 
 export const authRouter = Router();
-
-/**
- * Validates Brazilian CNPJ format and check digits using Módulo 11
- */
-export function isValidCnpj(cnpj: string): boolean {
-  const digits = cnpj.replace(/\D/g, '');
-  if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) {
-    return false;
-  }
-
-  // 1st check digit verification (weights: 5,4,3,2,9,8,7,6,5,4,3,2)
-  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  let sum1 = 0;
-  for (let i = 0; i < 12; i++) {
-    sum1 += parseInt(digits.charAt(i), 10) * weights1[i]!;
-  }
-  const mod1 = sum1 % 11;
-  const d1 = mod1 < 2 ? 0 : 11 - mod1;
-  if (parseInt(digits.charAt(12), 10) !== d1) return false;
-
-  // 2nd check digit verification (weights: 6,5,4,3,2,9,8,7,6,5,4,3,2)
-  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  let sum2 = 0;
-  for (let i = 0; i < 13; i++) {
-    sum2 += parseInt(digits.charAt(i), 10) * weights2[i]!;
-  }
-  const mod2 = sum2 % 11;
-  const d2 = mod2 < 2 ? 0 : 11 - mod2;
-  return parseInt(digits.charAt(13), 10) === d2;
-}
 
 /**
  * GET /api/auth/me
@@ -358,11 +331,7 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
       claimsPayload['tenantId'] = requestedTenantId;
     }
 
-    try {
-      await adminAuth.setCustomUserClaims(targetUid, claimsPayload);
-    } catch {
-      // Handled gracefully if user record is mocked in unit tests
-    }
+    await adminAuth.setCustomUserClaims(targetUid, claimsPayload);
 
     if (requestedRole === 'hq_admin') {
       await adminDb.collection('admins').doc(targetUid).set({
@@ -372,6 +341,7 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
         createdAt: nowIso
       });
     } else {
+      await adminDb.collection('admins').doc(targetUid).delete();
       await adminDb.collection('users').doc(targetUid).set(
         {
           uid: targetUid,
@@ -398,6 +368,21 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
           }
         }
       }
+    }
+
+    try {
+      const auditRef = adminDb.collection('audit_logs').doc();
+      await auditRef.set({
+        id: auditRef.id,
+        timestamp: nowIso,
+        user: caller.email || caller.id,
+        action: 'Papel de usuário atualizado',
+        module: 'System',
+        severity: 'info',
+        details: `Usuário [${targetUid}] recebeu o papel [${requestedRole}]${claimsPayload['tenantId'] ? ` no tenant [${claimsPayload['tenantId']}]` : ''}.`
+      });
+    } catch {
+      // Role assignment remains authoritative if audit persistence is unavailable.
     }
 
     res.json({

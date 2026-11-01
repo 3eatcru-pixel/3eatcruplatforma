@@ -28,11 +28,14 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
       tenantsCount: 3,
       activeTenantsCount: 3,
       totalDevices: 4,
-      onlineDevices: 4,
+      deviceRecordsMarkedOnline: 4,
       totalOrders: 20,
       grossPlatformVolume: 1250.0,
-      hqCommissionRevenue: 100.0,
-      defaultCommissionPercent: 8,
+      platformDeliveryCommissionStatus: 'coming_soon' as const,
+      platformDeliveryOrdersCount: null,
+      platformDeliveryGrossVolume: null,
+      estimatedCommissionRevenue: null,
+      defaultCommissionPercent: null,
       maintenanceMode: false,
       globalBroadcastMessage: null,
       serverUptimeSeconds: 120,
@@ -46,7 +49,9 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
 
     const data = await promise;
     expect(data.tenantsCount).toBe(3);
-    expect(data.hqCommissionRevenue).toBe(100.0);
+    expect(data.platformDeliveryCommissionStatus).toBe('coming_soon');
+    expect(data.platformDeliveryOrdersCount).toBeNull();
+    expect(data.estimatedCommissionRevenue).toBeNull();
   });
 
   it('should list MDM devices with or without tenant filter', async () => {
@@ -78,10 +83,10 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
     const promise = service.restartDevice('dev-1');
     const req = httpMock.expectOne('/api/hq/devices/dev-1/restart');
     expect(req.request.method).toBe('POST');
-    req.flush({ message: 'Reboot command dispatched', status: 'updating' });
+    req.flush({ message: 'Solicitação registrada; nenhum dispositivo foi reiniciado.', status: 'online' });
 
     const result = await promise;
-    expect(result.status).toBe('updating');
+    expect(result.status).toBe('online');
   });
 
   it('should execute platform structural audit', async () => {
@@ -91,7 +96,7 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
       productsChecked: 10,
       ordersChecked: 5,
       devicesChecked: 3,
-      ledgerConsistent: true,
+      orderTotalsConsistent: true,
       issuesFound: [],
       status: 'passed' as const
     };
@@ -103,7 +108,7 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
 
     const report = await promise;
     expect(report.status).toBe('passed');
-    expect(report.ledgerConsistent).toBe(true);
+    expect(report.orderTotalsConsistent).toBe(true);
   });
 
   it('should update tenant governance settings via PATCH', async () => {
@@ -235,8 +240,9 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
     const ledgerPromise = service.getLedger();
     const ledgerReq = httpMock.expectOne('/api/hq/ledger');
     expect(ledgerReq.request.method).toBe('GET');
-    ledgerReq.flush({ totalPlatformFees: 250.0, platformSplitPercent: 8, recordsCount: 10, entries: [] });
+    ledgerReq.flush({ commissionStatus: 'coming_soon', totalEligibleDeliveryVolume: null, totalEstimatedCommission: null, currentCommissionRatePercent: null, recordsCount: 0, entries: [] });
     const ledgerRes = await ledgerPromise;
-    expect(ledgerRes.totalPlatformFees).toBe(250.0);
+    expect(ledgerRes.commissionStatus).toBe('coming_soon');
+    expect(ledgerRes.recordsCount).toBe(0);
   });
 });

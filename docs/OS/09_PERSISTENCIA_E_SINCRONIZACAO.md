@@ -19,10 +19,12 @@ O IndexedDB usa o banco 3eatcru_commercial_os_db e os stores outbox_queue, confl
 - No modo de simulação, pedidos não entram na fila offline; o serviço mantém o registro apenas na memória local.
 - A conclusão comercial e a baixa de estoque dependem da resposta do servidor após o replay. Se o estoque não permitir a venda, o servidor retorna conflito e o pedido local é marcado como cancelado.
 - Nenhum estado local pendente comprova liquidação ou lançamento financeiro persistido.
+- O indicador “Navegador online” usa `navigator.onLine`; ele não verifica a disponibilidade da API nem do adquirente.
+- Fechar a janela de pagamento PIX no PDV apenas esconde o QR Code; o pedido e a transação permanecem no estado registrado no servidor.
 
 ## Replay e conflitos
 
-OfflineSyncService executa a fila em sequência ao voltar a conexão, persiste conflitos e dead letters e notifica o aplicativo via handlers. O CommerceEngine revalida tenant, produtos, estoque e pagamento no servidor. Reenvios usam chave de idempotência para evitar repetição comercial.
+OfflineSyncService executa a fila em sequência ao voltar a conexão, persiste conflitos e dead letters e notifica o aplicativo via handlers. O CommerceEngine revalida tenant, produtos, estoque e pagamento no servidor. Reenvios usam chave de idempotência para evitar repetição comercial. Uma rejeição determinística pode ocorrer por diferentes regras comerciais; a faixa do PDV mostra o motivo do primeiro conflito. “Marcar ciência” muda somente o estado local do conflito e não reenvia, corrige ou reativa a operação rejeitada.
 
 ## Validação
 

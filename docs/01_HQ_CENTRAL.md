@@ -1,38 +1,26 @@
-# 🏛️ 01 — Ambiente 1: HQ Central (Gabinete Executivo SaaS)
+# Ambiente 1 — HQ Central
 
-## 📌 Visão Geral & Escopo
+## Escopo
 
-O **HQ Central (`/hq`)** é o gabinete executivo da franqueadora SaaS. É a superfície master da plataforma, voltada exclusivamente para o **Super Administrador (`hq_admin`)**.
+O HQ Central (/hq) é o painel de governança SaaS reservado a hq_admin. Não opera PDV, mesas, cozinha ou pedidos de uma loja.
 
-> 🚨 **FRONTEIRA ESTRITA DE PRODUTO:**
-> O HQ Central **NÃO É UMA LOJA**! Ele não possui frente de caixa (PDV), não opera mesas de restaurante, não recebe pedidos de delivery e não faz lançamentos de cozinha. Sua única função é a **governança executiva do ecossistema SaaS**.
+## Responsabilidades disponíveis
 
----
+1. Consultar e administrar tenants, incluindo provisionamento inicial em trial.
+2. Consultar e alterar o catálogo de planos.
+3. Consultar os agregados comerciais. A comissão das entregas da plataforma está marcada como “Em breve”.
+4. Manter o inventário de dispositivos e consultar os registros existentes.
+5. Publicar aviso global e configurar a flag visual de manutenção consumida pelo Store OS.
+6. Consultar o catálogo de módulos e configurações regionais.
+7. Consultar o diretório de consumidores, limitado a 100 perfis por requisição.
 
-## 🛠️ Principais Responsabilidades & Recursos
+## Limites observados
 
-1. **Gestão de Tenants (Lojas)**:
-   - Aprovação, bloqueio e suspensão de estabelecimentos franqueados.
-   - Configuração do plano SaaS (Trial, Pro, Enterprise) e limites operacionais.
-   - Provisionamento de novas lojas com status inicial fechado/trial.
+- O provisionamento do HQ valida CNPJ e cria a loja em trial e fechada. O proprietário não é vinculado automaticamente.
+- A comissão de 8% está desativada com estado `coming_soon`. Motoristas da loja são administrados e pagos pelo lojista; a comissão só será ativada para uma rede própria da plataforma após o processo de inteligência estar pronto.
+- Os registros de dispositivos não provam conexão física. Não foi localizado agente de hardware para heartbeat, bloqueio ou reinicialização remota.
+- A flag de manutenção afeta o shell do Store OS após sincronização. Ela não bloqueia rotas de API ou checkout.
+- A varredura de auditoria é estrutural e cobre apenas tenants, produtos, pedidos e dispositivos.
+- O diretório de consumidores é restrito a hq_admin e não calcula GMV, frequência de pedidos ou auditoria individual.
 
-2. **Split Contábil & Receita SaaS**:
-   - Auditoria da comissão de **8%** retida pela plataforma em pedidos online.
-   - Acompanhamento do Faturamento Bruto Acumulado (GMV) de toda a rede.
-
-3. **Gestão de Frota & Hardware MDM**:
-   - Monitoramento de dispositivos registrados (PDVs físicos, KDSs, Totens).
-   - Envio de comandos remotos (ping, limpeza de cache, reinicialização).
-
-4. **Simulador de Dispositivos e Homologação**:
-   - Componente visual de emulação para testes rápidos de experiência em telas móveis e terminais.
-
----
-
-## 🔒 Segurança e Permissões
-
-- **Rota Primária**: `/hq`
-- **Guarda de Rota**: `hqAdminGuard`
-- **Permissão Exigida**: `hq:governance`
-- **Mapeamento Backend**: `src/server/routes/hq.router.ts`
-- **Acesso Restrito**: Exige e-mail verificado (`email_verified: true`) pertencente aos e-mails de bootstrap ou claim de `hq_admin`.
+Consulte docs/HQ/00_ARQUITETURA_HQ.md para a matriz de maturidade e os limites de cada módulo.

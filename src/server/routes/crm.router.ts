@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, isTenantStaffRole } from '../middleware/auth.middleware';
+import { requireAuth, requireHqAdmin, isTenantStaffRole } from '../middleware/auth.middleware';
 import { adminDb } from '../firebase-admin';
 import { QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
@@ -9,9 +9,9 @@ crmRouter.use(requireAuth);
 
 /**
  * GET /api/crm/consumers
- * List consumers (HQ Admin or Tenant Staff)
+ * List consumer profiles for the HQ directory
  */
-crmRouter.get('/consumers', async (req: Request, res: Response) => {
+crmRouter.get('/consumers', requireHqAdmin, async (req: Request, res: Response) => {
   const caller = req.user;
   if (!caller) {
     res.status(401).json({ error: 'Não autenticado.' });

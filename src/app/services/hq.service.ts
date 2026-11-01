@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { SystemAuditReport, AuditLog, POSDevice, LicensePlan } from '../models/ecosystem.model';
 import { firstValueFrom } from 'rxjs';
 import { SecurityService } from './security.service';
+import type { HqOverviewResponse } from './hq-api.service';
 
 const DEFAULT_PLANS: LicensePlan[] = [
   { id: 'Starter', name: 'Starter (Iniciante)', priceMonthly: 149.00, maxDevices: 2, includedModules: ['PDV Caixa'], description: 'Pequenos comércios.' },
@@ -25,24 +26,39 @@ export class HqService {
   readonly globalBroadcastMessage = signal<string | null>(null);
   readonly hqCommissionRate = signal<number>(0.08);
   readonly licensePlans = signal<LicensePlan[]>(DEFAULT_PLANS);
+  readonly licensePlansStatus = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  readonly licensePlansSource = signal<'unknown' | 'firestore' | 'mixed' | 'defaults' | 'demo'>('unknown');
+  readonly overview = signal<HqOverviewResponse | null>(null);
 
-  readonly activeSessionsCount = signal<number>(120);
-  readonly avgLatencyMs = signal<number>(15);
-  readonly hqTotalCommissionRevenue = signal<number>(15420.50);
-  readonly hqPublicSalesTotal = signal<number>(192756.25);
+  readonly activeSessionsCount = signal<number | null>(null);
+  readonly avgLatencyMs = signal<number | null>(null);
+  readonly hqEstimatedCommissionRevenue = signal<number | null>(null);
+  readonly hqPublicSalesTotal = signal<number | null>(null);
+  readonly totalActiveTenants = signal<number | null>(null);
+  readonly uptimePercent = signal<number | null>(null);
 
-  async getOverview(): Promise<Record<string, unknown> | null> {
-    if (this.isSimulation()) return null;
+  async getOverview(): Promise<HqOverviewResponse | null> {
+    if (this.isSimulation()) {
+      this.overview.set(null);
+      return null;
+    }
     try {
-      const data = await firstValueFrom(this.http.get<Record<string, unknown>>('/api/hq/overview'));
-      if (data && typeof data === 'object' && !('error' in data)) {
-        if (data['maintenanceMode'] !== undefined) this.maintenanceMode.set(!!data['maintenanceMode']);
-        if (data['globalBroadcastMessage'] !== undefined) this.globalBroadcastMessage.set(data['globalBroadcastMessage'] as string);
-        if (typeof data['defaultCommissionPercent'] === 'number') this.hqCommissionRate.set(data['defaultCommissionPercent'] / 100);
-        if (Array.isArray(data['plans'])) this.licensePlans.set(data['plans'] as LicensePlan[]);
+      const data = await firstValueFrom(this.http.get<HqOverviewResponse>('/api/hq/overview'));
+      this.overview.set(data);
+      this.maintenanceMode.set(data.maintenanceMode);
+      this.globalBroadcastMessage.set(data.globalBroadcastMessage);
+      if (data.defaultCommissionPercent !== null) {
+        this.hqCommissionRate.set(data.defaultCommissionPercent / 100);
       }
+      this.hqEstimatedCommissionRevenue.set(data.estimatedCommissionRevenue);
+      this.hqPublicSalesTotal.set(data.grossPlatformVolume);
+      this.totalActiveTenants.set(data.activeTenantsCount);
       return data;
     } catch {
+      this.overview.set(null);
+      this.hqEstimatedCommissionRevenue.set(null);
+      this.hqPublicSalesTotal.set(null);
+      this.totalActiveTenants.set(null);
       return null;
     }
   }
@@ -68,6 +84,28 @@ export class HqService {
       priceMonthly: price, 
       maxDevices: maxDevices !== undefined ? maxDevices : p.maxDevices 
     } : p));
+    if (this.licensePlansSource() === 'defaults') this.licensePlansSource.set('mixed');
+  }
+
+  async fetchPlans(): Promise<void> {
+    if (this.isSimulation()) {
+      this.licensePlansStatus.set('loaded');
+      this.licensePlansSource.set('demo');
+      return;
+    }
+    this.licensePlansStatus.set('loading');
+    try {
+      const response = await firstValueFrom(this.http.get<LicensePlan[]>('/api/hq/plans', { observe: 'response' }));
+      const plans = response.body;
+      if (!Array.isArray(plans)) throw new Error('Invalid plan catalog response.');
+      this.licensePlans.set(plans);
+      const source = response.headers.get('X-HQ-Plan-Catalog-Source');
+      this.licensePlansSource.set(source === 'defaults' || source === 'mixed' ? source : 'firestore');
+      this.licensePlansStatus.set('loaded');
+    } catch {
+      this.licensePlansSource.set('unknown');
+      this.licensePlansStatus.set('error');
+    }
   }
 
   async setMaintenance(enabled: boolean): Promise<void> {
@@ -80,13 +118,28 @@ export class HqService {
   }
 
   async setBroadcast(message: string): Promise<void> {
-    await firstValueFrom(this.http.post('/api/hq/system/broadcast', { message }));
-    this.globalBroadcastMessage.set(message);
+    if (this.isSimulation()) {
+      this.globalBroadcastMessage.set(message.trim().slice(0, 500) || null);
+      return;
+    }
+    const response = await firstValueFrom(this.http.post<{ globalBroadcastMessage: string | null }>('/api/hq/system/broadcast', { message }));
+    this.globalBroadcastMessage.set(response.globalBroadcastMessage);
   }
 
   async setCommissionRate(rate: number): Promise<void> {
+    if (this.isSimulation()) {
+      this.hqCommissionRate.set(rate / 100);
+      return;
+    }
     await firstValueFrom(this.http.post('/api/hq/system/commission', { percent: rate }));
     this.hqCommissionRate.set(rate / 100);
+  }
+
+  async fetchPublicStatus(): Promise<void> {
+    if (this.isSimulation()) return;
+    const data = await firstValueFrom(this.http.get<{ maintenanceMode: boolean; globalBroadcastMessage: string | null }>('/api/hq/public-status'));
+    this.maintenanceMode.set(data.maintenanceMode);
+    this.globalBroadcastMessage.set(data.globalBroadcastMessage);
   }
 
   async logAudit(action: string, module: AuditLog['module'], details: string, severity: AuditLog['severity'] = 'info'): Promise<void> {
@@ -104,16 +157,33 @@ export class HqService {
   }
 
   async createDevice(device: Partial<POSDevice>): Promise<POSDevice> {
+    if (this.isSimulation()) {
+      const simulatedDevice: POSDevice = {
+        ...device,
+        id: device.id || `sim-dev-${Date.now()}`,
+        tenantId: device.tenantId || 'hq',
+        tenantName: device.tenantName || (device.tenantId === 'hq' ? 'HQ Central (Infraestrutura)' : 'Unidade não carregada'),
+        deviceName: device.deviceName || 'Dispositivo sem nome',
+        type: device.type || 'terminal',
+        serialNumber: device.serialNumber || '',
+        status: 'unverified'
+      };
+      this.devices.update((cur) => [simulatedDevice, ...cur]);
+      return simulatedDevice;
+    }
+
     const data = await firstValueFrom(this.http.post<POSDevice>('/api/hq/devices', device));
     this.devices.update(cur => [...cur, data]);
     return data;
   }
 
   async runAudit(): Promise<SystemAuditReport> {
+    if (this.isSimulation()) throw new Error('A varredura estrutural requer acesso ao servidor e não está disponível no modo de simulação.');
     return firstValueFrom(this.http.post<SystemAuditReport>('/api/hq/audit/run', {}));
   }
 
   async fetchDevices(tenantId?: string): Promise<POSDevice[]> {
+    if (this.isSimulation()) return this.devices();
     try {
       const url = tenantId ? `/api/hq/devices?tenantId=${tenantId}` : '/api/hq/devices';
       const data = await firstValueFrom(this.http.get<POSDevice[]>(url));
@@ -135,15 +205,20 @@ export class HqService {
   }
 
   async restartDevice(deviceId: string): Promise<void> {
+    if (this.isSimulation()) return;
     await firstValueFrom(this.http.post(`/api/hq/devices/${deviceId}/restart`, {}));
     await this.fetchDevices();
   }
 
   async lockDevice(deviceId: string): Promise<void> {
+    if (this.isSimulation()) {
+      this.devices.update((cur) => cur.map((device) => device.id === deviceId
+        ? { ...device, status: device.status === 'locked' ? 'unverified' : 'locked' }
+        : device));
+      return;
+    }
     await firstValueFrom(this.http.post(`/api/hq/devices/${deviceId}/lock`, {}));
     await this.fetchDevices();
   }
 
-  readonly totalActiveTenants = signal<number>(42);
-  readonly uptimePercent = signal<number>(99.98);
 }

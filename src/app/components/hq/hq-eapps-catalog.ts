@@ -13,8 +13,6 @@ export interface EAppMeta {
   colorClass: string;
   category: 'operacional' | 'financeiro' | 'integracao' | 'utilitarios' | 'gestao';
   minPlan: 'Starter' | 'Professional' | 'Enterprise';
-  status: 'active' | 'beta' | 'maintenance';
-  activeTenantsCount: number;
 }
 
 @Component({
@@ -34,8 +32,8 @@ export interface EAppMeta {
         <div class="relative z-10 space-y-2">
           <div class="flex items-center gap-2 text-amber-500 font-serif font-black uppercase text-[10px] tracking-widest">
             <mat-icon class="text-sm text-amber-400">apps</mat-icon>
-            <span>Catálogo Mestre de eApps (Embedded OS Apps)</span>
-            <span class="bg-amber-950 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded font-mono text-[9px]">STORE OS ENGINE V3</span>
+            <span>Catálogo de referência de eApps</span>
+            <span class="bg-amber-950 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded font-mono text-[9px]">METADADOS LOCAIS</span>
           </div>
 
           <h2 class="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
@@ -43,7 +41,7 @@ export interface EAppMeta {
           </h2>
 
           <p class="text-stone-400 text-xs font-serif max-w-2xl leading-relaxed">
-            Os <strong>eApps</strong> são os módulos operacionais embutidos que rodam em janelas dentro do <strong>Store OS (Sistema Operacional da Loja)</strong>. Controle a distribuição por plano SaaS, disponibilidade e estatísticas de uso.
+            Os <strong>eApps</strong> listados são referências de módulos do <strong>Store OS</strong>. O plano mínimo exibido não aplica bloqueio de acesso, e a quantidade de instalações por tenant não é coletada nesta tela.
           </p>
         </div>
 
@@ -114,9 +112,8 @@ export interface EAppMeta {
 
             <div class="pt-3 border-t border-[#2e170b] flex items-center justify-between text-[10px] font-mono">
               <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="text-stone-400">Lojas Ativas:</span>
-                <strong class="text-amber-400 font-bold">{{ app.activeTenantsCount }}</strong>
+                <span class="text-stone-400">Plano previsto:</span>
+                <strong class="text-amber-400 font-bold">{{ app.minPlan }}</strong>
               </div>
 
               <button
@@ -124,7 +121,7 @@ export interface EAppMeta {
                 (click)="launchInStoreOs(app.id)"
                 class="bg-[#2a160b] hover:bg-amber-600 hover:text-stone-950 text-amber-300 font-mono text-[10px] font-bold px-3 py-1.5 rounded-xl border border-[#482814] flex items-center gap-1 transition-all cursor-pointer">
                 <mat-icon class="text-xs">open_in_new</mat-icon>
-                <span>Inspecionar</span>
+                <span>Abrir Store OS</span>
               </button>
             </div>
 
@@ -160,21 +157,21 @@ export class HqEappsCatalogComponent {
   ];
 
   readonly eAppsList: EAppMeta[] = [
-    { id: 'pos', label: 'PDV Caixa', title: 'Ponto de Venda com atalhos rápidos e abertura de caixa', icon: 'point_of_sale', colorClass: 'from-amber-500 via-orange-600 to-amber-700', category: 'operacional', minPlan: 'Starter', status: 'active', activeTenantsCount: 12 },
-    { id: 'tables', label: 'Mesas & Salão', title: 'Mapa visual interativo de comandas e salão de atendimento', icon: 'table_restaurant', colorClass: 'from-amber-600 to-amber-800', category: 'operacional', minPlan: 'Starter', status: 'active', activeTenantsCount: 10 },
-    { id: 'kds', label: 'KDS Cozinha', title: 'Display de Cozinha em tempo real com priorização e tempo de preparo', icon: 'soup_kitchen', colorClass: 'from-emerald-600 to-emerald-800', category: 'operacional', minPlan: 'Starter', status: 'active', activeTenantsCount: 9 },
-    { id: 'inventory', label: 'Estoque ERP', title: 'Ficha técnica, inventário de insumos e alerta de reposição', icon: 'inventory_2', colorClass: 'from-amber-500 to-amber-700', category: 'gestao', minPlan: 'Starter', status: 'active', activeTenantsCount: 11 },
-    { id: 'finance', label: 'Caixa & Finanças', title: 'Fechamento de caixa diário, sangrias, suprimentos e fluxo de caixa', icon: 'account_balance_wallet', colorClass: 'from-emerald-500 to-teal-700', category: 'financeiro', minPlan: 'Starter', status: 'active', activeTenantsCount: 12 },
-    { id: 'suppliers', label: 'Fornecedores', title: 'Cotações de compras, ordens de fornecimento e nota fiscal', icon: 'local_shipping', colorClass: 'from-amber-600 via-orange-600 to-amber-800', category: 'gestao', minPlan: 'Professional', status: 'active', activeTenantsCount: 7 },
-    { id: 'reconciliation', label: 'Reconciliação', title: 'Auditoria de maquininhas de cartão, taxas e adquirentes', icon: 'swap_horiz', colorClass: 'from-emerald-600 to-teal-800', category: 'financeiro', minPlan: 'Professional', status: 'active', activeTenantsCount: 6 },
-    { id: 'stock-audit', label: 'Inventário Cego', title: 'Contagem cega de insumos e balanço físico de estoque', icon: 'fact_check', colorClass: 'from-amber-500 to-orange-700', category: 'gestao', minPlan: 'Professional', status: 'active', activeTenantsCount: 5 },
-    { id: 'store-manager', label: 'Minha Loja', title: 'Configuração do cardápio público no marketplace regional', icon: 'storefront', colorClass: 'from-amber-400 via-orange-500 to-amber-600', category: 'gestao', minPlan: 'Starter', status: 'active', activeTenantsCount: 12 },
-    { id: 'whatsapp', label: 'WhatsApp Bot', title: 'Robô atendente para pedidos automáticos no WhatsApp', icon: 'chat', colorClass: 'from-emerald-600 to-emerald-800', category: 'integracao', minPlan: 'Professional', status: 'active', activeTenantsCount: 8 },
-    { id: 'ifood', label: 'iFood Sync', title: 'Integração bidirecional de pedidos e cardápio iFood', icon: 'delivery_dining', colorClass: 'from-rose-600 to-red-800', category: 'integracao', minPlan: 'Professional', status: 'active', activeTenantsCount: 8 },
-    { id: 'drivers', label: 'Hub Logística', title: 'Despacho geodésico de entregadores e acompanhamento GPS', icon: 'alt_route', colorClass: 'from-emerald-500 via-teal-600 to-emerald-800', category: 'operacional', minPlan: 'Professional', status: 'active', activeTenantsCount: 10 },
-    { id: 'reports', label: 'Inteligência & KPIs', title: 'Relatórios analíticos, CMV teórico vs real e ticket médio', icon: 'analytics', colorClass: 'from-indigo-600 to-indigo-800', category: 'gestao', minPlan: 'Starter', status: 'active', activeTenantsCount: 12 },
-    { id: 'crm', label: 'Fidelidade & CRM', title: 'Programa de pontos, cashback e régua de relacionamento', icon: 'loyalty', colorClass: 'from-indigo-400 to-indigo-600', category: 'gestao', minPlan: 'Professional', status: 'active', activeTenantsCount: 7 },
-    { id: 'admin-hub', label: 'Gabinete da Loja', title: 'Configurações avançadas do proprietário da filial', icon: 'admin_panel_settings', colorClass: 'from-rose-600 via-amber-600 to-amber-800', category: 'gestao', minPlan: 'Enterprise', status: 'active', activeTenantsCount: 4 }
+    { id: 'pos', label: 'PDV Caixa', title: 'Ponto de Venda com atalhos rápidos e abertura de caixa', icon: 'point_of_sale', colorClass: 'from-amber-500 via-orange-600 to-amber-700', category: 'operacional', minPlan: 'Starter' },
+    { id: 'tables', label: 'Mesas & Salão', title: 'Mapa visual interativo de comandas e salão de atendimento', icon: 'table_restaurant', colorClass: 'from-amber-600 to-amber-800', category: 'operacional', minPlan: 'Starter' },
+    { id: 'kds', label: 'KDS Cozinha', title: 'Display de Cozinha com priorização e tempo de preparo', icon: 'soup_kitchen', colorClass: 'from-emerald-600 to-emerald-800', category: 'operacional', minPlan: 'Starter' },
+    { id: 'inventory', label: 'Estoque ERP', title: 'Ficha técnica, inventário de insumos e alerta de reposição', icon: 'inventory_2', colorClass: 'from-amber-500 to-amber-700', category: 'gestao', minPlan: 'Starter' },
+    { id: 'finance', label: 'Caixa & Finanças', title: 'Fechamento de caixa diário, sangrias, suprimentos e fluxo de caixa', icon: 'account_balance_wallet', colorClass: 'from-emerald-500 to-teal-700', category: 'financeiro', minPlan: 'Starter' },
+    { id: 'suppliers', label: 'Fornecedores', title: 'Cotações de compras, ordens de fornecimento e nota fiscal', icon: 'local_shipping', colorClass: 'from-amber-600 via-orange-600 to-amber-800', category: 'gestao', minPlan: 'Professional' },
+    { id: 'reconciliation', label: 'Reconciliação', title: 'Auditoria de maquininhas de cartão, taxas e adquirentes', icon: 'swap_horiz', colorClass: 'from-emerald-600 to-teal-800', category: 'financeiro', minPlan: 'Professional' },
+    { id: 'stock-audit', label: 'Inventário Cego', title: 'Contagem cega de insumos e balanço físico de estoque', icon: 'fact_check', colorClass: 'from-amber-500 to-orange-700', category: 'gestao', minPlan: 'Professional' },
+    { id: 'store-manager', label: 'Minha Loja', title: 'Configuração do cardápio público no marketplace regional', icon: 'storefront', colorClass: 'from-amber-400 via-orange-500 to-amber-600', category: 'gestao', minPlan: 'Starter' },
+    { id: 'whatsapp', label: 'WhatsApp Bot', title: 'Robô atendente para pedidos automáticos no WhatsApp', icon: 'chat', colorClass: 'from-emerald-600 to-emerald-800', category: 'integracao', minPlan: 'Professional' },
+    { id: 'ifood', label: 'iFood Sync', title: 'Integração bidirecional de pedidos e cardápio iFood', icon: 'delivery_dining', colorClass: 'from-rose-600 to-red-800', category: 'integracao', minPlan: 'Professional' },
+    { id: 'drivers', label: 'Hub Logística', title: 'Despacho e acompanhamento de entregadores', icon: 'alt_route', colorClass: 'from-emerald-500 via-teal-600 to-emerald-800', category: 'operacional', minPlan: 'Professional' },
+    { id: 'reports', label: 'Inteligência & KPIs', title: 'Relatórios analíticos, CMV teórico vs real e ticket médio', icon: 'analytics', colorClass: 'from-indigo-600 to-indigo-800', category: 'gestao', minPlan: 'Starter' },
+    { id: 'crm', label: 'Fidelidade & CRM', title: 'Programa de pontos, cashback e régua de relacionamento', icon: 'loyalty', colorClass: 'from-indigo-400 to-indigo-600', category: 'gestao', minPlan: 'Professional' },
+    { id: 'admin-hub', label: 'Gabinete da Loja', title: 'Configurações avançadas do proprietário da filial', icon: 'admin_panel_settings', colorClass: 'from-rose-600 via-amber-600 to-amber-800', category: 'gestao', minPlan: 'Enterprise' }
   ];
 
   readonly totalEAppsCount = computed(() => this.eAppsList.length);
@@ -202,6 +199,6 @@ export class HqEappsCatalogComponent {
   launchInStoreOs(appId: OSAppId) {
     this.ecosystem.currentView.set('os');
     this.router.navigate(['/os']);
-    this.ecosystem.notify(`Modo Inspeção eApp: Abrindo ${appId} no Store OS.`, 'info');
+    this.ecosystem.notify(`Store OS aberto. Selecione o módulo ${appId} na interface.`, 'info');
   }
 }

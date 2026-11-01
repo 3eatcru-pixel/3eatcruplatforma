@@ -7,13 +7,15 @@ import {
   ProductItem,
   SystemAuditReport,
   LicensePlan,
-  RegionalMarketplaceConfig
+  RegionalMarketplaceConfig,
+  StoreDriver
 } from '../../shared/models/ecosystem.model';
 import {
   requireHqAdmin
 } from '../middleware/auth.middleware';
 import { adminDb } from '../firebase-admin';
 import { Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { isValidCnpj } from '../utils/cnpj';
 
 export const hqRouter = Router();
 
@@ -21,6 +23,7 @@ interface GlobalHqSettings {
   maintenanceMode: boolean;
   globalBroadcastMessage: string | null;
   platformCommissionRate: number;
+  platformDeliveryCommissionStatus: 'coming_soon' | 'active';
   updatedAt: string;
 }
 
@@ -28,8 +31,31 @@ const DEFAULT_HQ_SETTINGS: GlobalHqSettings = {
   maintenanceMode: false,
   globalBroadcastMessage: null,
   platformCommissionRate: 0.08,
+  platformDeliveryCommissionStatus: 'coming_soon',
   updatedAt: new Date().toISOString()
 };
+
+function isRealEligibleOrder(order: OrderTransaction): boolean {
+  return order.isSimulated === false && order.mode !== 'simulation' && order.status !== 'cancelled' &&
+    (order.paymentStatus === 'approved' || order.status === 'completed') &&
+    Number.isFinite(order.total) && order.total >= 0;
+}
+
+function isPlatformNetworkDriver(driver: StoreDriver): boolean {
+  return driver.driverType === 'platform' && driver.tenantId === 'marketplace';
+}
+
+function isCompletedPlatformDelivery(
+  order: OrderTransaction,
+  platformDriverIds: ReadonlySet<string>
+): boolean {
+  return isRealEligibleOrder(order) && order.type === 'delivery' && order.status === 'delivered' &&
+    order.paymentStatus === 'approved' && Boolean(order.driverId && platformDriverIds.has(order.driverId));
+}
+
+function sumOrderTotals(orders: OrderTransaction[]): number {
+  return Number(orders.reduce((sum, order) => sum + order.total, 0).toFixed(2));
+}
 
 const DEFAULT_SAAS_PLANS: LicensePlan[] = [
   {
@@ -64,15 +90,16 @@ function getParamId(req: Request): string {
 }
 
 async function getHqSettings(): Promise<GlobalHqSettings> {
-  try {
-    const doc = await adminDb.collection('hq_settings').doc('global').get();
-    if (doc.exists) {
-      return { ...DEFAULT_HQ_SETTINGS, ...(doc.data() as Partial<GlobalHqSettings>) };
-    }
-  } catch {
-    // Fallback to defaults
+  const doc = await adminDb.collection('hq_settings').doc('global').get();
+  if (doc.exists) {
+    const saved = doc.data() as Partial<GlobalHqSettings>;
+    return {
+      ...DEFAULT_HQ_SETTINGS,
+      ...saved,
+      platformDeliveryCommissionStatus: saved.platformDeliveryCommissionStatus === 'active' ? 'active' : 'coming_soon'
+    };
   }
-  return DEFAULT_HQ_SETTINGS;
+  return { ...DEFAULT_HQ_SETTINGS, updatedAt: new Date().toISOString() };
 }
 
 async function logHqAudit(
@@ -112,24 +139,38 @@ hqRouter.get('/overview', requireHqAdmin, async (_req: Request, res: Response) =
     const devices = devicesSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as POSDevice);
     const orders = ordersSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as OrderTransaction);
 
-    const realOrders = orders.filter(
-      (o: OrderTransaction) => !o.isSimulated && o.status !== 'cancelled' && (o.paymentStatus === 'approved' || o.status === 'completed')
-    );
-    const grossVolume = realOrders.reduce(
-      (sum: number, o: OrderTransaction) => sum + (o.total || 0),
-      0
-    );
-    const hqRevenue = Number((grossVolume * settings.platformCommissionRate).toFixed(2));
+    const realOrders = orders.filter(isRealEligibleOrder);
+    const grossVolume = sumOrderTotals(realOrders);
+    let platformDeliveryOrdersCount: number | null = null;
+    let platformDeliveryGrossVolume: number | null = null;
+    let estimatedCommissionRevenue: number | null = null;
+    let defaultCommissionPercent: number | null = null;
+    if (settings.platformDeliveryCommissionStatus === 'active') {
+      const platformDriversSnap = await adminDb.collection('drivers').where('driverType', '==', 'platform').get();
+      const platformDriverIds = new Set(platformDriversSnap.docs
+        .filter((driver) => isPlatformNetworkDriver(driver.data() as StoreDriver))
+        .map((driver) => driver.id));
+      const completedPlatformDeliveries = realOrders.filter((order) =>
+        isCompletedPlatformDelivery(order, platformDriverIds)
+      );
+      platformDeliveryOrdersCount = completedPlatformDeliveries.length;
+      platformDeliveryGrossVolume = sumOrderTotals(completedPlatformDeliveries);
+      estimatedCommissionRevenue = Number((platformDeliveryGrossVolume * settings.platformCommissionRate).toFixed(2));
+      defaultCommissionPercent = Number((settings.platformCommissionRate * 100).toFixed(2));
+    }
 
     res.json({
       tenantsCount: tenants.length,
       activeTenantsCount: tenants.filter((t: CompanyTenant) => t.status === 'active').length,
       totalDevices: devices.length,
-      onlineDevices: devices.filter((d: POSDevice) => d.status === 'online').length,
+      deviceRecordsMarkedOnline: devices.filter((d: POSDevice) => d.status === 'online').length,
       totalOrders: realOrders.length,
-      grossPlatformVolume: Number(grossVolume.toFixed(2)),
-      hqCommissionRevenue: hqRevenue,
-      defaultCommissionPercent: Number((settings.platformCommissionRate * 100).toFixed(2)),
+      grossPlatformVolume: grossVolume,
+      platformDeliveryCommissionStatus: settings.platformDeliveryCommissionStatus,
+      platformDeliveryOrdersCount,
+      platformDeliveryGrossVolume,
+      estimatedCommissionRevenue,
+      defaultCommissionPercent,
       maintenanceMode: settings.maintenanceMode,
       globalBroadcastMessage: settings.globalBroadcastMessage,
       serverUptimeSeconds: Math.floor(process.uptime()),
@@ -140,9 +181,27 @@ hqRouter.get('/overview', requireHqAdmin, async (_req: Request, res: Response) =
   }
 });
 
+// GET /api/hq/public-status - Store OS broadcast and maintenance flag only
+hqRouter.get('/public-status', async (_req: Request, res: Response) => {
+  try {
+    const settings = await getHqSettings();
+    res.json({
+      maintenanceMode: settings.maintenanceMode,
+      globalBroadcastMessage: settings.globalBroadcastMessage
+    });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch public HQ status.' });
+  }
+});
+
 // POST /api/hq/system/broadcast - Persist global broadcast in private /hq_settings/global
 hqRouter.post('/system/broadcast', requireHqAdmin, async (req: Request, res: Response) => {
-  const message = req.body?.message ? String(req.body.message).trim().slice(0, 500) : null;
+  const rawMessage = req.body?.message;
+  if (rawMessage !== null && rawMessage !== undefined && typeof rawMessage !== 'string') {
+    res.status(400).json({ error: 'A mensagem deve ser texto ou null.', code: 'INVALID_BROADCAST' });
+    return;
+  }
+  const message = typeof rawMessage === 'string' ? rawMessage.trim().slice(0, 500) || null : null;
   try {
     const current = await getHqSettings();
     const updated: GlobalHqSettings = {
@@ -156,7 +215,7 @@ hqRouter.post('/system/broadcast', requireHqAdmin, async (req: Request, res: Res
       message ? `Broadcast emitido: "${message}"` : 'Broadcast encerrado.',
       'info'
     );
-    res.json({ broadcast: message });
+    res.json({ globalBroadcastMessage: message });
   } catch {
     res.status(500).json({ error: 'Failed to update broadcast.' });
   }
@@ -164,7 +223,11 @@ hqRouter.post('/system/broadcast', requireHqAdmin, async (req: Request, res: Res
 
 // POST /api/hq/system/maintenance - Toggle maintenance mode in private /hq_settings/global
 hqRouter.post('/system/maintenance', requireHqAdmin, async (req: Request, res: Response) => {
-  const enabled = Boolean(req.body?.enabled);
+  if (typeof req.body?.enabled !== 'boolean') {
+    res.status(400).json({ error: 'O campo enabled deve ser booleano.', code: 'INVALID_MAINTENANCE_FLAG' });
+    return;
+  }
+  const enabled = req.body.enabled;
   try {
     const current = await getHqSettings();
     const updated: GlobalHqSettings = {
@@ -184,7 +247,7 @@ hqRouter.post('/system/maintenance', requireHqAdmin, async (req: Request, res: R
   }
 });
 
-// POST /api/hq/system/commission - Update platform SaaS split rate in private /hq_settings/global
+// POST /api/hq/system/commission - Update the platform courier delivery commission rate
 hqRouter.post('/system/commission', requireHqAdmin, async (req: Request, res: Response) => {
   const percent = Number(req.body?.percent);
   if (isNaN(percent) || percent < 0 || percent > 50) {
@@ -199,7 +262,7 @@ hqRouter.post('/system/commission', requireHqAdmin, async (req: Request, res: Re
       updatedAt: new Date().toISOString()
     };
     await adminDb.collection('hq_settings').doc('global').set(updated, { merge: true });
-    await logHqAudit('Taxa SaaS Global', `Split padrão ajustado para ${percent}%.`, 'info');
+    await logHqAudit('Comissão da Rede de Entregadores', `Taxa de comissão da rede ajustada para ${percent}%.`, 'info');
     res.json({ defaultCommissionPercent: percent });
   } catch {
     res.status(500).json({ error: 'Failed to update commission rate.' });
@@ -223,41 +286,49 @@ hqRouter.get('/devices', requireHqAdmin, async (req: Request, res: Response) => 
 
 // POST /api/hq/devices
 hqRouter.post('/devices', requireHqAdmin, async (req: Request, res: Response) => {
-  const body = req.body;
-  if (!body.deviceName || !body.serialNumber || !body.tenantId) {
+  const body = (req.body || {}) as Record<string, unknown>;
+  const tenantId = typeof body['tenantId'] === 'string' ? body['tenantId'].trim() : '';
+  const deviceName = typeof body['deviceName'] === 'string' ? body['deviceName'].trim().slice(0, 100) : '';
+  const serialNumber = typeof body['serialNumber'] === 'string' ? body['serialNumber'].trim().slice(0, 100) : '';
+  if (!deviceName || !serialNumber || !tenantId) {
     res.status(400).json({ error: 'deviceName, serialNumber, and tenantId are required.' });
     return;
   }
 
-  const id = `dev-${Date.now().toString(36)}`;
+  const deviceRef = adminDb.collection('devices').doc();
+  const id = deviceRef.id;
   try {
-    const tenantDoc = await adminDb.collection('tenants').doc(body.tenantId).get();
-    const tenant = tenantDoc.data() as CompanyTenant;
+    let tenantName = 'HQ Central (Infraestrutura)';
+    if (tenantId !== 'hq') {
+      const tenantDoc = await adminDb.collection('tenants').doc(tenantId).get();
+      if (!tenantDoc.exists) {
+        res.status(404).json({ error: 'Tenant de destino não encontrado.', code: 'TENANT_NOT_FOUND' });
+        return;
+      }
+      tenantName = (tenantDoc.data() as CompanyTenant).name;
+    }
+
+    const duplicateSerial = await adminDb.collection('devices').where('serialNumber', '==', serialNumber).limit(1).get();
+    if (!duplicateSerial.empty) {
+      res.status(409).json({ error: 'Este serial já está registrado no inventário.', code: 'DEVICE_SERIAL_EXISTS' });
+      return;
+    }
 
     const newDevice: POSDevice = {
       id,
-      tenantId: body.tenantId,
-      tenantName:
-        body.tenantId === 'hq' ? 'HQ Central (Infraestrutura)' : tenant?.name || 'Loja',
-      deviceName: String(body.deviceName).trim(),
-      type: body.type || 'terminal',
-      serialNumber: String(body.serialNumber).trim(),
-      macAddress:
-        body.macAddress ||
-        `00:${Math.floor(10 + Math.random() * 89)}:2B:3C:4D:${Math.floor(10 + Math.random() * 89)}`,
-      ipAddress: body.ipAddress || '192.168.1.150',
-      osVersion: '3EATCRU OS 5.0.0-PRO',
-      appVersion: 'v3.0.0',
-      status: 'online',
-      lastPing: new Date().toISOString(),
-      location: body.location || 'Terminal Balcão',
-      batteryLevel: 100
+      tenantId,
+      tenantName,
+      deviceName,
+      type: body['type'] === 'tablet' || body['type'] === 'mobile' || body['type'] === 'kiosk' ? body['type'] : 'terminal',
+      serialNumber,
+      status: 'unverified',
+      ...(typeof body['location'] === 'string' && body['location'].trim() ? { location: body['location'].trim().slice(0, 120) } : {})
     };
 
-    await adminDb.collection('devices').doc(id).set(newDevice);
+    await deviceRef.set(newDevice);
     await logHqAudit(
-      'Terminal Pareado',
-      `Novo terminal [${newDevice.deviceName}] (${newDevice.serialNumber}) pareado para ${newDevice.tenantName}.`,
+      'Dispositivo Registrado',
+      `Dispositivo [${newDevice.deviceName}] (${newDevice.serialNumber}) registrado no inventário de ${newDevice.tenantName}; conexão física não verificada.`,
       'info'
     );
     res.status(201).json(newDevice);
@@ -278,11 +349,11 @@ hqRouter.post('/devices/:id/lock', requireHqAdmin, async (req: Request, res: Res
     }
 
     const dev = doc.data() as POSDevice;
-    const newStatus = dev.status === 'locked' ? 'online' : 'locked';
+    const newStatus = dev.status === 'locked' ? 'unverified' : 'locked';
     await docRef.update({ status: newStatus });
     await logHqAudit(
-      'Comando MDM Remoto',
-      `Dispositivo ${dev.deviceName} (${dev.serialNumber}) alterado para [${newStatus.toUpperCase()}].`,
+      'Status de Dispositivo Alterado',
+      `Registro de ${dev.deviceName} (${dev.serialNumber}) alterado para [${newStatus.toUpperCase()}]. Nenhum comando remoto foi enviado.`,
       newStatus === 'locked' ? 'warning' : 'info'
     );
     res.json({ ...dev, status: newStatus });
@@ -303,15 +374,14 @@ hqRouter.post('/devices/:id/restart', requireHqAdmin, async (req: Request, res: 
     }
 
     const dev = doc.data() as POSDevice;
-    await docRef.update({ status: 'updating' });
     await logHqAudit(
-      'Reinicialização MDM',
-      `Comando de reinicialização remota enviado para ${dev.deviceName} (${dev.serialNumber}).`,
-      'info'
+      'Solicitação de Atualização MDM',
+      `Solicitação registrada para ${dev.deviceName} (${dev.serialNumber}); nenhum comando foi enviado a um agente físico.`,
+      'warning'
     );
     res.json({
-      message: `Reboot command dispatched to device ${dev.deviceName}`,
-      status: 'updating'
+      message: `Solicitação registrada para ${dev.deviceName}; nenhum dispositivo foi reiniciado.`,
+      status: dev.status
     });
   } catch {
     res.status(500).json({ error: 'Failed to restart device.' });
@@ -343,41 +413,66 @@ hqRouter.post('/audit/run', requireHqAdmin, async (_req: Request, res: Response)
       adminDb.collection('devices').get()
     ]);
 
-    const tenants = tenantsSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as CompanyTenant);
+    const tenants = tenantsSnap.docs.map((d: QueryDocumentSnapshot) => ({
+      documentId: d.id,
+      tenant: d.data() as CompanyTenant
+    }));
     const products = productsSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as ProductItem);
     const orders = ordersSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as OrderTransaction);
     const devices = devicesSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as POSDevice);
 
     const issues: string[] = [];
-    const tenantIdSet = new Set(tenants.map((t: CompanyTenant) => t.id));
+    const tenantIdSet = new Set(tenants.flatMap(({ documentId, tenant }) => [documentId, tenant.id].filter((id): id is string => typeof id === 'string' && id.length > 0)));
+    const seenSerials = new Set<string>();
 
-    for (const t of tenants) {
-      if (!t.cnpj || t.cnpj.length < 11) {
+    for (const { documentId, tenant: t } of tenants) {
+      if (!isValidCnpj(typeof t.cnpj === 'string' ? t.cnpj : '')) {
         issues.push(`Estabelecimento [${t.name}] com CNPJ incompleto.`);
       }
-      if (t.activeDevicesCount > t.devicesLimit) {
-        issues.push(`Estabelecimento [${t.name}] excedeu limite de terminais.`);
+      const tenantIdentifiers = new Set([documentId, t.id].filter((id): id is string => typeof id === 'string' && id.length > 0));
+      const registeredDevices = devices.filter((device) => tenantIdentifiers.has(device.tenantId)).length;
+      if (!Number.isFinite(t.devicesLimit) || t.devicesLimit < 0) {
+        issues.push(`Estabelecimento [${t.name || documentId}] com cota de dispositivos inválida.`);
+      } else if (registeredDevices > t.devicesLimit) {
+        issues.push(`Estabelecimento [${t.name || documentId}] excedeu a cota de registros de dispositivos (${registeredDevices}/${t.devicesLimit}).`);
       }
     }
 
     for (const p of products) {
-      if (p.tenantId && !tenantIdSet.has(p.tenantId)) {
+      if (typeof p.tenantId !== 'string' || !tenantIdSet.has(p.tenantId)) {
         issues.push(`Produto [${p.name}] vinculado a tenant inexistente.`);
       }
-      if (p.price <= 0) {
+      if (!Number.isFinite(p.price) || p.price <= 0) {
         issues.push(`Produto [${p.name}] com preço inválido.`);
       }
     }
 
-    let ledgerConsistent = true;
+    let orderTotalsConsistent = true;
     for (const o of orders) {
-      const expected = Math.max(
-        0,
-        o.subtotal + (o.deliveryFee || 0) + (o.tax || 0) - (o.discount || 0)
-      );
+      const amounts = [o.subtotal, o.deliveryFee ?? 0, o.tax ?? 0, o.discount ?? 0, o.total];
+      if (amounts.some((amount) => !Number.isFinite(amount) || amount < 0)) {
+        orderTotalsConsistent = false;
+        issues.push(`Valores inválidos no pedido #${o.orderNumber}.`);
+        continue;
+      }
+      const expected = Math.max(0, o.subtotal + (o.deliveryFee ?? 0) + (o.tax ?? 0) - (o.discount ?? 0));
       if (Math.abs(expected - o.total) > 0.15) {
-        ledgerConsistent = false;
+        orderTotalsConsistent = false;
         issues.push(`Divergência contábil no pedido #${o.orderNumber}.`);
+      }
+    }
+
+    for (const device of devices) {
+      if (device.tenantId !== 'hq' && (typeof device.tenantId !== 'string' || !tenantIdSet.has(device.tenantId))) {
+        issues.push(`Dispositivo [${device.serialNumber || device.id}] vinculado a tenant inexistente.`);
+      }
+      const serial = typeof device.serialNumber === 'string' ? device.serialNumber.trim().toLocaleLowerCase('pt-BR') : '';
+      if (!serial) {
+        issues.push(`Dispositivo [${device.id}] sem serial registrado.`);
+      } else if (seenSerials.has(serial)) {
+        issues.push(`Serial duplicado no inventário de dispositivos: ${device.serialNumber}.`);
+      } else {
+        seenSerials.add(serial);
       }
     }
 
@@ -387,9 +482,9 @@ hqRouter.post('/audit/run', requireHqAdmin, async (_req: Request, res: Response)
       productsChecked: products.length,
       ordersChecked: orders.length,
       devicesChecked: devices.length,
-      ledgerConsistent,
+      orderTotalsConsistent,
       issuesFound: issues,
-      status: issues.length === 0 ? 'passed' : ledgerConsistent ? 'warning' : 'failed'
+      status: issues.length === 0 ? 'passed' : orderTotalsConsistent ? 'warning' : 'failed'
     };
 
     await logHqAudit(
@@ -403,41 +498,65 @@ hqRouter.post('/audit/run', requireHqAdmin, async (_req: Request, res: Response)
   }
 });
 
-// GET /api/hq/ledger
+// GET /api/hq/ledger - Platform courier commission (currently coming soon)
 hqRouter.get('/ledger', requireHqAdmin, async (_req: Request, res: Response) => {
   try {
-    const [ordersSnap, settings] = await Promise.all([
+    const settings = await getHqSettings();
+    if (settings.platformDeliveryCommissionStatus !== 'active') {
+      res.json({
+        commissionStatus: 'coming_soon',
+        totalEligibleDeliveryVolume: null,
+        totalEstimatedCommission: null,
+        currentCommissionRatePercent: null,
+        recordsCount: 0,
+        entries: []
+      });
+      return;
+    }
+
+    const [ordersSnap, platformDriversSnap] = await Promise.all([
       adminDb.collection('orders').where('isSimulated', '==', false).get(),
-      getHqSettings()
+      adminDb.collection('drivers').where('driverType', '==', 'platform').get()
     ]);
+    const platformDrivers = new Map<string, StoreDriver>(platformDriversSnap.docs
+      .filter((doc) => isPlatformNetworkDriver(doc.data() as StoreDriver))
+      .map((doc): [string, StoreDriver] => [
+        doc.id,
+        { ...(doc.data() as StoreDriver), id: doc.id }
+      ]));
+    const platformDriverIds = new Set(platformDrivers.keys());
     const realOrders = ordersSnap.docs
       .map((d: QueryDocumentSnapshot) => d.data() as OrderTransaction)
-      .filter((o: OrderTransaction) => o.status !== 'cancelled' && (o.paymentStatus === 'approved' || o.status === 'completed'));
+      .filter((order) => isCompletedPlatformDelivery(order, platformDriverIds));
 
     const entries = realOrders.map((o: OrderTransaction) => {
       const feeRate = settings.platformCommissionRate;
-      const hqFee = Number((o.total * feeRate).toFixed(2));
-      const storeNet = Number((o.total - hqFee).toFixed(2));
+      const estimatedCommission = Number((o.total * feeRate).toFixed(2));
       return {
         orderId: o.id,
         orderNumber: o.orderNumber,
         tenantId: o.tenantId,
         channel: o.channel,
+        driverId: o.driverId!,
+        driverName: platformDrivers.get(o.driverId!)?.name || o.driverId!,
         date: o.createdAt,
         orderTotal: o.total,
-        platformFeeRate: `${(feeRate * 100).toFixed(0)}%`,
-        platformFeeAmount: hqFee,
-        storeNetAmount: storeNet
+        currentCommissionRatePercent: Number((feeRate * 100).toFixed(2)),
+        estimatedCommissionAmount: estimatedCommission
       };
     });
 
-    const totalPlatformFees = Number(
-      entries.reduce((sum: number, e) => sum + e.platformFeeAmount, 0).toFixed(2)
+    const totalEligibleDeliveryVolume = sumOrderTotals(realOrders);
+
+    const totalEstimatedCommission = Number(
+      entries.reduce((sum: number, e) => sum + e.estimatedCommissionAmount, 0).toFixed(2)
     );
 
     res.json({
-      totalPlatformFees,
-      platformSplitPercent: Number((settings.platformCommissionRate * 100).toFixed(2)),
+      commissionStatus: 'active',
+      totalEligibleDeliveryVolume,
+      totalEstimatedCommission,
+      currentCommissionRatePercent: Number((settings.platformCommissionRate * 100).toFixed(2)),
       recordsCount: entries.length,
       entries
     });
@@ -447,7 +566,7 @@ hqRouter.get('/ledger', requireHqAdmin, async (_req: Request, res: Response) => 
 });
 
 // GET /api/hq/communications/messages
-hqRouter.get('/communications/messages', async (_req: Request, res: Response) => {
+hqRouter.get('/communications/messages', requireHqAdmin, async (_req: Request, res: Response) => {
   try {
     const snap = await adminDb.collection('social_messages').get();
     res.json(snap.docs.map(d => d.data()));
@@ -457,20 +576,26 @@ hqRouter.get('/communications/messages', async (_req: Request, res: Response) =>
 });
 
 // POST /api/hq/communications/messages
-hqRouter.post('/communications/messages', async (req: Request, res: Response) => {
+hqRouter.post('/communications/messages', requireHqAdmin, async (req: Request, res: Response) => {
   const caller = req.user;
-  const body = req.body || {};
+  const body = (req.body || {}) as Record<string, unknown>;
+  const content = typeof body['content'] === 'string' ? body['content'].trim().slice(0, 1000) : '';
+  if (!content) {
+    res.status(400).json({ error: 'O conteúdo da mensagem é obrigatório.', code: 'EMPTY_MESSAGE' });
+    return;
+  }
+
   const id = `msg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const message = {
     id,
-    senderName: String(body.senderName || caller?.name || 'Central Lojista'),
-    senderHandle: String(body.senderHandle || '@loja'),
-    channel: body.channel || 'whatsapp',
-    content: String(body.content || '').slice(0, 1000),
+    senderName: caller?.email || caller?.name || 'HQ Central',
+    senderHandle: '@hq',
+    channel: typeof body['channel'] === 'string' ? body['channel'].slice(0, 32) : 'internal',
+    content,
     timestamp: new Date().toISOString(),
     unread: false,
     direction: 'outgoing',
-    tenantId: caller?.tenantId || body.tenantId || 'hq_central'
+    tenantId: 'hq_central'
   };
 
   try {
@@ -485,13 +610,20 @@ hqRouter.post('/communications/messages', async (req: Request, res: Response) =>
 hqRouter.get('/plans', async (_req: Request, res: Response) => {
   try {
     const snap = await adminDb.collection('plans').get();
-    if (!snap.empty) {
-      res.json(snap.docs.map((d: QueryDocumentSnapshot) => d.data()));
-      return;
-    }
-    res.json(DEFAULT_SAAS_PLANS);
+    const storedPlans = new Map<string, Partial<LicensePlan>>(
+      snap.docs.map((d: QueryDocumentSnapshot): [string, Partial<LicensePlan>] => [d.id, d.data() as Partial<LicensePlan>])
+    );
+    const plans = DEFAULT_SAAS_PLANS.map((basePlan) => ({
+      ...basePlan,
+      ...(storedPlans.get(basePlan.id) || {}),
+      id: basePlan.id
+    }));
+    const savedPlanCount = DEFAULT_SAAS_PLANS.filter((plan) => storedPlans.has(plan.id)).length;
+    const source = savedPlanCount === 0 ? 'defaults' : savedPlanCount === DEFAULT_SAAS_PLANS.length ? 'firestore' : 'mixed';
+    res.setHeader('X-HQ-Plan-Catalog-Source', source);
+    res.json(plans);
   } catch {
-    res.json(DEFAULT_SAAS_PLANS);
+    res.status(500).json({ error: 'Failed to fetch plan catalog.' });
   }
 });
 
@@ -508,12 +640,39 @@ hqRouter.patch('/plans/:id', requireHqAdmin, async (req: Request, res: Response)
     const docRef = adminDb.collection('plans').doc(id);
     const snap = await docRef.get();
     const existing = snap.exists ? (snap.data() as LicensePlan) : basePlan;
-    const updated: LicensePlan = {
-      ...existing,
-      ...req.body,
-      id
-    };
+    const body = (req.body || {}) as Record<string, unknown>;
+    const updated: LicensePlan = { ...existing, id };
+    if ('priceMonthly' in body) {
+      const price = body['priceMonthly'];
+      if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) {
+        res.status(400).json({ error: 'Mensalidade deve ser um número finito maior ou igual a zero.', code: 'INVALID_PLAN_PRICE' });
+        return;
+      }
+      updated.priceMonthly = price;
+    }
+    if ('maxDevices' in body) {
+      const maxDevices = body['maxDevices'];
+      if (typeof maxDevices !== 'number' || !Number.isInteger(maxDevices) || maxDevices < 1 || maxDevices > 999) {
+        res.status(400).json({ error: 'A cota deve ser um inteiro entre 1 e 999.', code: 'INVALID_PLAN_DEVICE_LIMIT' });
+        return;
+      }
+      updated.maxDevices = maxDevices;
+    }
+    if (Object.keys(body).some((key) => key !== 'priceMonthly' && key !== 'maxDevices')) {
+      res.status(400).json({ error: 'Somente mensalidade e cota podem ser alteradas nesta rota.', code: 'INVALID_PLAN_FIELDS' });
+      return;
+    }
     await docRef.set(updated);
+    try {
+      await logHqAudit(
+        'Plano SaaS Atualizado',
+        `Plano ${id} atualizado pelo HQ: ${Object.keys(body).join(', ')}.`,
+        'info',
+        req.user?.email || 'HQ ADMIN'
+      );
+    } catch {
+      // Keep the plan update authoritative if audit persistence is unavailable.
+    }
     res.json(updated);
   } catch {
     res.status(500).json({ error: 'Falha ao atualizar plano.' });

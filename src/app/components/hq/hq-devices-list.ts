@@ -18,9 +18,9 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
             <div>
               <h3 class="font-serif font-black text-sm uppercase tracking-wider text-amber-900 flex items-center gap-2">
                 <mat-icon class="text-amber-700">developer_board</mat-icon>
-                <span>Monitoramento &amp; Governança MDM de Frota &amp; Hardware</span>
+                <span>Inventário de Dispositivos</span>
               </h3>
-              <p class="text-[11px] text-stone-600">Supervisão de hardware físico (Terminais POS) e telemetria GPS em tempo real da Frota de Motoristas da Plataforma.</p>
+              <p class="text-[11px] text-stone-600">O cadastro de dispositivos não confirma conexão física. Não há agente de terminais conectado para telemetria ou comandos remotos. Dados de motoristas abaixo são registros armazenados, sem consulta de GPS em tempo real.</p>
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
@@ -31,7 +31,7 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                   [class]="mdmMode() === 'terminals' ? 'bg-amber-800 text-amber-50 shadow' : 'text-stone-700 hover:text-stone-950'"
                   class="px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 font-mono">
                   <mat-icon class="text-xs">desktop_windows</mat-icon>
-                  <span>Terminais Hardware ({{ ecosystem.devices().length }})</span>
+                  <span>Registros de dispositivos ({{ ecosystem.devices().length }})</span>
                 </button>
                 <button
                   type="button"
@@ -39,7 +39,7 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                   [class]="mdmMode() === 'drivers' ? 'bg-amber-800 text-amber-50 shadow' : 'text-stone-700 hover:text-stone-950'"
                   class="px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 font-mono">
                   <mat-icon class="text-xs">two_wheeler</mat-icon>
-                  <span>Motoristas Plataforma MDM ({{ ecosystem.drivers().length }})</span>
+                  <span>Motoristas cadastrados ({{ ecosystem.drivers().length }})</span>
                 </button>
                 <button
                   type="button"
@@ -52,9 +52,9 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
               </div>
 
               @if (mdmMode() === 'terminals') {
-                <button (click)="openPairModal.emit()" class="bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold px-3 py-2 rounded-xl text-[10px] shadow cursor-pointer uppercase flex items-center gap-1.5">
+                <button (click)="openRegisterModal.emit()" class="bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold px-3 py-2 rounded-xl text-[10px] shadow cursor-pointer uppercase flex items-center gap-1.5">
                   <mat-icon class="text-xs">add_to_queue</mat-icon>
-                  <span>Parear Terminal</span>
+                  <span>Registrar dispositivo</span>
                 </button>
               }
             </div>
@@ -71,8 +71,8 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
               [value]="selectedTenantFilter()"
               (change)="selectedTenantFilter.set($any($event.target).value)"
               class="bg-white border border-[#d6c7b0] rounded-xl px-3 py-1.5 text-xs font-bold text-stone-900 focus:outline-none focus:border-amber-600 cursor-pointer">
-              <option value="all">Todas as Lojas &amp; Nó HQ Central</option>
-              <option value="hq">⚡ Infraestrutura Global HQ / Plataforma On-Demand</option>
+              <option value="all">Todas as lojas e registro HQ</option>
+              <option value="hq">Registro de referência do HQ</option>
               @for (t of ecosystem.tenants(); track t.id) {
                 <option [value]="t.id">🏪 Unidade: {{ t.name }}</option>
               }
@@ -80,7 +80,7 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
 
             <div class="text-[10px] font-mono text-stone-600 font-bold">
               @if (mdmMode() === 'terminals') {
-                Mostrando: <span class="text-amber-900 font-black">{{ filteredDevices().length }}</span> / {{ ecosystem.devices().length }} terminais
+                Mostrando: <span class="text-amber-900 font-black">{{ filteredDevices().length }}</span> / {{ ecosystem.devices().length }} registros
               } @else if (mdmMode() === 'drivers') {
                 Mostrando: <span class="text-amber-900 font-black">{{ filteredDrivers().length }}</span> / {{ ecosystem.drivers().length }} motoristas
               } @else {
@@ -95,11 +95,11 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
              <table class="w-full text-left text-xs border-collapse font-sans">
                <thead>
                  <tr class="text-[10px] font-mono font-bold uppercase text-amber-950/60 border-b-2 border-[#d0c2a8]">
-                   <th class="py-2.5 px-3">DISPOSITIVO POS</th>
+                   <th class="py-2.5 px-3">REGISTRO DE DISPOSITIVO</th>
                    <th class="py-2.5 px-3">CATEGORIA / ORIGEM</th>
-                   <th class="py-2.5 px-3 text-center">BATERIA</th>
-                   <th class="py-2.5 px-3">STATUS MDM</th>
-                   <th class="py-2.5 px-3 text-right">AÇÕES REMOTAS</th>
+                   <th class="py-2.5 px-3 text-center">BATERIA REGISTRADA</th>
+                   <th class="py-2.5 px-3">STATUS CADASTRADO</th>
+                   <th class="py-2.5 px-3 text-right">AÇÕES NO INVENTÁRIO</th>
                  </tr>
                </thead>
                <tbody class="divide-y divide-[#e8dfce]">
@@ -112,7 +112,7 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                          </mat-icon>
                          <span>{{ device.deviceName }}</span>
                        </div>
-                       <div class="font-mono text-[9px] text-stone-500 pl-6">{{ device.serialNumber }} • {{ device.location }}</div>
+                       <div class="font-mono text-[9px] text-stone-500 pl-6">{{ device.serialNumber }} • {{ device.location || 'Localização não informada' }}</div>
                      </td>
                      <td class="py-3 px-3 font-medium">
                        @if (device.tenantId === 'hq') {
@@ -128,17 +128,21 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                        }
                      </td>
                      <td class="py-3 px-3">
-                        <div class="flex items-center justify-center gap-1 font-mono font-bold" [class.text-rose-600]="(device.batteryLevel ?? 100) < 20">
-                          <mat-icon class="text-sm">battery_full</mat-icon> {{ device.batteryLevel }}%
-                        </div>
+                        @if (device.batteryLevel !== undefined) {
+                          <div class="flex items-center justify-center gap-1 font-mono font-bold" [class.text-rose-600]="device.batteryLevel < 20">
+                            <mat-icon class="text-sm">battery_full</mat-icon> {{ device.batteryLevel }}%
+                          </div>
+                        } @else {
+                          <span class="text-[9px] text-stone-500">Sem telemetria</span>
+                        }
                      </td>
                      <td class="py-3 px-3">
-                       <span [class]="device.status === 'online' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'" class="border px-2 py-0.5 rounded text-[9px] font-bold uppercase">{{ device.status }}</span>
+                       <span [class]="device.status === 'online' || device.status === 'unverified' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300'" class="border px-2 py-0.5 rounded text-[9px] font-bold uppercase">{{ device.status === 'online' ? 'online (registro)' : device.status === 'unverified' ? 'não verificado' : device.status }}</span>
                      </td>
                      <td class="py-3 px-3 text-right">
                        <div class="flex justify-end gap-1.5">
-                         <button (click)="ecosystem.restartDevice(device.id)" class="p-1.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer" title="Reiniciar Remoto"><mat-icon class="text-sm">refresh</mat-icon></button>
-                         <button (click)="ecosystem.lockDevice(device.id)" class="p-1.5 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 cursor-pointer" title="Bloquear Terminal"><mat-icon class="text-sm">lock</mat-icon></button>
+                         <button type="button" (click)="ecosystem.restartDevice(device.id)" class="p-1.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer" title="Registrar solicitação; não reinicia o equipamento"><mat-icon class="text-sm">refresh</mat-icon></button>
+                         <button type="button" (click)="ecosystem.lockDevice(device.id)" class="p-1.5 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 cursor-pointer" title="Alterar status no inventário; não bloqueia o equipamento"><mat-icon class="text-sm">lock</mat-icon></button>
                        </div>
                      </td>
                    </tr>
@@ -154,18 +158,18 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
            </div>
          }
 
-         <!-- PLATFORM DRIVERS MDM TELEMATICS TABLE -->
+         <!-- DRIVER RECORDS -->
          @if (mdmMode() === 'drivers') {
            <div class="overflow-x-auto">
              <table class="w-full text-left text-xs border-collapse font-sans">
                <thead>
                  <tr class="text-[10px] font-mono font-bold uppercase text-amber-950/60 border-b-2 border-[#d0c2a8]">
-                   <th class="py-2.5 px-3">MOTORISTA / DISPOSITIVO PWA</th>
+                   <th class="py-2.5 px-3">MOTORISTA / VERSÃO INFORMADA</th>
                    <th class="py-2.5 px-3">VÍNCULO &amp; TIPO</th>
-                   <th class="py-2.5 px-3">TELEMETRIA GPS &amp; ENDEREÇO</th>
-                   <th class="py-2.5 px-3 text-center">BATERIA</th>
-                   <th class="py-2.5 px-3 text-center">COMPLIANCE CNH</th>
-                   <th class="py-2.5 px-3 text-right">COMANDOS MDM</th>
+                   <th class="py-2.5 px-3">LOCALIZAÇÃO INFORMADA</th>
+                   <th class="py-2.5 px-3 text-center">BATERIA INFORMADA</th>
+                   <th class="py-2.5 px-3 text-center">STATUS DOCUMENTAL</th>
+                   <th class="py-2.5 px-3 text-right">CONTROLE</th>
                  </tr>
                </thead>
                <tbody class="divide-y divide-[#e8dfce]">
@@ -179,7 +183,7 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                          <span>{{ driver.name }}</span>
                        </div>
                        <div class="font-mono text-[9px] text-stone-500 pl-6">
-                         {{ driver.deviceName || 'Dispositivo PWA 3EAT' }} • {{ driver.appVersion || 'v3.2.0' }}
+                         {{ driver.deviceName || 'Dispositivo não informado' }} • {{ driver.appVersion || 'Versão não informada' }}
                        </div>
                      </td>
 
@@ -200,44 +204,37 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                      <td class="py-3 px-3">
                        <div class="font-bold text-stone-900 flex items-center gap-1 text-[11px]">
                          <mat-icon class="text-xs text-emerald-700">my_location</mat-icon>
-                         <span>{{ driver.currentLocationName || 'São Paulo - Centro' }}</span>
+                         <span>{{ driver.currentLocationName || 'Localização não informada' }}</span>
                        </div>
                        <div class="font-mono text-[9px] text-stone-500 pl-4">
-                         Ping: {{ driver.lastGpsPing || 'Agora mesmo' }}
+                         Registro: {{ driver.lastGpsPing ? (driver.lastGpsPing | date:'dd/MM/yyyy HH:mm') : 'Sem registro' }}
                        </div>
                      </td>
 
                      <td class="py-3 px-3 text-center">
-                       <div class="flex items-center justify-center gap-1 font-mono font-bold" [class.text-rose-600]="(driver.batteryLevel ?? 100) < 20">
-                         <mat-icon class="text-sm">battery_full</mat-icon> {{ driver.batteryLevel ?? 85 }}%
-                       </div>
+                       @if (driver.batteryLevel !== undefined) {
+                         <div class="flex items-center justify-center gap-1 font-mono font-bold" [class.text-rose-600]="driver.batteryLevel < 20">
+                           <mat-icon class="text-sm">battery_full</mat-icon> {{ driver.batteryLevel }}%
+                         </div>
+                       } @else {
+                         <span class="text-[9px] text-stone-500">Sem telemetria</span>
+                       }
                      </td>
 
                      <td class="py-3 px-3 text-center">
                        @if (driver.complianceVerified) {
                          <span class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded text-[9px] font-black inline-flex items-center gap-1">
                            <mat-icon class="text-[10px]">verified</mat-icon>
-                           <span>CNH REGULAR</span>
+                           <span>MARCADO COMO VERIFICADO</span>
                          </span>
                        } @else {
-                         <span class="bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded text-[9px] font-bold">EM ANÁLISE</span>
+                          <span class="bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded text-[9px] font-bold">NÃO VERIFICADO</span>
                        }
                      </td>
 
                      <td class="py-3 px-3 text-right">
                        <div class="flex justify-end gap-1.5">
-                         <button
-                           (click)="ecosystem.pingDriverGpsRemote(driver)"
-                           class="p-1.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer"
-                           title="Ping Geodésico GPS">
-                           <mat-icon class="text-sm">radar</mat-icon>
-                         </button>
-                         <button
-                           (click)="ecosystem.notify('Comando de atualização enviado para ' + driver.name, 'info')"
-                           class="p-1.5 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200 cursor-pointer"
-                           title="Atualizar App Remoto">
-                           <mat-icon class="text-sm">system_update</mat-icon>
-                         </button>
+                         <span class="text-[9px] text-stone-500">Sem agente de GPS ou canal de atualização conectado</span>
                        </div>
                      </td>
                    </tr>
@@ -264,7 +261,7 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                     <th class="py-2.5 px-3">MOTORISTA ATRIBUÍDO</th>
                     <th class="py-2.5 px-3">PARADAS / ENTREGAS</th>
                     <th class="py-2.5 px-3 text-center">DISTÂNCIA / TEMPO</th>
-                    <th class="py-2.5 px-3 text-center">GANHO DRIVER</th>
+                    <th class="py-2.5 px-3 text-center">VALOR DA ROTA</th>
                     <th class="py-2.5 px-3 text-right">STATUS DA ROTA</th>
                   </tr>
                 </thead>
@@ -313,7 +310,12 @@ import { POSDevice, StoreDriver, DeliveryRoute } from '../../models/ecosystem.mo
                       </td>
 
                       <td class="py-3 px-3 text-center font-mono font-black text-emerald-800">
-                        R$ {{ route.totalEarnings.toFixed(2) }}
+                        @if (route.totalEarnings > 0) {
+                          R$ {{ route.totalEarnings.toFixed(2) }}
+                        } @else {
+                          <span class="text-amber-800">A combinar</span>
+                        }
+                        <div class="text-[8px] font-sans font-normal text-stone-500">Informado pela loja; sem registro de pagamento</div>
                       </td>
 
                       <td class="py-3 px-3 text-right">
@@ -346,7 +348,7 @@ export class HqDevicesListComponent {
   readonly mdmMode = signal<'terminals' | 'drivers' | 'routes'>('terminals');
   readonly selectedTenantFilter = signal<string>('all');
   
-  openPairModal = output<void>();
+  openRegisterModal = output<void>();
 
   readonly filteredDevices = computed(() => {
     const filter = this.selectedTenantFilter();

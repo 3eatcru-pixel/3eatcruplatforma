@@ -85,11 +85,16 @@ export class TenantsService {
 
   async createTenant(tenant: Partial<CompanyTenant>): Promise<CompanyTenant> {
     if (this.isSimulation()) {
+      const plan = tenant.plan || 'Starter';
       const simTenant: CompanyTenant = {
         ...tenant,
         id: tenant.id || `sim-ten-${Date.now()}`,
+        plan,
         status: 'trial',
-        plan: 'Starter'
+        activeDevicesCount: 0,
+        devicesLimit: tenant.devicesLimit ?? (plan === 'Enterprise' ? 20 : plan === 'Professional' ? 5 : 2),
+        createdAt: new Date().toISOString(),
+        isOpen: false
       } as CompanyTenant;
       this.tenants.update(cur => [...cur, simTenant]);
       return simTenant;

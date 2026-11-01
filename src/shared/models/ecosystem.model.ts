@@ -50,7 +50,7 @@ export const PILLARS_CATALOG: PillarDefinition[] = [
     primaryTarget: 'Franqueador, Super Admin da Plataforma SaaS',
     primaryRole: 'hq_admin',
     isStoreSpecific: false,
-    whatItDoes: 'Governança global de todos os tenants (aprovação de lojas, suspensão, planos SaaS Pro/Enterprise, taxa de 8% da plataforma, gestão da frota de hardware MDM, catálogo regional e auditoria do ecossistema).',
+    whatItDoes: 'Governança global de todos os tenants (aprovação de lojas, suspensão, planos SaaS Pro/Enterprise, comissão futura das entregas próprias da plataforma em breve, gestão da frota de hardware MDM, catálogo regional e auditoria do ecossistema).',
     whatItDoesNotDo: 'O HQ NÃO é uma loja! NÃO opera frente de caixa (PDV), NÃO tem mesas de bar/restaurante, NÃO recebe pedidos de delivery e NÃO lança comanda de cozinha.'
   },
   {
@@ -122,10 +122,10 @@ export const PILLARS_CATALOG: PillarDefinition[] = [
     route: '/driver',
     icon: 'two_wheeler',
     colorScheme: 'purple',
-    primaryTarget: 'Motoboys e Entregadores da Frota Própria ou da Plataforma',
+    primaryTarget: 'Motoristas das lojas e, futuramente, da rede própria da plataforma',
     primaryRole: 'driver',
     isStoreSpecific: false,
-    whatItDoes: 'Aceite de rotas atribuídas, confirmação de coleta na loja, navegação passo a passo até o cliente e baixa de entrega com telemetria GPS.',
+    whatItDoes: 'Facilita o acesso dos motoristas da loja às rotas, à confirmação de coleta e à baixa das entregas. Integração com GPS do aparelho não está conectada.',
     whatItDoesNotDo: 'NÃO acessa pedidos de outras lojas sem permissão de frota e NÃO tem acesso a configurações de loja ou governança.'
   },
   {
@@ -281,13 +281,13 @@ export interface POSDevice {
   deviceName: string;
   type: 'terminal' | 'tablet' | 'mobile' | 'kiosk';
   serialNumber: string;
-  macAddress: string;
-  ipAddress: string;
-  osVersion: string;
-  appVersion: string;
-  status: 'online' | 'offline' | 'locked' | 'updating';
-  lastPing: string;
-  location: string;
+  macAddress?: string;
+  ipAddress?: string;
+  osVersion?: string;
+  appVersion?: string;
+  status: 'online' | 'offline' | 'locked' | 'updating' | 'unverified';
+  lastPing?: string;
+  location?: string;
   batteryLevel?: number;
 }
 
@@ -341,7 +341,7 @@ export interface PaymentTransactionRecord {
   feeDeducted: number;
   netAmount: number;
   method: 'pix' | 'credit_card' | 'debit_card' | 'cash' | 'voucher';
-  status: 'approved' | 'pending_pix' | 'declined' | 'platform_escrow_hold';
+  status: 'approved' | 'pending_pix' | 'declined';
   gateway: string;
   authorizationCode: string;
   environment: 'sandbox' | 'live';
@@ -349,7 +349,6 @@ export interface PaymentTransactionRecord {
   isSimulated?: boolean;
   qrCodePix?: string;
   pixCopyPaste?: string;
-  platformEscrowNote?: string;
   createdByUid: string;
   createdAt: string;
   confirmedAt?: string;
@@ -435,6 +434,7 @@ export interface DeliveryRoute {
   timeWindow: string;
   totalDistanceKm: number;
   estimatedDuration: string;
+  /** Valor de rota definido pela loja; não confirma nem registra pagamento ao entregador. */
   totalEarnings: number;
   waypoints: DeliveryWaypoint[];
   status: 'available' | 'accepted' | 'at_store' | 'in_progress' | 'completed';
@@ -470,7 +470,7 @@ export interface SystemAuditReport {
   productsChecked: number;
   ordersChecked: number;
   devicesChecked: number;
-  ledgerConsistent: boolean;
+  orderTotalsConsistent: boolean;
   issuesFound: string[];
   status: 'passed' | 'warning' | 'failed';
 }

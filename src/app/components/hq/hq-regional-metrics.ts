@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { CompanyTenant } from '../../models/ecosystem.model';
@@ -17,16 +17,16 @@ import { CompanyTenant } from '../../models/ecosystem.model';
           <mat-icon class="text-amber-700 text-sm">storefront</mat-icon>
         </div>
         <div class="text-2xl font-serif font-black text-stone-900">{{ tenants().length }}</div>
-        <span class="text-[10px] text-emerald-700 font-bold">100% Homologados HQ</span>
+          <span class="text-[10px] text-stone-600 font-bold">Registros carregados no contexto atual</span>
       </div>
 
       <div class="bg-[#faf7f0] border border-[#ded4c2] rounded-2xl p-4 shadow-lg text-stone-900">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[10px] font-mono font-bold text-amber-900 uppercase">Raio de Cobertura</span>
+          <span class="text-[10px] font-mono font-bold text-amber-900 uppercase">Maior raio cadastrado</span>
           <mat-icon class="text-amber-700 text-sm">radar</mat-icon>
         </div>
-        <div class="text-2xl font-serif font-black text-stone-900">30 km</div>
-        <span class="text-[10px] text-stone-600 font-bold">Perímetro Central SP</span>
+        <div class="text-2xl font-serif font-black text-stone-900">{{ maxDeliveryRadiusDisplay() }}</div>
+        <span class="text-[10px] text-stone-600 font-bold">Dados do cadastro; sem raio geográfico calculado</span>
       </div>
 
       <div class="bg-[#faf7f0] border border-[#ded4c2] rounded-2xl p-4 shadow-lg text-stone-900">
@@ -34,8 +34,8 @@ import { CompanyTenant } from '../../models/ecosystem.model';
           <span class="text-[10px] font-mono font-bold text-amber-900 uppercase">Acessos à Praça</span>
           <mat-icon class="text-amber-700 text-sm">trending_up</mat-icon>
         </div>
-        <div class="text-2xl font-serif font-black text-stone-900">4.820</div>
-        <span class="text-[10px] text-emerald-700 font-bold">+24% nesta semana</span>
+        <div class="text-2xl font-serif font-black text-stone-900">Não coletado</div>
+        <span class="text-[10px] text-stone-600 font-bold">Analytics de acessos não conectado</span>
       </div>
 
       <div class="bg-[#faf7f0] border border-[#ded4c2] rounded-2xl p-4 shadow-lg text-stone-900">
@@ -43,8 +43,8 @@ import { CompanyTenant } from '../../models/ecosystem.model';
           <span class="text-[10px] font-mono font-bold text-amber-900 uppercase">Taxa Média de Entrega</span>
           <mat-icon class="text-amber-700 text-sm">delivery_dining</mat-icon>
         </div>
-        <div class="text-2xl font-serif font-black text-emerald-800">R$ 5,10</div>
-        <span class="text-[10px] text-emerald-700 font-bold">Competitivo c/ iFood</span>
+        <div class="text-2xl font-serif font-black text-emerald-800">{{ averageDeliveryFeeDisplay() }}</div>
+        <span class="text-[10px] text-stone-600 font-bold">Média dos valores cadastrados</span>
       </div>
 
     </div>
@@ -52,4 +52,20 @@ import { CompanyTenant } from '../../models/ecosystem.model';
 })
 export class HqRegionalMetricsComponent {
   tenants = input.required<CompanyTenant[]>();
+  readonly maxDeliveryRadiusKm = computed<number | null>(() => {
+    const radii = this.tenants().map((tenant) => tenant.deliveryRadiusKm).filter((radius) => Number.isFinite(radius) && radius >= 0);
+    return radii.length ? Math.max(...radii) : null;
+  });
+  readonly maxDeliveryRadiusDisplay = computed(() => {
+    const radius = this.maxDeliveryRadiusKm();
+    return radius === null ? '—' : `${radius} km`;
+  });
+  readonly averageDeliveryFee = computed<number | null>(() => {
+    const fees = this.tenants().map((tenant) => tenant.deliveryFee).filter((fee) => Number.isFinite(fee) && fee >= 0);
+    return fees.length ? fees.reduce((sum, fee) => sum + fee, 0) / fees.length : null;
+  });
+  readonly averageDeliveryFeeDisplay = computed(() => {
+    const fee = this.averageDeliveryFee();
+    return fee === null ? '—' : `R$ ${fee.toFixed(2)}`;
+  });
 }

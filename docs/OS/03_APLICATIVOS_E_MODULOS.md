@@ -56,6 +56,7 @@ Estes arquivos existem no repositório, mas não estão importados nem renderiza
 | `eapp-system.ts` | Resumo estático da aplicação, sem diagnóstico do dispositivo ou verificação de conexão. |
 | `eapp-finance.ts` | Resumo visual dos lançamentos carregados do tenant ativo; não é janela integrada de DRE nem de conciliação. |
 | `eapp-order-history.ts` | Lista apenas pedidos carregados do tenant ativo; não consulta histórico completo nem está integrada ao desktop. |
+| `eapp-calculator.ts` | Calculadora local sem APIs ou persistência; erros aritméticos são exibidos como `Erro`. O ID `calculator` ainda abre placeholder no desktop. |
 
 ## Módulos de negócio existentes fora das janelas
 

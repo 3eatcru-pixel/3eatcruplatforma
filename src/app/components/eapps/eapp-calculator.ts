@@ -67,12 +67,18 @@ export class EAppCalculatorWindow {
   }
 
   inputDot() {
+    if (this.resetOnNext) {
+      this.display.set('0.');
+      this.resetOnNext = false;
+      return;
+    }
     if (!this.display().includes('.')) {
-      this.display.update(v => v + '.');
+      this.display.update(v => v === '0' ? '0.' : v + '.');
     }
   }
 
   inputOp(op: string) {
+    if (!Number.isFinite(Number(this.display()))) return;
     this.equation.set(this.display() + ' ' + op);
     this.resetOnNext = true;
   }
@@ -95,17 +101,43 @@ export class EAppCalculatorWindow {
   calculate() {
     const eq = this.equation().trim();
     if (!eq) return;
-    const [num1Str, op] = eq.split(' ');
-    const num1 = parseFloat(num1Str);
-    const num2 = parseFloat(this.display());
-    let res = 0;
+    const [num1Str, op, ...unexpected] = eq.split(' ');
+    const num1 = Number(num1Str);
+    const num2 = Number(this.display());
+    if (unexpected.length || !Number.isFinite(num1) || !Number.isFinite(num2)) {
+      this.showError();
+      return;
+    }
+
+    let res: number;
     if (op === '+') res = num1 + num2;
     else if (op === '-') res = num1 - num2;
     else if (op === '*') res = num1 * num2;
-    else if (op === '/') res = num2 !== 0 ? num1 / num2 : 0;
-    else if (op === '%') res = (num1 * num2) / 100;
+    else if (op === '/') {
+      if (num2 === 0) {
+        this.showError();
+        return;
+      }
+      res = num1 / num2;
+    } else if (op === '%') res = (num1 * num2) / 100;
+    else {
+      this.showError();
+      return;
+    }
 
-    this.display.set(String(Math.round(res * 1000) / 1000));
+    if (!Number.isFinite(res)) {
+      this.showError();
+      return;
+    }
+
+    const rounded = Math.round(res * 1000) / 1000;
+    this.display.set(Object.is(rounded, -0) ? '0' : String(rounded));
+    this.equation.set('');
+    this.resetOnNext = true;
+  }
+
+  private showError() {
+    this.display.set('Erro');
     this.equation.set('');
     this.resetOnNext = true;
   }

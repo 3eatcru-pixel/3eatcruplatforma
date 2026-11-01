@@ -42,11 +42,14 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
             tenantsCount: tenantsStore.length,
             activeTenantsCount: tenantsStore.length,
             totalDevices: 2,
-            onlineDevices: 2,
+            deviceRecordsMarkedOnline: 2,
             totalOrders: ordersStore.length,
             grossPlatformVolume: 500,
-            hqCommissionRevenue: 40,
-            defaultCommissionPercent: 8,
+            platformDeliveryCommissionStatus: 'coming_soon',
+            platformDeliveryOrdersCount: null,
+            platformDeliveryGrossVolume: null,
+            estimatedCommissionRevenue: null,
+            defaultCommissionPercent: null,
             maintenanceMode: false,
             globalBroadcastMessage: null,
             serverUptimeSeconds: 100,
@@ -66,7 +69,7 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
             productsChecked: Math.max(1, productsStore.length),
             ordersChecked: Math.max(1, ordersStore.length),
             devicesChecked: 2,
-            ledgerConsistent: true,
+            orderTotalsConsistent: true,
             issuesFound: [],
             status: 'passed'
           }
@@ -422,7 +425,7 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
       expect(ecosystem.activeConsumer()).toBeNull();
     });
 
-    it('should initialize with default 8% commission rate for App Owner HQ', () => {
+    it('should keep the 8% platform delivery rate configured for the future while the feature is coming soon', () => {
       expect(ecosystem.hqCommissionRate()).toBe(0.08);
     });
 
@@ -461,7 +464,7 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
       expect(report.tenantsChecked).toBeGreaterThan(0);
       expect(report.productsChecked).toBeGreaterThan(0);
       expect(report.ordersChecked).toBeGreaterThan(0);
-      expect(report.ledgerConsistent).toBe(true);
+      expect(report.orderTotalsConsistent).toBe(true);
       expect(['passed', 'warning', 'failed']).toContain(report.status);
 
       ecosystem.verifyFullSystemAudit();
@@ -784,7 +787,7 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
   });
 
   describe('End-to-End HQ Central SaaS Governance Experience', () => {
-    it('should compute platform commission revenue and update commission rate', async () => {
+    it('should keep the future platform delivery commission rate configurable', async () => {
       const initialRate = ecosystem.hqCommissionRate();
       expect(initialRate).toBe(0.08);
 

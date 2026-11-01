@@ -1,90 +1,49 @@
-# 🏛️ HQ Central — 00: Arquitetura e Governança da Plataforma
+# HQ Central — Arquitetura e Governança
 
-## 📌 1. Visão Geral & Pergunta Central de Arquitetura
+## Escopo
 
-> **Pergunta Central:** Como a plataforma controla e administra todas as empresas sem interferir indevidamente na operação de cada uma?
+O HQ Central (/hq) é a área administrativa da plataforma. É reservado a usuários com papel hq_admin e concentra governança de tenants, planos, catálogo de módulos, avisos globais, configuração regional, inventário de dispositivos e relatórios agregados.
 
-O **HQ Central (`/hq`)** atua como o gabinete executivo e autoridade regulatória da franqueadora SaaS. Ele exerce a governança macro sobre contratos, limites de hardware (MDM), tarifação global de split e conformidade fiscal/cadastral (CNPJ), ao mesmo tempo em que preserva a soberania transacional interna de cada estabelecimento lojista.
+O HQ não é uma loja e não executa vendas de tenant. A autorização das rotas administrativas é aplicada no backend por requireHqAdmin.
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        SUPER ADMIN HQ (hq_admin)                       │
-│  - Aprovação/Suspensão de Empresas    - Configuração de Planos SaaS    │
-│  - Auditoria de Conciliação Global     - Bloqueio Remoto de Terminais  │
-│  - Broadcasts de Manutenção            - Catálogo Mestre de eApps      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Governança & Restrições
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                     FIRESTORE ZERO-TRUST RULES                         │
-│  /tenants/{id}       -> update: restrito (Lojista não altera status)   │
-│  /hq_settings/global -> read/write: restrito a hq_admin                │
-│  /plans/{id}         -> write: restrito a hq_admin                     │
-│  /devices/{id}       -> status MDM controlado remotamente              │
-└────────────────────────────────────────────────────────────────────────┘
-```
+## Módulos e limites atuais
 
----
+| Módulo | Estado observado no código |
+|---|---|
+| Tenants | Consulta, provisionamento em trial, alteração administrativa de status e de parâmetros. O provisionamento do HQ não cria vínculo de proprietário por padrão. |
+| Planos | Catálogo consultável e editável pelo HQ. Alterar o plano não inicia cobrança recorrente. |
+| Visão geral | Conta pedidos reais elegíveis e soma o volume comercial geral. As métricas de comissão e entregadores da plataforma ficam indisponíveis enquanto o estado for `coming_soon`. Uptime é o tempo do processo Node, não disponibilidade percentual do serviço. |
+| Comissão | A taxa de referência de 8% fica preparada, com estado padrão `coming_soon`. Não é aplicada a pedidos, motoristas ou caixa do lojista. |
+| Relatório de comissão | GET /api/hq/ledger, restrito a hq_admin, retorna `commissionStatus: coming_soon` e nenhuma linha. O cálculo futuro só será ativado com a rede própria e inteligência operacional prontas. |
+| Dispositivos | Cadastro central de inventário. Não foi localizado agente de hardware que reporte heartbeat ou receba comandos remotos. |
+| Auditoria estrutural | Varredura sob demanda de tenants, produtos, pedidos e inventário de dispositivos. Não certifica todos os dados ou módulos do sistema. |
+| Diretório de consumidores | GET /api/crm/consumers, restrito a hq_admin, retorna até 100 perfis sem paginação. GMV, frequência e auditoria individual não são calculados por esta tela. |
+| Broadcast e manutenção | Configurações persistidas pelo HQ; o Store OS as lê no próximo sync público. A manutenção mostra um bloqueio na interface do Store OS, sem bloquear APIs ou checkout. |
+| Mensagens internas | As rotas de mensagens sociais exigem hq_admin e persistem registros internos; não há despacho para WhatsApp/SMS identificado. |
 
-## 🔬 2. Análise Sob as Quatro Perspectivas
+## Segurança e dados
 
-### Perspectiva 1: O que deveria fazer (Responsabilidade Funcional)
-- Permitir que o operador do SaaS (`hq_admin`) visualize métricas agregadas da rede (GMV total transacionado, estabelecimentos ativos, volume de terminais conectados e receita de comissão SaaS).
-- Centralizar o controle do ciclo de vida das empresas (de `trial` para `active`, `suspended` ou `cancelled`).
-- Definir políticas de preço de planos SaaS (Starter, Professional, Enterprise) e taxa padrão de split sobre vendas online (padrão de 8%).
-- Executar ações MDM em terminais de ponto de venda (bloquear, reiniciar ou forçar atualização remota).
-- Publicar alertas globais e acionar modo de manutenção sem interrupção abrupta dos bancos transacionais locais.
+- As rotas privadas do HQ usam requireHqAdmin.
+- GET /api/hq/public-status é público e retorna apenas maintenanceMode e globalBroadcastMessage para sincronização dos terminais.
+- /hq_settings/global e /plans são gravados pelo backend.
+- /devices contém registros de inventário; seus status não devem ser interpretados como telemetria validada.
+- /audit_logs recebe registros de operações administrativas. A persistência de alguns logs é best effort.
+- O diretório de consumidores expõe dados pessoais apenas a hq_admin pelo endpoint do servidor; não é um CRM com métricas de vendas calculadas.
 
-### Perspectiva 2: Como foi implementado (Realidade do Código)
-- **Componente Frontend:** `src/app/components/hq-central.ts` (standalone component com navegação por abas em Angular 21, consumindo signals reativos).
-- **Subcomponentes Especializados:**
-  - `src/app/components/hq/hq-tenants-list.ts`: Grid e busca de empresas com status, plano e CNPJ.
-  - `src/app/components/hq/hq-tenant-governance-modal.ts`: Modal executivo para bloqueio/aprovação e alteração de cotas de dispositivos.
-  - `src/app/components/hq/hq-ledger.ts`: Tabela analítica de comissões retidas pedido a pedido.
-  - `src/app/components/hq/hq-plans-pricing.ts`: Gestão de planos SaaS e preços mensais.
-  - `src/app/components/hq/hq-devices-list.ts`: Telemetria de hardware MDM e envio de comandos.
-  - `src/app/components/hq/hq-eapps-catalog.ts`: Supervisão do catálogo mestre de eApps embutidos do Store OS.
-  - `src/app/components/hq/hq-system-config.ts`: Chave de modo de manutenção e broadcast global.
-  - `src/app/components/hq/hq-audit.ts`: Motor de auditoria cadastral e verificação de integridade contábil.
-- **Serviço Angular do HQ:** `src/app/services/hq-api.service.ts` e `src/app/services/hq.service.ts`.
-- **Roteamento Backend:** `src/server/routes/hq.router.ts` montado sob `/api/hq/*`.
-- **Guarda de Segurança e Middleware:** `requireHqAdmin` em `src/server/middleware/auth.middleware.ts`.
-- **Coleções Firestore Utilizadas:**
-  - `/tenants`: Diretório de empresas.
-  - `/hq_settings/global`: Configurações mestras privadas (comissão, modo de manutenção).
-  - `/plans`: Catálogo de planos de licenciamento.
-  - `/devices`: Dispositivos físicos e status MDM.
-  - `/audit_logs`: Livro-razão imutável de ações administrativas.
+## Matriz de maturidade
 
-### Perspectiva 3: Como se conecta (Topologia de Integração)
-- **Autenticação de Entrada:** Requisições para `/api/hq/*` exigem cabeçalho `Authorization: Bearer <id_token>` onde o token decodificado deve conter a custom claim `role === 'hq_admin'` ou pertencer a administrador registrado em `/admins/{uid}` com `email_verified === true`.
-- **Prevenção de Evasão:** Tentativas de operadores de loja (`tenant_owner`, `operator`) de consumir `/api/hq/*` são interceptadas imediatamente com código HTTP `403 Forbidden` (`code: 'HQ_ADMIN_REQUIRED'`).
-- **Comunicação com o Store OS:**
-  - O Store OS lê dados do tenant via `/api/tenants/:id`.
-  - Se o HQ alterar o `status` do tenant para `suspended`, a rotina transacional `executeCommercialOrder` do backend imediatamente rejeita novas transações com `403 TENANT_INACTIVE`.
-  - Se o HQ alterar o status do dispositivo para `locked` via `/api/hq/devices/:id/lock`, o hardware tem sua sessão interrompida.
+| Capacidade | Situação |
+|---|---|
+| Proteção de rotas administrativas | Implementada no middleware do servidor |
+| Provisionamento de tenant em trial | Implementado; perfil e vínculo do proprietário podem precisar de conclusão posterior |
+| Status da comissão futura da plataforma | Configurado como `coming_soon` por padrão |
+| Comissão por entrega, histórico e payout da plataforma | Desativados; processo futuro ainda não implementado |
+| Inventário e verificação de serial/tenant | Implementados |
+| MDM físico, heartbeat e execução de comandos | Não localizado |
+| Varredura estrutural sob demanda | Implementada no escopo descrito em Operações e Auditoria |
+| Telemetria de infraestrutura, certificados e armazenamento | Não localizada |
+| Cobrança recorrente de assinatura SaaS | Não localizada nesta auditoria |
 
-### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Testes Unitários e de Integração:**
-  - `src/app/services/hq-api.service.spec.ts`: Validação de 11 cenários de chamada a endpoints de governança.
-  - `src/server/security_phase1.spec.ts`: Asserção de que endpoints do HQ rejeitam usuários sem claim `hq_admin` com HTTP 403.
-  - `src/server/commerce_war_tests.spec.ts`: Validação de que bloqueio de tenant no HQ reflete imediatamente em erro `403 TENANT_INACTIVE` no motor de vendas.
-- **Resultados:** 100% dos testes passaram em execução automatizada (`vitest`).
+## Validação
 
----
-
-## 📊 3. Matriz de Classificação de Maturidade dos Recursos do HQ
-
-| Recurso / Funcionalidade | Classificação | Arquivo de Evidência | Detalhes & Pendências |
-|---|---|---|---|
-| Autenticação exclusiva de Super Admin | 🟢 **Implementado e comprovado** | `src/server/middleware/auth.middleware.ts` | Exige `role === 'hq_admin'` ou `/admins/{uid}` com `email_verified`. |
-| Visão Geral Executiva (GMV, Tenants, Receita) | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:102` | `GET /api/hq/overview` calcula GMV real descontando cancelados e pedidos simulados. |
-| Alteração de Modo de Manutenção Global | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:166` | `POST /api/hq/system/maintenance` com persistência em `/hq_settings/global`. |
-| Emissão de Broadcast Global | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:144` | `POST /api/hq/system/broadcast` auditado em `/audit_logs`. |
-| Configuração de Percentual de Split da Plataforma | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:188` | `POST /api/hq/system/commission` (limite entre 0% e 50%). |
-| Gestão de Planos de Assinatura | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:485` | `GET /plans` e `PATCH /plans/:id` com cotas de terminais. |
-| Split Contábil Automatizado por Pedido | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:407` | `GET /api/hq/ledger` computa fee da plataforma e net da loja. |
-| Dispositivos e MDM Remoto (Lock/Reboot) | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:270` | `POST /api/hq/devices/:id/lock` e `restart`. |
-| Catálogo Mestre de eApps Embutidos | 🟢 **Implementado e comprovado** | `src/app/components/hq/hq-eapps-catalog.ts` | Supervisão dos 30 eApps do Store OS por plano e status. |
-| Auditoria Automatizada do Ecossistema | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:337` | `POST /api/hq/audit/run` valida CNPJs, preços, limites de dispositivos e integridade contábil. |
-| Cobrança Recorrente Automática de Mensalidades | 🟡 **Implementado parcialmente** | `src/server/routes/payments.router.ts` | Pagamento de pedidos ativo via Stripe/Pix; cobrança de faturas SaaS de mensalidade ocorre via simulação de plano no ledger. |
+A auditoria atual foi feita por inspeção do código e da documentação. Testes automatizados e build não foram executados neste ciclo; portanto, este documento não afirma aprovação empírica de testes.

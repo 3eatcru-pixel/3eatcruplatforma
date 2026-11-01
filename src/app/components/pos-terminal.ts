@@ -66,7 +66,7 @@ interface HeldSale {
               </span>
             </div>
             <p class="text-[10px] text-stone-400 font-mono truncate">
-              CNPJ: {{ activeTenant().cnpj || '00.000.000/0001-00' }} • Canal: <strong class="text-amber-400">POS Balcão</strong>
+              CNPJ: {{ activeTenant().cnpj || 'Não informado' }} • Canal: <strong class="text-amber-400">POS Balcão</strong>
             </p>
           </div>
         </div>
@@ -76,7 +76,7 @@ interface HeldSale {
           <div class="flex items-center gap-2 bg-[#1f0f08] border border-[#482814] px-3 py-1 rounded-xl">
             <mat-icon class="text-sm text-amber-500">devices</mat-icon>
             <div class="text-[10px] leading-tight">
-              <span class="text-stone-400 block">Terminal Ativo:</span>
+              <span class="text-stone-400 block">Identificação lógica:</span>
               <strong class="text-white">{{ activeDeviceName() }}</strong>
             </div>
           </div>
@@ -96,7 +96,7 @@ interface HeldSale {
           @if (offlineSync.isOnline()) {
             <div class="flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2.5 py-1 rounded-xl text-[10px] font-bold">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>ONLINE</span>
+              <span>NAVEGADOR ONLINE</span>
             </div>
           } @else {
             <div class="flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border border-amber-700/60 px-2.5 py-1 rounded-xl text-[10px] font-bold">
@@ -134,14 +134,17 @@ interface HeldSale {
           <div class="flex items-center gap-2 text-rose-200 font-bold truncate">
             <mat-icon class="text-rose-400 text-sm">warning</mat-icon>
             <span class="truncate">
-              Atenção: {{ offlineSync.unresolvedConflictsCount() }} venda(s) offline tiveram conflito de estoque ao sincronizar com o motor comercial.
+              Operações offline rejeitadas: {{ offlineSync.unresolvedConflictsCount() }}.
+              @if (offlineSync.unresolvedConflicts()[0]; as conflict) {
+                <span class="font-normal">{{ conflict.orderNumber || conflict.action }}: {{ conflict.reason }} A ciência não reenvia nem corrige a operação.</span>
+              }
             </span>
           </div>
           <button
             type="button"
             (click)="clearFirstConflict()"
             class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded-lg font-bold text-[10px] uppercase cursor-pointer shrink-0">
-            Confirmar Ciência
+            Marcar ciência
           </button>
         </div>
       }
@@ -174,7 +177,7 @@ interface HeldSale {
           <!-- COLUNA DIREITA: CUPOM FISCAL / CARRINHO / CHECKOUT (4 Colunas) -->
           <div class="lg:col-span-4 h-full min-h-0 overflow-hidden">
             <app-pos-cart
-              [currentSaleNumber]="currentSaleNumber"
+              [currentSaleNumber]="currentSaleNumber()"
               [cart]="cart()"
               [selectedCustomer]="selectedCustomer()"
               [customerSearchResults]="customerSearchResults()"
@@ -205,7 +208,7 @@ interface HeldSale {
       <!-- MODAIS DO TERMINAL -->
       @if (showScaleModal()) {
         <app-pos-scale-modal
-          [products]="inventoryService.products()"
+          [products]="tenantProducts()"
           (closeRequest)="showScaleModal.set(false)"
           (save)="onConfirmScaleWeighing($event)"
         />
@@ -263,13 +266,14 @@ interface HeldSale {
             <div class="font-mono text-sm text-emerald-400 font-black">
               Total: R$ {{ pixData.order.total.toFixed(2) }}
             </div>
+            <p class="text-[10px] text-stone-400">Fechar esta janela não cancela o pedido nem a transação PIX.</p>
 
             <div class="flex gap-2">
               <button
                 type="button"
                 (click)="pendingPixModal.set(null)"
                 class="flex-1 py-2.5 rounded-xl border border-stone-700 text-stone-300 font-bold text-xs uppercase cursor-pointer hover:bg-stone-800">
-                Cancelar
+                Fechar
               </button>
               <button
                 type="button"
@@ -296,9 +300,12 @@ export class PosTerminalComponent {
   private readonly paymentEngine = inject(PaymentEngine);
   private readonly router = inject(Router);
 
-  readonly currentSaleNumber = Math.floor(Math.random() * 900 + 100);
-  readonly activeDeviceId = signal<string>('term-pos-01');
-  readonly activeDeviceName = signal<string>('Caixa 01 - Balcão Principal');
+  private saleNumberSequence = Math.floor(Math.random() * 900 + 100);
+  private lastOperationalTenantId: string | null = null;
+  private lastPosModeIsSimulation: boolean | null = null;
+  readonly currentSaleNumber = signal(this.saleNumberSequence);
+  readonly activeDeviceId = computed(() => this.ecosystem.getOperationalContext().deviceId || 'pos-terminal');
+  readonly activeDeviceName = signal('PDV lógico da loja');
   readonly operatorName = computed(() => this.security.currentSession()?.name || 'Operador Caixa');
   readonly activeTenant = computed(() => this.ecosystem.currentTenant());
 
@@ -345,13 +352,17 @@ export class PosTerminalComponent {
     return role === 'tenant_owner' || role === 'operator' || role === 'hq_admin';
   });
 
+  readonly tenantProducts = computed(() => {
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!tenantId) return [];
+    return this.inventoryService.products().filter((product) => product.tenantId === tenantId);
+  });
+
   readonly filteredProducts = computed(() => {
     const cat = this.selectedCategory();
     const query = this.searchQuery().toLowerCase().trim();
-    const tenantId = this.ecosystem.resolveOperationalTenantId();
-    const prods = this.inventoryService.products().filter(p => p.tenantId === tenantId);
 
-    return prods.filter((p) => {
+    return this.tenantProducts().filter((p) => {
       const matchCat = cat === 'Todos' || p.category === cat;
       const matchQuery =
         !query ||
@@ -408,10 +419,26 @@ export class PosTerminalComponent {
     effect(() => {
       const isSimulation = this.security.isSimulated();
       const tid = this.ecosystem.resolveOperationalTenantId();
-      if (tid) {
-        if (isSimulation) this.cart.set([]);
-        this.inventoryService.fetchProducts(tid).catch(() => []);
+      if (!tid) {
+        this.cart.set([]);
+        this.selectedCustomer.set(null);
+        this.customerSearchResults.set([]);
+        this.heldSales.set([]);
+        this.lastOperationalTenantId = null;
+        this.lastPosModeIsSimulation = null;
+        return;
       }
+
+      if (this.lastOperationalTenantId !== tid || this.lastPosModeIsSimulation !== isSimulation) {
+        this.cart.set([]);
+        this.selectedCustomer.set(null);
+        this.customerSearchResults.set([]);
+        this.heldSales.set([]);
+        this.lastOperationalTenantId = tid;
+        this.lastPosModeIsSimulation = isSimulation;
+      }
+
+      this.inventoryService.fetchProducts(tid).catch(() => []);
     });
   }
 
@@ -428,8 +455,7 @@ export class PosTerminalComponent {
       targetCode = parts[1].trim();
     }
 
-    const matchedProduct = this.inventoryService
-      .products()
+    const matchedProduct = this.tenantProducts()
       .find(
         (p: ProductItem) =>
           p.barcode === targetCode ||
@@ -455,6 +481,12 @@ export class PosTerminalComponent {
   }
 
   addToCart(product: ProductItem, qty = 1) {
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!tenantId || product.tenantId !== tenantId || !Number.isFinite(qty) || qty <= 0) {
+      this.ecosystem.notify('Produto ou quantidade inválidos para a loja ativa.', 'error');
+      return;
+    }
+
     this.cart.update((c) => {
       const existing = c.find((i: CartItem) => i.product.id === product.id);
       if (existing) {
@@ -495,27 +527,29 @@ export class PosTerminalComponent {
     if (this.cart().length === 0) return;
     const newHeld: HeldSale = {
       id: 'hold-' + Date.now(),
-      saleNumber: this.currentSaleNumber,
+      saleNumber: this.currentSaleNumber(),
       tableOrClient: this.tableOrComanda() || 'Balcão',
       items: [...this.cart()],
       total: this.cartTotal(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     this.heldSales.update((h) => [newHeld, ...h]);
-    this.ecosystem.notify(`Venda #${this.currentSaleNumber} em espera (Hold).`, 'info');
+    this.ecosystem.notify(`Venda #${this.currentSaleNumber()} em espera (Hold).`, 'info');
+    this.advanceSaleNumber();
     this.clearCart();
   }
 
   recallSale(held: HeldSale) {
     this.cart.set([...held.items]);
+    this.currentSaleNumber.set(held.saleNumber);
     this.heldSales.update((h) => h.filter((item) => item.id !== held.id));
     this.showRecallModal.set(false);
     this.ecosystem.notify(`Venda #${held.saleNumber} recuperada.`, 'success');
   }
 
   onConfirmScaleWeighing(event: { productId: string; weight: number }) {
-    const prod = this.inventoryService.products().find((p) => p.id === event.productId);
-    if (!prod) return;
+    const prod = this.tenantProducts().find((p) => p.id === event.productId);
+    if (!prod || !Number.isFinite(event.weight) || event.weight <= 0) return;
     const price = Math.round(prod.price * event.weight * 100) / 100;
     const weightedProd: ProductItem = {
       ...prod,
@@ -548,6 +582,11 @@ export class PosTerminalComponent {
   }
 
   async onExecuteCashOperation(event: { type: 'sangria' | 'suprimento'; amount: number; reason: string }) {
+    if (!Number.isFinite(event.amount) || event.amount <= 0 || !event.reason.trim()) {
+      this.ecosystem.notify('Informe um valor válido e o motivo da operação de caixa.', 'warning');
+      return;
+    }
+
     if (!this.offlineSync.isOnline()) {
       this.ecosystem.notify('Sangria e suprimento exigem conexão e não foram registrados.', 'warning');
       this.showSangriaModal.set(false);
@@ -581,6 +620,13 @@ export class PosTerminalComponent {
 
   async checkout(method: 'cash' | 'card' | 'pix') {
     if (this.cart().length === 0) return;
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!tenantId || this.cart().some((item) => item.product.tenantId !== tenantId)) {
+      this.ecosystem.notify('O carrinho não pertence à loja ativa e foi limpo.', 'error');
+      this.clearCart();
+      return;
+    }
+
     if (!this.offlineSync.isOnline() && method !== 'cash') {
       this.ecosystem.notify('Cartão e PIX exigem conexão. Use dinheiro para registrar uma venda em contingência.', 'warning');
       return;
@@ -589,13 +635,13 @@ export class PosTerminalComponent {
     const tax = this.cartTax();
     const discount = this.cartDiscount() + this.cartPromotionsDiscount();
     const total = this.cartTotal();
-    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    const saleNumber = this.currentSaleNumber();
 
     try {
       if (method === 'cash') {
         const cashOrder = await this.ecosystem.addOrder({
           tenantId,
-          orderNumber: '#' + this.currentSaleNumber,
+          orderNumber: '#' + saleNumber,
           type: 'pos-counter',
           tableNumber: this.tableOrComanda() || undefined,
           items: [...this.cart()],
@@ -612,12 +658,17 @@ export class PosTerminalComponent {
           deviceType: 'terminal',
           operatorName: this.operatorName()
         });
+        this.advanceSaleNumber();
 
+        const isSimulation = cashOrder.isSimulated || cashOrder.mode === 'simulation';
+        const isSettled = cashOrder.status === 'completed' && cashOrder.paymentStatus === 'approved';
         this.ecosystem.notify(
-          this.offlineSync.isOnline()
-            ? `Venda R$ ${cashOrder.total.toFixed(2)} liquidada em Dinheiro no terminal!`
-            : `Venda R$ ${cashOrder.total.toFixed(2)} registrada em contingência; aguardando sincronização.`,
-          this.offlineSync.isOnline() ? 'success' : 'warning'
+          isSimulation
+            ? `Venda #${cashOrder.orderNumber} registrada em modo de demonstração; nenhuma liquidação real foi feita.`
+            : isSettled
+              ? `Venda R$ ${cashOrder.total.toFixed(2)} confirmada em Dinheiro no terminal.`
+              : `Venda #${cashOrder.orderNumber} registrada como pendente; aguardando confirmação do servidor.`,
+          isSimulation ? 'info' : isSettled ? 'success' : 'warning'
         );
         this.showReceiptModal.set(cashOrder);
         this.clearCart();
@@ -627,7 +678,7 @@ export class PosTerminalComponent {
       if (method === 'pix') {
         const pendingOrder = await this.ecosystem.addOrder({
           tenantId,
-          orderNumber: '#' + this.currentSaleNumber,
+          orderNumber: '#' + saleNumber,
           type: 'pos-counter',
           tableNumber: this.tableOrComanda() || undefined,
           items: [...this.cart()],
@@ -643,6 +694,7 @@ export class PosTerminalComponent {
           deviceType: 'terminal',
           operatorName: this.operatorName()
         });
+        this.advanceSaleNumber();
 
         const pixPayment = await this.paymentEngine.processPayment({
           orderId: pendingOrder.id,
@@ -659,7 +711,7 @@ export class PosTerminalComponent {
       // Card payment: create order in pending status first, then process payment against real order
       const cardOrder = await this.ecosystem.addOrder({
         tenantId,
-        orderNumber: '#' + this.currentSaleNumber,
+        orderNumber: '#' + saleNumber,
         type: 'pos-counter',
         tableNumber: this.tableOrComanda() || undefined,
         items: [...this.cart()],
@@ -676,6 +728,7 @@ export class PosTerminalComponent {
         deviceType: 'terminal',
         operatorName: this.operatorName()
       });
+      this.advanceSaleNumber();
 
       const paymentResult = await this.paymentEngine.processPayment({
         orderId: cardOrder.id,
@@ -690,10 +743,25 @@ export class PosTerminalComponent {
       }
 
       this.ecosystem.notify(
-        `Venda R$ ${cardOrder.total.toFixed(2)} liquidada via Cartão (AUT: ${paymentResult.authorizationCode})!`,
-        'success'
+        paymentResult.environment === 'sandbox' || paymentResult.mode === 'simulation'
+          ? `Pagamento aprovado em ambiente de teste para a venda ${cardOrder.orderNumber}; nenhuma cobrança real foi efetuada.`
+          : `Venda R$ ${cardOrder.total.toFixed(2)} confirmada via Cartão (AUT: ${paymentResult.authorizationCode}).`,
+        paymentResult.environment === 'sandbox' || paymentResult.mode === 'simulation' ? 'warning' : 'success'
       );
-      this.showReceiptModal.set(cardOrder);
+      const settledCardOrder: OrderTransaction = {
+        ...cardOrder,
+        status: 'completed',
+        paymentStatus: 'approved',
+        paymentTransactionId: paymentResult.transactionId,
+        ...(paymentResult.mode === 'simulation' ? { mode: 'simulation', isSimulated: true } : {})
+      };
+      const refreshedOrders = await this.ecosystem.ordersService.fetchOrders(tenantId).catch(() => []);
+      const serverOrder = refreshedOrders.find((order) => order.id === cardOrder.id);
+      this.showReceiptModal.set(
+        serverOrder?.status === 'completed' && serverOrder.paymentStatus === 'approved'
+          ? serverOrder
+          : settledCardOrder
+      );
       this.clearCart();
     } catch (err: unknown) {
       const msg =
@@ -709,10 +777,13 @@ export class PosTerminalComponent {
     this.confirmingPix.set(true);
     try {
       const confirmed = await this.paymentEngine.confirmPixPayment(activePix.payment.transactionId);
+      const isSimulation = confirmed.environment === 'sandbox' || confirmed.mode === 'simulation';
       const settledOrder = confirmed.order || {
         ...activePix.order,
         status: 'completed' as const,
-        paymentStatus: 'approved' as const
+        paymentStatus: 'approved' as const,
+        mode: confirmed.mode,
+        isSimulated: confirmed.mode === 'simulation'
       };
       const tenantId = this.ecosystem.resolveOperationalTenantId(settledOrder.tenantId);
       if (tenantId) {
@@ -721,7 +792,12 @@ export class PosTerminalComponent {
       }
       this.pendingPixModal.set(null);
       this.showReceiptModal.set(settledOrder);
-      this.ecosystem.notify(`PIX confirmado! Venda ${settledOrder.orderNumber} liquidada no caixa.`, 'success');
+      this.ecosystem.notify(
+        isSimulation
+          ? `PIX confirmado em ambiente de teste para a venda ${settledOrder.orderNumber}; nenhuma cobrança real foi efetuada.`
+          : `PIX confirmado! Venda ${settledOrder.orderNumber} liquidada no caixa.`,
+        isSimulation ? 'warning' : 'success'
+      );
     } catch {
       this.ecosystem.notify('Falha ao confirmar liquidação PIX.', 'error');
     } finally {
@@ -734,6 +810,11 @@ export class PosTerminalComponent {
     if (first) {
       this.offlineSync.acknowledgeConflict(first.id);
     }
+  }
+
+  private advanceSaleNumber() {
+    this.saleNumberSequence = Math.max(this.saleNumberSequence, this.currentSaleNumber()) + 1;
+    this.currentSaleNumber.set(this.saleNumberSequence);
   }
 
   navigateToStoreOsDesktop() {

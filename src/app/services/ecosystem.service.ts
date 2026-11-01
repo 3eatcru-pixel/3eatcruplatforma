@@ -118,6 +118,7 @@ export class EcosystemService {
   readonly drivers = this.logisticsService.drivers;
   readonly deliveryRoutes = this.logisticsService.deliveryRoutes;
   readonly consumerAccounts = this.crmService.consumerAccounts;
+  readonly consumerAccountsStatus = this.crmService.consumerAccountsStatus;
   readonly activeConsumer = this.crmService.activeConsumer;
   readonly customers = this.crmService.customers;
   readonly tables = this.tablesService.tables;
@@ -129,12 +130,15 @@ export class EcosystemService {
   readonly userReferenceCoords = this.marketplaceService.userReferenceCoords;
   readonly maintenanceMode = this.hqService.maintenanceMode;
   readonly hqCommissionRate = this.hqService.hqCommissionRate;
+  readonly hqOverview = this.hqService.overview;
   readonly activeSessionsCount = this.hqService.activeSessionsCount;
   readonly avgLatencyMs = this.hqService.avgLatencyMs;
   readonly globalBroadcastMessage = this.hqService.globalBroadcastMessage;
-  readonly hqTotalCommissionRevenue = this.hqService.hqTotalCommissionRevenue;
+  readonly hqEstimatedCommissionRevenue = this.hqService.hqEstimatedCommissionRevenue;
   readonly hqPublicSalesTotal = this.hqService.hqPublicSalesTotal;
   readonly licensePlans = this.hqService.licensePlans;
+  readonly licensePlansStatus = this.hqService.licensePlansStatus;
+  readonly licensePlansSource = this.hqService.licensePlansSource;
   readonly marketingCampaigns = this.crmService.marketingCampaigns;
   readonly externalOrders = this.ordersService.externalOrders;
   readonly socialMessages = this.communicationsService.socialMessages;
@@ -348,6 +352,8 @@ export class EcosystemService {
   async syncEssentialStoreMetadata(tenantId?: string): Promise<void> {
     const tid = this.resolveOperationalTenantId(tenantId);
     if (!tid) return;
+
+    await this.hqService.fetchPublicStatus().catch(() => undefined);
     
     // Essential: Tenants info and recent orders for taskbar/notifications
     await this.tenantsService.fetchAllTenants().catch(() => []);
@@ -392,6 +398,7 @@ export class EcosystemService {
     if (this.isSimulationMode()) return true;
     try {
       await this.hqService.getOverview();
+      await this.hqService.fetchPlans();
       await this.tenantsService.fetchAllTenants();
       await this.hqService.fetchDevices();
       await this.hqService.fetchAuditLogs();
@@ -522,11 +529,11 @@ export class EcosystemService {
   // --- Compatibility Facade Delegates (@deprecated — inject Feature Services directly in new code) ---
 
   async addTenant(tenant: Partial<CompanyTenant>) {
-    await this.tenantsService.createTenant(tenant);
+    return this.tenantsService.createTenant(tenant);
   }
 
   async updateTenant(id: string, updates: Partial<CompanyTenant>) {
-    await this.tenantsService.updateTenant(id, updates);
+    return this.tenantsService.updateTenant(id, updates);
   }
 
   async addProduct(product: Partial<ProductItem>) {
@@ -683,16 +690,6 @@ export class EcosystemService {
     return updated;
   }
 
-  async pingDriverGpsRemote(driver: StoreDriver) {
-    await this.logisticsService.pingDriverGps(driver.id, 'São Paulo - Centro');
-    this.notify(
-      this.isSimulationMode()
-        ? `Localização simulada atualizada para ${driver.name}.`
-        : `Referência de localização atualizada para ${driver.name}.`,
-      'info'
-    );
-  }
-
   async clockOffDriver(driverId: string) {
     void driverId;
     this.notify('O encerramento de turno ainda não está conectado ao serviço logístico.', 'warning');
@@ -838,10 +835,22 @@ export class EcosystemService {
 
   async restartDevice(deviceId: string) {
     await this.hqService.restartDevice(deviceId);
+    this.notify(
+      this.isSimulationMode()
+        ? 'Ação remota indisponível no modo de simulação.'
+        : 'Solicitação registrada no inventário; nenhum dispositivo foi reiniciado.',
+      'info'
+    );
   }
 
   async lockDevice(deviceId: string) {
     await this.hqService.lockDevice(deviceId);
+    this.notify(
+      this.isSimulationMode()
+        ? 'Status alterado apenas no inventário simulado.'
+        : 'Status do inventário atualizado; o hardware não foi bloqueado.',
+      'info'
+    );
   }
 
   openStorefront(tenantId: string) {

@@ -85,7 +85,7 @@ interface CommandItem {
                 HQ Central Exclusivo para Computadores e Tablets
               </h2>
               <p class="text-xs text-stone-300 leading-relaxed font-sans">
-                O <strong>HQ Central</strong> é o console mestre de governança de todo o ecossistema (gestão de múltiplos lojistas/tenants, auditoria contábil de 8%, frota MDM de hardware e marketplace regional).
+                O <strong>HQ Central</strong> é o console de governança do ecossistema: tenants, planos, inventário de dispositivos e preparação do futuro processo de entregas da plataforma.
               </p>
               <p class="text-[11px] text-stone-400 leading-relaxed font-sans">
                 Devido à alta densidade analítica e governança crítica, a interface completa exige telas a partir de <strong>768px (Tablets em modo paisagem e Computadores Desktop)</strong>.
@@ -143,7 +143,7 @@ interface CommandItem {
                 </span>
               </div>
               <p class="text-stone-400 text-xs font-geist max-w-xl">
-                Governança executiva multi-tenant, split contábil de 8%, gestão de licenças, frota MDM e controle do ecossistema.
+                Governança multi-tenant, planos, inventário de dispositivos e configuração do recurso futuro de entregas da plataforma.
               </p>
             </div>
           </div>
@@ -184,7 +184,7 @@ interface CommandItem {
         <div class="bg-[#111114] border border-amber-500/30 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div class="flex items-center gap-2 text-amber-300 font-mono-code">
             <mat-icon class="text-amber-400 text-sm">security</mat-icon>
-            <span><strong>PILAR 1 ATIVO: HQ CENTRAL (GABINETE SAAS)</strong> — Governança global de lojistas e split de 8%.</span>
+            <span><strong>PILAR 1 ATIVO: HQ CENTRAL (GABINETE SAAS)</strong> — Governança global de lojistas; comissão de entregas da plataforma em breve.</span>
           </div>
           <div class="flex items-center gap-2">
             <button
@@ -207,39 +207,42 @@ interface CommandItem {
         <!-- QUICK EXECUTIVE METRICS (VARIATION 8 STATS GRID) -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="bg-[#16161a] border border-white/10 rounded-xl p-5 shadow-lg">
-            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Unidades</span>
-            <div class="font-syne text-2xl sm:text-3xl font-extrabold text-white my-1">{{ ecosystem.totalActiveTenants() }}</div>
+            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Lojas ativas</span>
+            <div class="font-syne text-2xl sm:text-3xl font-extrabold text-white my-1">{{ ecosystem.hqOverview()?.activeTenantsCount ?? '—' }}</div>
             <div class="font-mono-code text-[10px] text-emerald-400 flex items-center gap-1">
-              <mat-icon class="text-xs">trending_up</mat-icon>
-              <span>+2 NO MÊS</span>
+              <span>Contagem retornada pelo servidor</span>
             </div>
           </div>
 
           <div class="bg-[#16161a] border border-white/10 rounded-xl p-5 shadow-lg">
-            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Revenue Share</span>
+            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Comissão da plataforma</span>
             <div class="font-syne text-2xl sm:text-3xl font-extrabold text-emerald-400 my-1">
-              R$ {{ ecosystem.hqTotalCommissionRevenue().toFixed(2) }}
+              {{ hqCommissionDisplay() }}
             </div>
             <div class="font-mono-code text-[10px] text-stone-400">
-              8% SOBRE VENDAS
+              @if (ecosystem.hqOverview()?.platformDeliveryCommissionStatus === 'coming_soon') {
+                Recurso em breve; depende da rede própria de entregadores e da inteligência de operação.
+              } @else {
+                {{ ecosystem.hqOverview()?.platformDeliveryOrdersCount ?? 0 }} entrega(s) elegíveis; taxa atual {{ ecosystem.hqOverview()?.defaultCommissionPercent ?? '—' }}%
+              }
             </div>
           </div>
 
           <div class="bg-[#16161a] border border-white/10 rounded-xl p-5 shadow-lg">
-            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Terminais MDM</span>
+            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Cadastros marcados online</span>
             <div class="font-syne text-2xl sm:text-3xl font-extrabold text-white my-1">
-              {{ ecosystem.totalOnlineDevices() }} <span class="text-stone-500 text-sm font-normal">/ {{ ecosystem.devices().length }}</span>
+              {{ ecosystem.hqOverview()?.deviceRecordsMarkedOnline ?? '—' }} <span class="text-stone-500 text-sm font-normal">/ {{ ecosystem.hqOverview()?.totalDevices ?? '—' }}</span>
             </div>
             <div class="font-mono-code text-[10px] text-amber-400">
-              99.98% ONLINE
+              Estado salvo; não há telemetria de hardware
             </div>
           </div>
 
           <div class="bg-[#16161a] border border-white/10 rounded-xl p-5 shadow-lg">
-            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Sessões Live</span>
-            <div class="font-syne text-2xl sm:text-3xl font-extrabold text-white my-1">{{ ecosystem.activeSessionsCount() }}</div>
-            <div class="font-mono-code text-[10px] text-emerald-400">
-              LIVE USERS ({{ ecosystem.avgLatencyMs() }}ms)
+            <span class="font-mono-code text-[10px] uppercase tracking-widest text-stone-400 block mb-1">Pedidos reais elegíveis</span>
+            <div class="font-syne text-2xl sm:text-3xl font-extrabold text-white my-1">{{ ecosystem.hqOverview()?.totalOrders ?? '—' }}</div>
+            <div class="font-mono-code text-[10px] text-stone-400">
+              Soma de pedidos pagos ou concluídos
             </div>
           </div>
         </div>
@@ -275,7 +278,7 @@ interface CommandItem {
               <app-hq-plans-pricing />
             }
             @case ('devices') {
-              <app-hq-devices-list (openPairModal)="showPairModalHq.set(true)" />
+              <app-hq-devices-list (openRegisterModal)="showRegisterDeviceModal.set(true)" />
             }
             @case ('ledger') {
               <app-hq-ledger />
@@ -314,7 +317,7 @@ interface CommandItem {
             </div>
 
             <div class="space-y-1.5 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-              <div class="text-[10px] font-mono font-bold text-amber-500 uppercase px-2 pb-1">Navegação Master</div>
+              <div class="text-[10px] font-mono font-bold text-amber-500 uppercase px-2 pb-1">Navegação do HQ</div>
               @for (cmd of commands; track cmd.id) {
                 <button (click)="selectCommand(cmd.id)" class="w-full text-left px-4 py-3 rounded-xl hover:bg-[#2b160b] flex items-center justify-between text-xs transition-all cursor-pointer border-none">
                   <div class="flex items-center gap-3">
@@ -373,27 +376,28 @@ interface CommandItem {
 
             <div class="flex gap-3 pt-4 border-t border-[#e8dfce]">
               <button (click)="showModal.set(false)" class="flex-1 bg-[#ebdcc7] text-stone-800 font-bold py-3 rounded-xl border border-[#d6c3aa] text-xs transition-all cursor-pointer">Cancelar</button>
-              <button (click)="createTenant()" class="flex-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-stone-950 font-black py-3 rounded-xl shadow-lg text-xs uppercase transition-all active:scale-95 cursor-pointer">Provisionar Loja</button>
+              <button type="button" (click)="createTenant()" [disabled]="isProvisioningTenant() || !newTenantName().trim() || newTenantCnpjDigits().length !== 14" class="flex-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-stone-950 font-black py-3 rounded-xl shadow-lg text-xs uppercase transition-all active:scale-95 cursor-pointer disabled:opacity-50">{{ isProvisioningTenant() ? 'Salvando...' : 'Criar em período de teste' }}</button>
             </div>
           </div>
         </div>
       }
 
-      <!-- MODAL PAREAR NOVO TERMINAL MDM -->
-      @if (showPairModalHq()) {
+      <!-- MODAL REGISTRAR DISPOSITIVO -->
+      @if (showRegisterDeviceModal()) {
         <div class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div class="bg-[#faf7f0] border border-[#ded4c2] rounded-3xl max-w-lg w-full p-6 text-stone-950 space-y-4 shadow-2xl animate-in zoom-in-95">
              <div class="flex justify-between items-center pb-3 border-b border-[#e8dfce]">
                <h3 class="font-serif font-black text-lg text-stone-900 flex items-center gap-2">
-                 <mat-icon class="text-amber-700">developer_board</mat-icon> Provisionamento MDM
+                 <mat-icon class="text-amber-700">developer_board</mat-icon> Registro no inventário
                </h3>
-               <button (click)="showPairModalHq.set(false)" class="text-stone-400 hover:text-stone-800 font-bold text-lg cursor-pointer">✕</button>
+               <button (click)="showRegisterDeviceModal.set(false)" class="text-stone-400 hover:text-stone-800 font-bold text-lg cursor-pointer">✕</button>
              </div>
              <div class="space-y-3 text-xs">
                 <div>
                    <label for="devTargetTenant" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Destino do Terminal</label>
                    <select id="devTargetTenant" [value]="newDeviceTenantId()" (change)="newDeviceTenantId.set($any($event.target).value)" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 font-medium cursor-pointer">
-                      <option value="hq">⚡ Infraestrutura HQ Central (Servidor/Node)</option>
+                      <option value="">Selecione o destino</option>
+                      <option value="hq">Infraestrutura HQ Central (inventário)</option>
                       @for (t of ecosystem.tenants(); track t.id) {
                         <option [value]="t.id">🏪 Loja: {{ t.name }}</option>
                       }
@@ -401,14 +405,15 @@ interface CommandItem {
                 </div>
                 <div>
                    <label for="devNameInput" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Nome do Terminal</label>
-                   <input id="devNameInput" [value]="newDeviceName()" (input)="newDeviceName.set($any($event.target).value)" type="text" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2">
+                   <input id="devNameInput" [value]="newDeviceName()" (input)="newDeviceName.set($any($event.target).value)" type="text" required class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2">
                 </div>
                 <div>
                    <label for="devSerialInput" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Serial (S/N)</label>
-                   <input id="devSerialInput" [value]="newDeviceSerial()" (input)="newDeviceSerial.set($any($event.target).value)" type="text" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 font-mono">
+                   <input id="devSerialInput" [value]="newDeviceSerial()" (input)="newDeviceSerial.set($any($event.target).value)" type="text" required class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 font-mono">
                 </div>
              </div>
-             <button (click)="pairDevice()" class="w-full bg-amber-600 text-stone-950 font-black py-3 rounded-xl shadow-lg text-xs uppercase mt-2 cursor-pointer transition-all active:scale-95">Parear Terminal Remoto</button>
+             <p class="text-[10px] text-amber-900">Este cadastro não pareia o hardware nem valida o serial com o fabricante.</p>
+             <button type="button" (click)="registerDevice()" [disabled]="!newDeviceTenantId() || !newDeviceName().trim() || !newDeviceSerial().trim()" class="w-full bg-amber-600 text-stone-950 font-black py-3 rounded-xl shadow-lg text-xs uppercase mt-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50">Registrar no inventário</button>
           </div>
         </div>
       }
@@ -437,7 +442,7 @@ export class HQCentralComponent implements OnInit {
   readonly bypassMobileWarning = signal<boolean>(false);
   readonly activeSubTab = signal<HQSubTab>('tenants');
   readonly showModal = signal<boolean>(false);
-  readonly showPairModalHq = signal<boolean>(false);
+  readonly showRegisterDeviceModal = signal<boolean>(false);
   readonly showCommandPalette = signal<boolean>(false);
   readonly showDocModal = signal<boolean>(false);
   readonly selectedTenantForGovernance = signal<CompanyTenant | null>(null);
@@ -448,31 +453,41 @@ export class HQCentralComponent implements OnInit {
   readonly newTenantCategory = signal<string>('restaurant');
   readonly newTenantCnpj = signal<string>('');
   readonly newTenantPlan = signal<string>('Professional');
+  readonly newTenantCnpjDigits = computed(() => this.newTenantCnpj().replace(/\D/g, ''));
+  readonly isProvisioningTenant = signal(false);
 
   readonly newDeviceTenantId = signal<string>('');
-  readonly newDeviceName = signal<string>('POS Caixa Central');
-  readonly newDeviceSerial = signal<string>('S920-BR-778811');
+  readonly newDeviceName = signal<string>('');
+  readonly newDeviceSerial = signal<string>('');
+  readonly hqCommissionDisplay = computed(() => {
+    const overview = this.ecosystem.hqOverview();
+    if (!overview) return '—';
+    if (overview.platformDeliveryCommissionStatus === 'coming_soon') return 'Em breve';
+    return overview.estimatedCommissionRevenue === null
+      ? '—'
+      : `R$ ${overview.estimatedCommissionRevenue.toFixed(2)}`;
+  });
 
   readonly subTabs: { id: HQSubTab; label: string; icon: string }[] = [
     { id: 'tenants', label: 'Portfólio de Lojas', icon: 'business' },
     { id: 'eapps', label: 'Catálogo de eApps (Store OS)', icon: 'apps' },
-    { id: 'apps_preview', label: 'Companion Apps (Android)', icon: 'smartphone' },
+    { id: 'apps_preview', label: 'Prévia simulada de aplicativos', icon: 'smartphone' },
     { id: 'plans', label: 'Planos & Preços SaaS', icon: 'payments' },
-    { id: 'devices', label: 'Frota MDM', icon: 'developer_board' },
-    { id: 'ledger', label: 'Tesouraria SaaS (8%)', icon: 'account_balance' },
+    { id: 'devices', label: 'Inventário de Dispositivos', icon: 'developer_board' },
+    { id: 'ledger', label: 'Comissão da Plataforma · Em breve', icon: 'schedule' },
     { id: 'regional', label: 'Portal Regional', icon: 'public' },
-    { id: 'consumers', label: 'CRM Global', icon: 'people' },
-    { id: 'system', label: 'Infraestrutura & Config', icon: 'settings_input_component' },
-    { id: 'audit', label: 'Auditoria Master', icon: 'security' }
+    { id: 'consumers', label: 'Diretório de consumidores', icon: 'people' },
+    { id: 'system', label: 'Configurações globais', icon: 'settings_input_component' },
+    { id: 'audit', label: 'Auditoria estrutural', icon: 'security' }
   ];
 
   readonly commands: CommandItem[] = [
     { id: 'tenants', label: 'Gerenciar Portfólio de Lojas', icon: 'business', sub: 'Sub-aba 1' },
     { id: 'eapps', label: 'Catálogo Mestre de eApps (Módulos OS)', icon: 'apps', sub: 'Sub-aba 2' },
-    { id: 'apps_preview', label: 'Companion Apps Android (Driver, Garçom, Delivery)', icon: 'smartphone', sub: 'Sub-aba 3' },
-    { id: 'devices', label: 'Frota MDM (Terminais POS & Motoristas)', icon: 'developer_board', sub: 'Sub-aba 4' },
-    { id: 'ledger', label: 'Tesouraria & Split SaaS (8%)', icon: 'account_balance', sub: 'Sub-aba 5' },
-    { id: 'system', label: 'Infraestrutura & Config Global', icon: 'settings_input_component', sub: 'Sub-aba 9' }
+    { id: 'apps_preview', label: 'Prévia simulada de aplicativos', icon: 'smartphone', sub: 'Sub-aba 3' },
+    { id: 'devices', label: 'Inventário de dispositivos', icon: 'developer_board', sub: 'Sub-aba 4' },
+    { id: 'ledger', label: 'Comissão da Plataforma · Em breve', icon: 'schedule', sub: 'Sub-aba 5' },
+    { id: 'system', label: 'Configurações globais', icon: 'settings_input_component', sub: 'Sub-aba 9' }
   ];
 
   ngOnInit() {
@@ -484,7 +499,6 @@ export class HQCentralComponent implements OnInit {
       return;
     }
     this.ecosystem.syncHqFromBackend();
-    this.ecosystem.logAudit('Acesso HQ Central', 'HQ', 'Painel administrativo supremo acessado.', 'info');
   }
 
   onWindowKeydown(event: KeyboardEvent) {
@@ -494,7 +508,7 @@ export class HQCentralComponent implements OnInit {
     } else if (event.key === 'Escape') {
       this.showCommandPalette.set(false);
       this.showModal.set(false);
-      this.showPairModalHq.set(false);
+      this.showRegisterDeviceModal.set(false);
     }
   }
 
@@ -507,42 +521,63 @@ export class HQCentralComponent implements OnInit {
     this.ecosystem.currentTenantId.set(tenant.id);
     this.ecosystem.currentView.set('os');
     this.router.navigate(['/os']);
-    this.ecosystem.notify(`Modo Auditoria HQ: Conectado à inspeção remota de ${tenant.name}.`, 'info');
+    this.ecosystem.notify(`Abrindo o Store OS de ${tenant.name} em modo de inspeção HQ.`, 'info');
   }
 
   openNewTenantModal() {
     this.showModal.set(true);
   }
 
-  createTenant() {
-    if (!this.newTenantName()) return;
-    this.ecosystem.addTenant({
-      id: 'tenant-' + Date.now(),
-      name: this.newTenantName(),
-      legalName: this.newTenantName() + ' LTDA',
-      cnpj: this.newTenantCnpj() || '12.345.678/0001-90',
-      category: this.newTenantCategory() as 'restaurant' | 'retail' | 'services' | 'hybrid',
-      plan: this.newTenantPlan() as 'Starter' | 'Professional' | 'Enterprise',
-      status: 'active',
-      devicesLimit: 5,
-      activeDevicesCount: 0
-    });
-    this.showModal.set(false);
-    this.ecosystem.notify('Nova loja provisionada com sucesso.', 'success');
+  async createTenant() {
+    const name = this.newTenantName().trim();
+    const cnpj = this.newTenantCnpjDigits();
+    if (!name || cnpj.length !== 14 || this.isProvisioningTenant()) {
+      this.ecosystem.notify('Informe o nome da empresa e um CNPJ com 14 dígitos.', 'warning');
+      return;
+    }
+
+    this.isProvisioningTenant.set(true);
+    try {
+      await this.ecosystem.addTenant({
+        name,
+        cnpj,
+        category: this.newTenantCategory() as 'restaurant' | 'retail' | 'services',
+        plan: this.newTenantPlan() as 'Starter' | 'Professional' | 'Enterprise'
+      });
+      this.showModal.set(false);
+      this.newTenantName.set('');
+      this.newTenantCnpj.set('');
+      this.ecosystem.notify(
+        this.security.isSimulated()
+          ? 'Loja criada na simulação, em período de teste.'
+          : 'Loja criada em período de teste. Complete o vínculo do responsável e o cadastro operacional antes de ativá-la.',
+        'success'
+      );
+    } catch (err: unknown) {
+      const message = (err as { error?: { error?: string } })?.error?.error;
+      this.ecosystem.notify(message || 'Não foi possível criar a loja. Nenhum cadastro foi confirmado.', 'error');
+    } finally {
+      this.isProvisioningTenant.set(false);
+    }
   }
 
-  pairDevice() {
-    const resolvedTenantId = this.newDeviceTenantId() || 'hq';
-    this.ecosystem.addDevice({
-      tenantId: resolvedTenantId,
-      deviceName: this.newDeviceName(),
-      type: 'terminal',
-      serialNumber: this.newDeviceSerial(),
-      status: 'online',
-      location: 'Balcão Central',
-      batteryLevel: 100
-    });
-    this.showPairModalHq.set(false);
+  async registerDevice() {
+    const tenantId = this.newDeviceTenantId();
+    const deviceName = this.newDeviceName().trim();
+    const serialNumber = this.newDeviceSerial().trim();
+    if (!tenantId || !deviceName || !serialNumber) {
+      this.ecosystem.notify('Selecione o destino e informe nome e serial do dispositivo.', 'warning');
+      return;
+    }
+
+    try {
+      await this.ecosystem.addDevice({ tenantId, deviceName, type: 'terminal', serialNumber });
+      this.showRegisterDeviceModal.set(false);
+      this.ecosystem.notify('Dispositivo registrado no inventário. A conexão física e a telemetria ainda não foram verificadas.', 'warning');
+    } catch (err: unknown) {
+      const message = (err as { error?: { error?: string } })?.error?.error;
+      this.ecosystem.notify(message || 'Não foi possível registrar o dispositivo.', 'error');
+    }
   }
 
   openTenantGovernance(tenant: CompanyTenant) {

@@ -10,17 +10,23 @@ export class CrmService {
   private readonly http = inject(HttpClient);
   
   readonly consumerAccounts = signal<ConsumerAccount[]>([]);
+  readonly consumerAccountsStatus = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   readonly customers = signal<CustomerProfile[]>([]);
   readonly activeConsumer = signal<ConsumerAccount | null>(null);
   readonly marketingCampaigns = signal<MarketingCampaign[]>([]);
 
   async fetchConsumers(): Promise<ConsumerAccount[]> {
+    this.consumerAccountsStatus.set('loading');
     try {
       const data = await firstValueFrom(this.http.get<ConsumerAccount[]>('/api/crm/consumers'));
-      if (data) this.consumerAccounts.set(data);
-      return data || [];
+      if (!Array.isArray(data)) throw new Error('Invalid consumer directory response.');
+      this.consumerAccounts.set(data);
+      this.consumerAccountsStatus.set('loaded');
+      return data;
     } catch (err) {
       console.warn('CrmService.fetchConsumers deferred:', err);
+      this.consumerAccounts.set([]);
+      this.consumerAccountsStatus.set('error');
       return [];
     }
   }

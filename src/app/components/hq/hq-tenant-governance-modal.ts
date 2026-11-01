@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { EcosystemService } from '../../services/ecosystem.service';
-import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosystem.model';
+import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
 
 @Component({
   selector: 'app-hq-tenant-governance-modal',
@@ -43,29 +43,25 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
           </div>
 
           <!-- KEY BUSINESS METRICS OF THIS TENANT -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
-              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Vendas Marketplace</span>
-              <div class="text-lg font-serif font-black text-stone-900 mt-0.5">
-                R$ {{ storeSalesTotal().toFixed(2) }}
-              </div>
-              <span class="text-[9px] text-stone-500 font-medium">{{ storeOrdersCount() }} pedidos</span>
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Pedidos e GMV por tenant</span>
+              <div class="text-lg font-serif font-black text-stone-600 mt-0.5">Não carregados</div>
+              <span class="text-[9px] text-stone-500 font-medium">Esta ficha não consulta pedidos.</span>
             </div>
 
             <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-sm">
-              <span class="text-[9px] font-mono font-bold text-emerald-800 uppercase block">Split Arrecadado (HQ)</span>
-              <div class="text-lg font-serif font-black text-emerald-900 mt-0.5">
-                R$ {{ storeCommissionTotal().toFixed(2) }}
-              </div>
-              <span class="text-[9px] text-emerald-700 font-bold">{{ currentFeePercent() }}% take rate</span>
+              <span class="text-[9px] font-mono font-bold text-emerald-800 uppercase block">Taxa de serviço no checkout</span>
+              <div class="text-lg font-serif font-black text-emerald-900 mt-0.5">Não calculada</div>
+              <span class="text-[9px] text-emerald-700 font-bold">Consulte a estimativa global de pedidos.</span>
             </div>
 
             <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
-              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Dispositivos MDM</span>
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Registros no inventário</span>
               <div class="text-lg font-serif font-black text-stone-900 mt-0.5">
                 {{ storeDevices().length }} / {{ currentDeviceLimit() }}
               </div>
-              <span class="text-[9px] text-stone-500 font-medium">Terminais ativos</span>
+              <span class="text-[9px] text-stone-500 font-medium">Conexão física não verificada</span>
             </div>
 
             <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
@@ -99,41 +95,43 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div>
-                <label for="govPlan" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Plano Contratado</label>
+                <label for="govPlan" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Plano cadastrado</label>
                 <select
                   id="govPlan"
                   [value]="currentPlan()"
                   (change)="currentPlan.set($any($event.target).value)"
                   class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
-                  <option value="Starter">Starter (Até 2 dispositivos)</option>
-                  <option value="Professional">Professional (Até 5 dispositivos)</option>
-                  <option value="Enterprise">Enterprise (Ilimitado / Custom)</option>
+                  <option value="Starter">Starter</option>
+                  <option value="Professional">Professional</option>
+                  <option value="Enterprise">Enterprise</option>
                 </select>
+                <p class="mt-1 text-[9px] text-stone-600">O plano cadastrado não altera a cota automaticamente.</p>
               </div>
 
               <div>
-                <label for="govCommission" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Split / Comissão HQ (%)</label>
+                <label for="govServiceFee" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Taxa de serviço no checkout de delivery (%)</label>
                 <div class="relative">
                   <input
-                    id="govCommission"
+                    id="govServiceFee"
                     type="number"
                     min="0"
-                    max="30"
+                    max="50"
                     step="0.5"
-                    [value]="currentFeePercent()"
-                    (input)="currentFeePercent.set(+$any($event.target).value)"
+                    [value]="currentServiceFeePercent()"
+                    (input)="currentServiceFeePercent.set(+$any($event.target).value)"
                     class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
                   <span class="absolute right-3 top-2 font-bold text-stone-500">%</span>
                 </div>
+                <p class="mt-1 text-[9px] text-stone-600">Aplicada ao subtotal no checkout do tenant; é independente da comissão das entregas da rede 3EAT.</p>
               </div>
 
               <div>
-                <label for="govDeviceLimit" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Limite Terminais MDM</label>
+                <label for="govDeviceLimit" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Cota de registros (não aplicada)</label>
                 <input
                   id="govDeviceLimit"
                   type="number"
                   min="1"
-                  max="50"
+                  max="999"
                   [value]="currentDeviceLimit()"
                   (input)="currentDeviceLimit.set(+$any($event.target).value)"
                   class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
@@ -158,21 +156,21 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
                   [value]="currentStatus()"
                   (change)="currentStatus.set($any($event.target).value)"
                   class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
-                  <option value="active">Ativa / Operacional</option>
-                  <option value="suspended">Suspensa (Bloqueio Total)</option>
+                  <option value="active">Ativa</option>
+                  <option value="suspended">Suspensa</option>
                   <option value="trial">Período de Demonstração (Trial)</option>
                 </select>
               </div>
 
               <div>
-                <label for="govMarketplace" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Visibilidade Marketplace</label>
+                <label for="govStoreOpen" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Aberta para receber pedidos</label>
                 <select
-                  id="govMarketplace"
-                  [value]="currentMarketplaceVisible() ? 'true' : 'false'"
-                  (change)="currentMarketplaceVisible.set($any($event.target).value === 'true')"
+                  id="govStoreOpen"
+                  [value]="currentStoreOpen() ? 'true' : 'false'"
+                  (change)="currentStoreOpen.set($any($event.target).value === 'true')"
                   class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
-                  <option value="true">Visível no Marketplace Regional</option>
-                  <option value="false">Oculto (Apenas link direto)</option>
+                  <option value="true">Aberta</option>
+                  <option value="false">Fechada</option>
                 </select>
               </div>
             </div>
@@ -182,7 +180,7 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
           <div class="space-y-3">
             <div class="flex justify-between items-center">
               <h3 class="font-serif font-black text-xs uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                <mat-icon class="text-sm">devices</mat-icon> Terminais de Hardware Vinculados ({{ storeDevices().length }})
+                <mat-icon class="text-sm">devices</mat-icon> Registros no inventário ({{ storeDevices().length }})
               </h3>
             </div>
 
@@ -202,14 +200,14 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
                         type="button"
                         (click)="ecosystem.restartDevice(dev.id)"
                         class="p-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700"
-                        title="Reiniciar">
+                        title="Registrar solicitação; não reinicia o equipamento">
                         <mat-icon class="text-xs">refresh</mat-icon>
                       </button>
                       <button
                         type="button"
                         (click)="ecosystem.lockDevice(dev.id)"
                         class="p-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700"
-                        title="Bloquear">
+                        title="Alterar status no inventário; não bloqueia o equipamento">
                         <mat-icon class="text-xs">lock</mat-icon>
                       </button>
                     </div>
@@ -218,7 +216,7 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
               </div>
             } @else {
               <div class="p-4 bg-white rounded-xl border border-[#e8dfce] text-center text-xs text-stone-500 font-serif italic">
-                Nenhum terminal POS pareado para esta unidade no momento.
+                Nenhum dispositivo registrado para esta unidade.
               </div>
             }
           </div>
@@ -243,11 +241,15 @@ import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosyst
               <button
                 type="button"
                 (click)="saveGovernance()"
+                [disabled]="isSaving()"
                 class="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg cursor-pointer active:scale-95 transition-all">
                 <mat-icon class="text-sm">save</mat-icon>
-                <span>Salvar Parâmetros da Loja</span>
+                <span>{{ isSaving() ? 'Salvando...' : 'Salvar Parâmetros da Loja' }}</span>
               </button>
             </div>
+            @if (saveError()) {
+              <p role="alert" class="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900">{{ saveError() }}</p>
+            }
           </div>
 
         </div>
@@ -263,22 +265,24 @@ export class HqTenantGovernanceModalComponent {
   dismiss = output<void>();
 
   readonly currentPlan = signal<'Starter' | 'Professional' | 'Enterprise'>('Professional');
-  readonly currentFeePercent = signal<number>(8);
+  readonly currentServiceFeePercent = signal<number>(8);
   readonly currentDeviceLimit = signal<number>(5);
   readonly currentDeliveryRadius = signal<number>(10);
   readonly currentStatus = signal<'active' | 'suspended' | 'trial'>('active');
-  readonly currentMarketplaceVisible = signal<boolean>(true);
+  readonly currentStoreOpen = signal<boolean>(false);
+  readonly isSaving = signal(false);
+  readonly saveError = signal<string | null>(null);
 
   constructor() {
     effect(() => {
       const t = this.tenant();
       if (t) {
         this.currentPlan.set(t.plan);
-        this.currentFeePercent.set(t.serviceFeePercent || 8);
-        this.currentDeviceLimit.set(t.devicesLimit || 5);
-        this.currentDeliveryRadius.set(t.deliveryRadiusKm || 10);
+        this.currentServiceFeePercent.set(t.serviceFeePercent ?? 8);
+        this.currentDeviceLimit.set(t.devicesLimit ?? 5);
+        this.currentDeliveryRadius.set(t.deliveryRadiusKm ?? 10);
         this.currentStatus.set(t.status || 'active');
-        this.currentMarketplaceVisible.set(t.isOpen !== false);
+        this.currentStoreOpen.set(t.isOpen ?? (t.status === 'active'));
       }
     });
   }
@@ -289,43 +293,43 @@ export class HqTenantGovernanceModalComponent {
     return this.ecosystem.devices().filter((d: POSDevice) => d.tenantId === t.id);
   });
 
-  readonly storeOrders = computed(() => {
-    const t = this.tenant();
-    if (!t) return [];
-    return this.ecosystem.orders().filter((o: OrderTransaction) => o.tenantId === t.id);
-  });
-
-  readonly storeOrdersCount = computed(() => this.storeOrders().length);
-
-  readonly storeSalesTotal = computed(() => {
-    return this.storeOrders().reduce((sum, o) => sum + o.total, 0);
-  });
-
-  readonly storeCommissionTotal = computed(() => {
-    return this.storeSalesTotal() * (this.currentFeePercent() / 100);
-  });
-
   openPublicStorefront(tenantId: string) {
     this.ecosystem.currentTenantId.set(tenantId);
     this.router.navigate(['/p', tenantId]);
     this.dismiss.emit();
   }
 
-  saveGovernance() {
+  async saveGovernance() {
     const t = this.tenant();
-    if (!t) return;
+    if (!t || this.isSaving()) return;
 
-    this.ecosystem.updateTenant(t.id, {
-      plan: this.currentPlan(),
-      serviceFeePercent: this.currentFeePercent(),
-      devicesLimit: this.currentDeviceLimit(),
-      deliveryRadiusKm: this.currentDeliveryRadius(),
-      status: this.currentStatus(),
-      isOpen: this.currentMarketplaceVisible()
-    });
+    const serviceFeePercent = this.currentServiceFeePercent();
+    const devicesLimit = this.currentDeviceLimit();
+    const deliveryRadiusKm = this.currentDeliveryRadius();
+    if (!Number.isFinite(serviceFeePercent) || serviceFeePercent < 0 || serviceFeePercent > 50 ||
+        !Number.isInteger(devicesLimit) || devicesLimit < 1 || devicesLimit > 999 ||
+        !Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm < 1 || deliveryRadiusKm > 50) {
+      this.saveError.set('Informe taxa entre 0% e 50%, cota inteira de 1 a 999 e raio de 1 a 50 km.');
+      return;
+    }
 
-    this.ecosystem.notify(`Governança de "${t.name}" atualizada com sucesso.`, 'success');
-    this.ecosystem.logAudit('Governança de Tenant', 'HQ', `Parâmetros de ${t.name} salvos: Split ${this.currentFeePercent()}%, Plano ${this.currentPlan()}, Status ${this.currentStatus()}.`, 'info');
-    this.dismiss.emit();
+    this.isSaving.set(true);
+    this.saveError.set(null);
+    try {
+      await this.ecosystem.updateTenant(t.id, {
+        plan: this.currentPlan(),
+        serviceFeePercent,
+        devicesLimit,
+        deliveryRadiusKm,
+        status: this.currentStatus(),
+        isOpen: this.currentStoreOpen()
+      });
+      this.ecosystem.notify(`Governança de "${t.name}" atualizada com sucesso.`, 'success');
+      this.dismiss.emit();
+    } catch {
+      this.saveError.set('Não foi possível salvar os parâmetros. As alterações ainda não foram confirmadas no servidor.');
+    } finally {
+      this.isSaving.set(false);
+    }
   }
 }

@@ -36,16 +36,16 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
         <div class="relative z-10 space-y-2">
           <div class="flex items-center gap-2 text-amber-500 font-serif font-black uppercase text-[10px] tracking-widest">
             <mat-icon class="text-sm text-amber-400">android</mat-icon>
-            <span>Console de Auditoria de Apps Nativos (Real-Time Environment)</span>
-            <span class="bg-emerald-950 text-emerald-400 border border-emerald-700/60 px-2 py-0.5 rounded font-mono text-[9px]">ENGINE: 3EAT CORE V1 • ANDROID 14</span>
+            <span>Prévia visual dos componentes web</span>
+            <span class="bg-amber-950 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded font-mono text-[9px]">SIMULAÇÃO • SEM APK CONECTADO</span>
           </div>
 
           <h2 class="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
-            Preview em Tempo Real dos Aplicativos Nativos
+            Prévia em chassis de dispositivo simulado
           </h2>
 
           <p class="text-stone-400 text-xs font-serif max-w-2xl leading-relaxed">
-            Estes dois módulos funcionam como aplicações individuais na Google Play Store. Audite e valide o fluxo do <strong>App do Motorista (3EAT Entregas)</strong> e do <strong>App do Consumidor Final (3EAT Marketplace)</strong> diretamente no chassis interativo de um smartphone.
+            Esta tela renderiza componentes web em um frame visual. Não comprova APK compilado, publicação na Google Play, permissões nativas, conexão GPS ou envio de notificações push.
           </p>
         </div>
 
@@ -55,7 +55,7 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
             (click)="triggerPushNotification()"
             class="bg-[#3b1e0d] hover:bg-amber-900/50 text-amber-300 font-bold px-4 py-3 rounded-2xl border border-amber-600/40 text-xs flex items-center gap-2 cursor-pointer shadow-lg transition-all active:scale-95">
             <mat-icon class="text-sm text-amber-400">notifications_active</mat-icon>
-            <span>Disparar Alerta de Auditoria</span>
+            <span>Simular alerta local</span>
           </button>
 
           <button
@@ -63,7 +63,7 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
             (click)="showManifestModal.set(true)"
             class="bg-[#211107] hover:bg-[#2e180a] text-stone-300 font-mono text-xs font-bold py-3 px-4 rounded-2xl border border-[#482814] flex items-center gap-2 cursor-pointer shadow">
             <mat-icon class="text-sm text-cyan-400">code</mat-icon>
-            <span>Manifesto Android</span>
+            <span>Manifesto de referência</span>
           </button>
         </div>
       </div>
@@ -94,10 +94,10 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
                   </div>
                   <div>
                     <h4 class="font-bold text-xs uppercase text-white flex items-center gap-1.5">
-                      <span>App do Motorista</span>
-                      <span class="text-[9px] font-mono bg-purple-950 text-purple-300 px-1.5 py-0.2 rounded border border-purple-700/50">com.eatcru.driver</span>
+                      <span>Interface do motorista (prévia)</span>
+                      <span class="text-[9px] font-mono bg-purple-950 text-purple-300 px-1.5 py-0.2 rounded border border-purple-700/50">EXEMPLO</span>
                     </h4>
-                    <p class="text-[10px] text-stone-400 mt-0.5">GPS, Roteamento Multi-paradas, Clock-in QR Code e Prova de Entrega.</p>
+                    <p class="text-[10px] text-stone-400 mt-0.5">Conteúdo ilustrativo de rota, check-in e entrega.</p>
                   </div>
                 </div>
                 <mat-icon [class.text-purple-400]="selectedApp() === 'driver'" class="text-stone-600">chevron_right</mat-icon>
@@ -115,8 +115,8 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
                   </div>
                   <div>
                     <h4 class="font-bold text-xs uppercase text-white flex items-center gap-1.5">
-                      <span>App Cliente Marketplace</span>
-                      <span class="text-[9px] font-mono bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-700/50">com.eatcru.consumer</span>
+                      <span>Interface do consumidor (prévia)</span>
+                      <span class="text-[9px] font-mono bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-700/50">EXEMPLO</span>
                     </h4>
                     <p class="text-[10px] text-stone-400 mt-0.5">Catálogo Regional, Busca Geodésica, Fichário de Lojas e Checkout PIX.</p>
                   </div>
@@ -157,10 +157,10 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
                   </div>
                   <div>
                     <h4 class="font-bold text-xs uppercase text-white flex items-center gap-1.5">
-                      <span>App Vitrine do Lojista</span>
-                      <span class="text-[9px] font-mono bg-emerald-950 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-700/50">com.eatcru.storefront</span>
+                      <span>Interface de loja (prévia)</span>
+                      <span class="text-[9px] font-mono bg-emerald-950 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-700/50">EXEMPLO</span>
                     </h4>
-                    <p class="text-[10px] text-stone-400 mt-0.5">Cardápio Próprio da Loja selecionada no SO com pedido direto.</p>
+                    <p class="text-[10px] text-stone-400 mt-0.5">Conteúdo ilustrativo de uma vitrine de loja.</p>
                   </div>
                 </div>
                 <mat-icon [class.text-emerald-400]="selectedApp() === 'storefront'" class="text-stone-600">chevron_right</mat-icon>
@@ -172,12 +172,12 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
           <div class="bg-[#201007] border border-[#482814] rounded-3xl p-5 shadow-2xl space-y-4">
             <h3 class="font-serif font-black text-white text-sm uppercase tracking-wider flex items-center gap-2 border-b border-[#3d200f] pb-2">
               <mat-icon class="text-amber-500">settings_cell</mat-icon>
-              <span>Hardware &amp; Auditoria Geodésica</span>
+              <span>Chassis visual e dados ilustrativos</span>
             </h3>
 
             <!-- FORM FACTOR SELECTOR -->
             <div class="space-y-1.5">
-              <span class="block font-mono text-[10px] font-bold text-amber-500 uppercase">Ambiente de Auditoria:</span>
+              <span class="block font-mono text-[10px] font-bold text-amber-500 uppercase">Formato da prévia:</span>
               <div class="grid grid-cols-2 gap-2 bg-[#150a04] p-1.5 rounded-2xl border border-[#3d200f]">
                 <button
                   type="button"
@@ -227,19 +227,19 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
               }
 
               <div class="p-3 bg-[#150a04] border border-[#3d200f] rounded-2xl space-y-2">
-                  <span class="text-stone-400">Resolução do Console:</span>
+                  <span class="text-stone-400">Perfil visual de referência:</span>
                   <span class="text-amber-400 font-bold">
-                    {{ viewportMode() === 'smartphone' ? '1080 x 2400 px (DPI Real)' : '2560 x 1600 px (Widescreen Nativo)' }}
+                    {{ viewportMode() === 'smartphone' ? 'Smartphone em retrato' : 'Tablet / desktop em widescreen' }}
                   </span>
                 <div class="flex justify-between items-center text-[10px] font-mono">
                   <span class="text-stone-400">Layout Engine:</span>
                   <span class="text-emerald-400 font-bold">
-                    {{ viewportMode() === 'smartphone' ? 'Mobile Touch Portrait Stack' : 'Desktop / Tablet Multi-Col Grid' }}
+                    {{ viewportMode() === 'smartphone' ? 'Composição mobile simulada' : 'Composição widescreen simulada' }}
                   </span>
                 </div>
                 <div class="flex justify-between items-center text-[10px] font-mono">
-                  <span class="text-stone-400">Arquitetura APK:</span>
-                  <span class="text-stone-200 font-bold">arm64-v8a • AAB Bundle</span>
+                  <span class="text-stone-400">Build Android:</span>
+                  <span class="text-stone-200 font-bold">Não configurado</span>
                 </div>
               </div>
 
@@ -249,7 +249,7 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
                   (click)="openAppFullscreen()"
                   class="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-black py-3 rounded-2xl shadow-lg text-xs uppercase flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95">
                   <mat-icon class="text-sm">open_in_new</mat-icon>
-                  <span>Abrir App em Janela Inteira</span>
+                  <span>Abrir prévia em janela inteira</span>
                 </button>
               </div>
             </div>
@@ -258,18 +258,18 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
           <!-- APK BUILD & PERMISSIONS TELEMETRY CARD -->
           <div class="bg-[#faf7f0] border border-[#ded4c2] rounded-3xl p-5 shadow-xl text-stone-950 space-y-3">
             <div class="flex justify-between items-center border-b border-[#e8dfce] pb-2">
-              <span class="font-serif font-black text-xs uppercase text-amber-900">Build Status &amp; Permissões Android</span>
-              <span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-mono font-bold px-2 py-0.5 rounded">COMPILED OK</span>
+              <span class="font-serif font-black text-xs uppercase text-amber-900">Artefatos de referência</span>
+              <span class="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-mono font-bold px-2 py-0.5 rounded">APK NÃO LOCALIZADO</span>
             </div>
 
             <div class="space-y-1.5 text-[11px] font-mono">
               <div class="flex justify-between">
-                <span class="text-stone-500">Package:</span>
+                <span class="text-stone-500">Identificador de exemplo:</span>
                 <span class="font-bold text-stone-900">{{ currentPackageName() }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-stone-500">Versão:</span>
-                <span class="font-bold text-amber-900">v3.2.0 (Build 42)</span>
+                <span class="font-bold text-amber-900">Versão não declarada</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-stone-500">Form Factor:</span>
@@ -278,7 +278,7 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
             </div>
 
             <div class="pt-2 border-t border-[#e8dfce] space-y-1">
-              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Permissões Nativas Solicitadas:</span>
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Permissões no exemplo de manifesto (não verificadas em APK):</span>
               <div class="flex flex-wrap gap-1">
                 <span class="bg-stone-200 text-stone-800 px-2 py-0.5 rounded text-[9px] font-mono font-bold">ACCESS_FINE_LOCATION</span>
                 <span class="bg-stone-200 text-stone-800 px-2 py-0.5 rounded text-[9px] font-mono font-bold">POST_NOTIFICATIONS</span>
@@ -296,9 +296,9 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
           <!-- TOP FRAME LABEL -->
           <div class="flex items-center gap-3 bg-[#201007] border border-[#482814] px-4 py-2 rounded-2xl text-xs font-mono">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span class="text-stone-300">FRAME DE AUDITORIA ESTRUTURAL ({{ viewportMode() === 'smartphone' ? 'SMARTPHONE PORTRAIT' : 'TABLET/DESKTOP WIDESCREEN' }}):</span>
+            <span class="text-stone-300">MOLDURA SIMULADA ({{ viewportMode() === 'smartphone' ? 'SMARTPHONE RETRATO' : 'TABLET/DESKTOP WIDESCREEN' }}):</span>
             <strong class="text-amber-400 font-bold uppercase">{{ selectedAppTitle() }}</strong>
-            <span class="text-stone-500">(REAL CORE ENGINE)</span>
+            <span class="text-stone-500">(COMPONENTE WEB)</span>
           </div>
 
           <!-- SMARTPHONE OR TABLET/DESKTOP CHASSIS CONTAINER -->
@@ -344,7 +344,7 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
                     </div>
                     <div class="flex-1 min-w-0">
                       <div class="flex justify-between items-center">
-                        <span class="text-[9px] font-mono font-bold text-amber-400 uppercase">3EAT Push Notification</span>
+                        <span class="text-[9px] font-mono font-bold text-amber-400 uppercase">ALERTA LOCAL DE DEMONSTRAÇÃO</span>
                         <span class="text-[8px] text-stone-400 font-mono">{{ notif.time }}</span>
                       </div>
                       <h5 class="text-xs font-bold text-white uppercase truncate mt-0.5">{{ notif.title }}</h5>
@@ -421,17 +421,18 @@ export type DeviceModelType = 'pixel' | 'galaxy' | 'xiaomi';
           <div class="bg-[#1d1008] border-2 border-amber-600/50 rounded-3xl max-w-2xl w-full p-6 text-stone-200 space-y-4 shadow-2xl animate-in zoom-in-95">
             <div class="flex justify-between items-center pb-3 border-b border-[#3d200f]">
               <h3 class="font-serif font-black text-lg text-white flex items-center gap-2">
-                <mat-icon class="text-amber-500">code</mat-icon> AndroidManifest.xml (Declaração Nativa)
+                <mat-icon class="text-amber-500">code</mat-icon> Exemplo de AndroidManifest.xml (não compilado)
               </h3>
               <button (click)="showManifestModal.set(false)" class="text-stone-400 hover:text-white font-bold text-lg cursor-pointer">✕</button>
             </div>
 
+            <p class="text-xs text-amber-200">Modelo ilustrativo. Não corresponde a um manifesto validado ou empacotado no repositório.</p>
             <div class="bg-[#0f0703] border border-[#3d200f] rounded-2xl p-4 font-mono text-[11px] text-amber-300/90 overflow-x-auto max-h-96 leading-relaxed custom-scrollbar selection:bg-amber-800 selection:text-white">
 <pre>&lt;?xml version="1.0" encoding="utf-8"?&gt;
 &lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="{{ currentPackageName() }}"
-    android:versionCode="42"
-    android:versionName="3.2.0"&gt;
+    android:versionCode="1"
+    android:versionName="0.0.0-example"&gt;
 
     &lt;!-- Permissões para GPS Geodésico &amp; Roteamento --&gt;
     &lt;uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /&gt;
@@ -510,7 +511,7 @@ export class HqAppsPreviewComponent {
       case 'driver': return '3EAT Entregas (Driver App)';
       case 'consumer': return '3EAT Regional Marketplace';
       case 'waiter': return '3EAT Garçom & Comanda Mobile';
-      case 'storefront': return '3EAT Storefront Nativo';
+      case 'storefront': return '3EAT Vitrine Web';
     }
   });
 
@@ -522,21 +523,21 @@ export class HqAppsPreviewComponent {
         message: 'Você tem uma nova rota agrupada com 3 entregas na região Bela Vista. Toque para aceitar.',
         time
       });
-      this.ecosystem.notify('Notificação Push auditada enviada para o App do Motorista!', 'info');
+      this.ecosystem.notify('Alerta de demonstração exibido localmente nesta prévia.', 'info');
     } else if (this.selectedApp() === 'waiter') {
       this.activePushAudit.set({
         title: '🔔 Mesa 4: Fechamento Solicitado!',
         message: 'A Mesa 4 solicitou o fechamento da conta com divisão para 2 pessoas.',
         time
       });
-      this.ecosystem.notify('Notificação Push auditada enviada para o App do Garçom!', 'info');
+      this.ecosystem.notify('Alerta de demonstração exibido localmente nesta prévia.', 'info');
     } else {
       this.activePushAudit.set({
         title: '🔥 Cupom de 20% OFF Liberado!',
         message: 'Aproveite descontos especiais nos balcões da Avenida Paulista até as 22h.',
         time
       });
-      this.ecosystem.notify('Notificação Push auditada enviada para o App do Consumidor!', 'info');
+      this.ecosystem.notify('Alerta de demonstração exibido localmente nesta prévia.', 'info');
     }
   }
 

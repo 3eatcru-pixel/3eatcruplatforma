@@ -1,0 +1,46 @@
+/* Global styles */
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import "tailwindcss" source(none);
+
+@source "./app";
+
+@theme {
+  --background-image-carbon-pattern: url('./assets/images/carbon_fibre_texture_1793304109137.jpg');
+  --background-image-graph-pattern: url('./assets/images/clean_graph_paper_grid_1793304130000.jpg');
+}
+
+@utility bg-carbon-pattern {
+  background-image: var(--background-image-carbon-pattern);
+}
+
+@utility bg-graph-pattern {
+  background-image: var(--background-image-graph-pattern);
+}
+
+.font-syne {
+  font-family: 'Syne', sans-serif;
+}
+
+.font-geist {
+  font-family: 'Geist', sans-serif;
+}
+
+.font-mono-code {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.bg-hq-bg {
+  background-color: #0e0e10;
+}
+
+.bg-hq-card {
+  background-color: #16161a;
+}
+
+.bg-hq-panel {
+  background-color: #111114;
+}
+
+.border-hq {
+  border-color: rgba(237, 238, 239, 0.1);
+}

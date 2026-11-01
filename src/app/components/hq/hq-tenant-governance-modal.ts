@@ -1,0 +1,331 @@
+import { ChangeDetectionStrategy, Component, input, output, inject, signal, computed, effect } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
+import { Router } from '@angular/router';
+import { EcosystemService } from '../../services/ecosystem.service';
+import { CompanyTenant, POSDevice, OrderTransaction } from '../../models/ecosystem.model';
+
+@Component({
+  selector: 'app-hq-tenant-governance-modal',
+  standalone: true,
+  imports: [CommonModule, MatIconModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (tenant(); as t) {
+      <div class="fixed inset-0 z-[130] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-[#faf7f0] border-2 border-[#d6c7b0] rounded-3xl max-w-3xl w-full p-6 text-stone-950 shadow-2xl max-h-[90vh] overflow-y-auto space-y-6">
+          
+          <!-- MODAL HEADER -->
+          <div class="flex justify-between items-start pb-4 border-b border-[#e8dfce]">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-amber-900 text-amber-100 flex items-center justify-center font-bold shadow-md">
+                <mat-icon class="text-2xl">admin_panel_settings</mat-icon>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[9px] font-mono bg-amber-900 text-amber-100 px-2 py-0.5 rounded font-bold uppercase">
+                    Governança da Plataforma
+                  </span>
+                  <span class="text-[9px] font-mono text-stone-500 font-bold uppercase">
+                    ID: {{ t.id }}
+                  </span>
+                </div>
+                <h2 class="text-xl font-serif font-black text-stone-950 mt-1">{{ t.name }}</h2>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              (click)="dismiss.emit()"
+              class="text-stone-400 hover:text-stone-800 p-2 rounded-xl hover:bg-stone-200 transition-colors cursor-pointer">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+
+          <!-- KEY BUSINESS METRICS OF THIS TENANT -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Vendas Marketplace</span>
+              <div class="text-lg font-serif font-black text-stone-900 mt-0.5">
+                R$ {{ storeSalesTotal().toFixed(2) }}
+              </div>
+              <span class="text-[9px] text-stone-500 font-medium">{{ storeOrdersCount() }} pedidos</span>
+            </div>
+
+            <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-sm">
+              <span class="text-[9px] font-mono font-bold text-emerald-800 uppercase block">Split Arrecadado (HQ)</span>
+              <div class="text-lg font-serif font-black text-emerald-900 mt-0.5">
+                R$ {{ storeCommissionTotal().toFixed(2) }}
+              </div>
+              <span class="text-[9px] text-emerald-700 font-bold">{{ currentFeePercent() }}% take rate</span>
+            </div>
+
+            <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Dispositivos MDM</span>
+              <div class="text-lg font-serif font-black text-stone-900 mt-0.5">
+                {{ storeDevices().length }} / {{ currentDeviceLimit() }}
+              </div>
+              <span class="text-[9px] text-stone-500 font-medium">Terminais ativos</span>
+            </div>
+
+            <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Status da Conta</span>
+              <div class="mt-1 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full" [class]="currentStatus() === 'active' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                <span class="text-xs font-black uppercase text-stone-800">{{ currentStatus() }}</span>
+              </div>
+              <span class="text-[9px] text-stone-500 font-medium">Plano {{ currentPlan() }}</span>
+            </div>
+          </div>
+
+          <!-- TENANT REGISTRATION & FISCAL DATA -->
+          <div class="bg-white p-4 rounded-2xl border border-[#e8dfce] space-y-2 text-xs">
+            <h3 class="font-serif font-black text-xs uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+              <mat-icon class="text-sm">verified</mat-icon> Ficha Cadastral &amp; Fiscal
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-stone-700 font-medium">
+              <div><strong class="text-stone-900">Razão Social:</strong> {{ t.legalName }}</div>
+              <div><strong class="text-stone-900">CNPJ:</strong> {{ t.cnpj }}</div>
+              <div><strong class="text-stone-900">Contato:</strong> {{ t.contactEmail }} • {{ t.phone }}</div>
+              <div><strong class="text-stone-900">Localização:</strong> {{ t.address.street }}, {{ t.address.number }} - {{ t.address.city }}/{{ t.address.state }}</div>
+            </div>
+          </div>
+
+          <!-- SAAS PLATFORM GOVERNANCE CONTROLS -->
+          <div class="bg-[#f2e8d5] p-5 rounded-2xl border border-[#e0d2bb] space-y-4">
+            <h3 class="font-serif font-black text-xs uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+              <mat-icon class="text-sm">tune</mat-icon> Parâmetros Operacionais da Plataforma
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div>
+                <label for="govPlan" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Plano Contratado</label>
+                <select
+                  id="govPlan"
+                  [value]="currentPlan()"
+                  (change)="currentPlan.set($any($event.target).value)"
+                  class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+                  <option value="Starter">Starter (Até 2 dispositivos)</option>
+                  <option value="Professional">Professional (Até 5 dispositivos)</option>
+                  <option value="Enterprise">Enterprise (Ilimitado / Custom)</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="govCommission" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Split / Comissão HQ (%)</label>
+                <div class="relative">
+                  <input
+                    id="govCommission"
+                    type="number"
+                    min="0"
+                    max="30"
+                    step="0.5"
+                    [value]="currentFeePercent()"
+                    (input)="currentFeePercent.set(+$any($event.target).value)"
+                    class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+                  <span class="absolute right-3 top-2 font-bold text-stone-500">%</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="govDeviceLimit" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Limite Terminais MDM</label>
+                <input
+                  id="govDeviceLimit"
+                  type="number"
+                  min="1"
+                  max="50"
+                  [value]="currentDeviceLimit()"
+                  (input)="currentDeviceLimit.set(+$any($event.target).value)"
+                  class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+              </div>
+
+              <div>
+                <label for="govRadius" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Raio Máx. Entrega (km)</label>
+                <input
+                  id="govRadius"
+                  type="number"
+                  min="1"
+                  max="50"
+                  [value]="currentDeliveryRadius()"
+                  (input)="currentDeliveryRadius.set(+$any($event.target).value)"
+                  class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+              </div>
+
+              <div>
+                <label for="govStatus" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Status da Loja na Plataforma</label>
+                <select
+                  id="govStatus"
+                  [value]="currentStatus()"
+                  (change)="currentStatus.set($any($event.target).value)"
+                  class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+                  <option value="active">Ativa / Operacional</option>
+                  <option value="suspended">Suspensa (Bloqueio Total)</option>
+                  <option value="trial">Período de Demonstração (Trial)</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="govMarketplace" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Visibilidade Marketplace</label>
+                <select
+                  id="govMarketplace"
+                  [value]="currentMarketplaceVisible() ? 'true' : 'false'"
+                  (change)="currentMarketplaceVisible.set($any($event.target).value === 'true')"
+                  class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+                  <option value="true">Visível no Marketplace Regional</option>
+                  <option value="false">Oculto (Apenas link direto)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- PAIRED MDM DEVICES FOR THIS TENANT -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="font-serif font-black text-xs uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                <mat-icon class="text-sm">devices</mat-icon> Terminais de Hardware Vinculados ({{ storeDevices().length }})
+              </h3>
+            </div>
+
+            @if (storeDevices().length > 0) {
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                @for (dev of storeDevices(); track dev.id) {
+                  <div class="bg-white p-3 rounded-xl border border-[#e8dfce] flex justify-between items-center text-xs">
+                    <div>
+                      <div class="font-bold text-stone-900 flex items-center gap-1">
+                        <mat-icon class="text-xs text-amber-800">desktop_windows</mat-icon>
+                        <span>{{ dev.deviceName }}</span>
+                      </div>
+                      <div class="text-[9px] font-mono text-stone-500">{{ dev.serialNumber }} • {{ dev.location }}</div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        (click)="ecosystem.restartDevice(dev.id)"
+                        class="p-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700"
+                        title="Reiniciar">
+                        <mat-icon class="text-xs">refresh</mat-icon>
+                      </button>
+                      <button
+                        type="button"
+                        (click)="ecosystem.lockDevice(dev.id)"
+                        class="p-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700"
+                        title="Bloquear">
+                        <mat-icon class="text-xs">lock</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="p-4 bg-white rounded-xl border border-[#e8dfce] text-center text-xs text-stone-500 font-serif italic">
+                Nenhum terminal POS pareado para esta unidade no momento.
+              </div>
+            }
+          </div>
+
+          <!-- ACTIONS FOOTER -->
+          <div class="pt-4 border-t border-[#e8dfce] flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              (click)="openPublicStorefront(t.id)"
+              class="bg-white hover:bg-stone-100 text-stone-900 border border-[#d6c7b0] px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm">
+              <mat-icon class="text-sm text-emerald-600">storefront</mat-icon>
+              <span>Ver Vitrine do Consumidor (Pública)</span>
+            </button>
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                (click)="dismiss.emit()"
+                class="px-4 py-2.5 rounded-xl text-xs font-bold text-stone-600 hover:text-stone-900 cursor-pointer">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                (click)="saveGovernance()"
+                class="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg cursor-pointer active:scale-95 transition-all">
+                <mat-icon class="text-sm">save</mat-icon>
+                <span>Salvar Parâmetros da Loja</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    }
+  `
+})
+export class HqTenantGovernanceModalComponent {
+  readonly ecosystem = inject(EcosystemService);
+  private readonly router = inject(Router);
+
+  tenant = input<CompanyTenant | null>(null);
+  dismiss = output<void>();
+
+  readonly currentPlan = signal<'Starter' | 'Professional' | 'Enterprise'>('Professional');
+  readonly currentFeePercent = signal<number>(8);
+  readonly currentDeviceLimit = signal<number>(5);
+  readonly currentDeliveryRadius = signal<number>(10);
+  readonly currentStatus = signal<'active' | 'suspended' | 'trial'>('active');
+  readonly currentMarketplaceVisible = signal<boolean>(true);
+
+  constructor() {
+    effect(() => {
+      const t = this.tenant();
+      if (t) {
+        this.currentPlan.set(t.plan);
+        this.currentFeePercent.set(t.serviceFeePercent || 8);
+        this.currentDeviceLimit.set(t.devicesLimit || 5);
+        this.currentDeliveryRadius.set(t.deliveryRadiusKm || 10);
+        this.currentStatus.set(t.status || 'active');
+        this.currentMarketplaceVisible.set(t.isOpen !== false);
+      }
+    });
+  }
+
+  readonly storeDevices = computed<POSDevice[]>(() => {
+    const t = this.tenant();
+    if (!t) return [];
+    return this.ecosystem.devices().filter((d: POSDevice) => d.tenantId === t.id);
+  });
+
+  readonly storeOrders = computed(() => {
+    const t = this.tenant();
+    if (!t) return [];
+    return this.ecosystem.orders().filter((o: OrderTransaction) => o.tenantId === t.id);
+  });
+
+  readonly storeOrdersCount = computed(() => this.storeOrders().length);
+
+  readonly storeSalesTotal = computed(() => {
+    return this.storeOrders().reduce((sum, o) => sum + o.total, 0);
+  });
+
+  readonly storeCommissionTotal = computed(() => {
+    return this.storeSalesTotal() * (this.currentFeePercent() / 100);
+  });
+
+  openPublicStorefront(tenantId: string) {
+    this.ecosystem.currentTenantId.set(tenantId);
+    this.router.navigate(['/p', tenantId]);
+    this.dismiss.emit();
+  }
+
+  saveGovernance() {
+    const t = this.tenant();
+    if (!t) return;
+
+    this.ecosystem.updateTenant(t.id, {
+      plan: this.currentPlan(),
+      serviceFeePercent: this.currentFeePercent(),
+      devicesLimit: this.currentDeviceLimit(),
+      deliveryRadiusKm: this.currentDeliveryRadius(),
+      status: this.currentStatus(),
+      isOpen: this.currentMarketplaceVisible()
+    });
+
+    this.ecosystem.notify(`Governança de "${t.name}" atualizada com sucesso.`, 'success');
+    this.ecosystem.logAudit('Governança de Tenant', 'HQ', `Parâmetros de ${t.name} salvos: Split ${this.currentFeePercent()}%, Plano ${this.currentPlan()}, Status ${this.currentStatus()}.`, 'info');
+    this.dismiss.emit();
+  }
+}

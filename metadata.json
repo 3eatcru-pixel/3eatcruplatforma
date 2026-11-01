@@ -1,0 +1,8 @@
+{
+  "name": "3EATCRU - plataforma",
+  "description": "Plataforma Comercial Omnichannel SaaS para o Ecossistema Gastronômico e Varejo estruturada nos 7 Pilares Arquiteturais: HQ Central(apenas dev), Store OS Lojista (PDV Multissegmento, ERP \u0026 Reservas), Marketplace Regional, Vitrine Pública \u0026 QR Mesa, App Mobile do Garçom, App Mobile do Entregador e Núcleo Transacional Backend, Offline \u0026 Segurança Zero-Trust.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

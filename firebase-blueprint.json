@@ -1,0 +1,948 @@
+{
+  "entities": {
+    "Admin": {
+      "title": "Admin",
+      "description": "Platform Super Admin for HQ Central",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified admin email address",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "description": "HQ role designation",
+          "enum": ["hq_admin", "super_admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Server-controlled RBAC user mapping (write-locked against client self-escalation)",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "description": "Non-HQ application role",
+          "enum": ["tenant_owner", "operator", "waiter", "driver", "consumer"]
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Bound tenant ID for store staff",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO update timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["uid", "role"]
+    },
+    "Tenant": {
+      "title": "Tenant",
+      "description": "Registered store enterprise operating in the 3eatcru platform",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Tenant unique identifier",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Commercial store name",
+          "maxLength": 120
+        },
+        "legalName": {
+          "type": "string",
+          "description": "Corporate entity legal name",
+          "maxLength": 140
+        },
+        "cnpj": {
+          "type": "string",
+          "description": "Tax identification CNPJ",
+          "maxLength": 24
+        },
+        "category": {
+          "type": "string",
+          "description": "Business niche category",
+          "enum": [
+            "restaurant",
+            "retail",
+            "services",
+            "hybrid",
+            "health",
+            "education",
+            "automotive",
+            "beauty",
+            "petshop"
+          ]
+        },
+        "plan": {
+          "type": "string",
+          "description": "SaaS subscription tier",
+          "enum": ["Starter", "Professional", "Enterprise"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Account status",
+          "enum": ["active", "suspended", "trial"]
+        },
+        "ownerUid": {
+          "type": "string",
+          "description": "Primary Tenant Owner UID",
+          "maxLength": 128
+        },
+        "staffUids": {
+          "type": "array",
+          "description": "Bounded list (<= 20) of authorized store staff UIDs"
+        },
+        "devicesLimit": {
+          "type": "number",
+          "description": "MDM device limit"
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "Store owner contact email",
+          "maxLength": 128
+        },
+        "phone": {
+          "type": "string",
+          "description": "Store phone contact",
+          "maxLength": 32
+        },
+        "deliveryRadiusKm": {
+          "type": "number",
+          "description": "Delivery range in kilometers"
+        },
+        "serviceFeePercent": {
+          "type": "number",
+          "description": "Platform commission percentage"
+        },
+        "isOpen": {
+          "type": "boolean",
+          "description": "Whether store is currently open"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "name", "cnpj", "plan", "status", "contactEmail"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Private ERP catalog and inventory item managed by a tenant (contains cost, stock, supplier)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Product ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Parent tenant ID",
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "description": "Product title",
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "description": "Product category",
+          "maxLength": 60
+        },
+        "price": {
+          "type": "number",
+          "description": "Selling price"
+        },
+        "costPrice": {
+          "type": "number",
+          "description": "Private wholesale acquisition cost"
+        },
+        "stock": {
+          "type": "number",
+          "description": "Exact physical stock"
+        },
+        "minStock": {
+          "type": "number",
+          "description": "Minimum stock alert threshold"
+        },
+        "barcode": {
+          "type": "string",
+          "description": "EAN / Barcode",
+          "maxLength": 48
+        },
+        "sku": {
+          "type": "string",
+          "description": "Internal SKU",
+          "maxLength": 48
+        },
+        "availableOnline": {
+          "type": "boolean",
+          "description": "Visible in public consumer catalog"
+        },
+        "description": {
+          "type": "string",
+          "description": "Item description",
+          "maxLength": 400
+        }
+      },
+      "required": ["id", "tenantId", "name", "price", "stock"]
+    },
+    "PublicProduct": {
+      "title": "PublicProduct",
+      "description": "Sanitized public Marketplace product projection free of cost, margin, supplier, and exact stock",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Product ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Parent tenant ID",
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "description": "Public product title",
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "description": "Product category",
+          "maxLength": 60
+        },
+        "price": {
+          "type": "number",
+          "description": "Public selling price"
+        },
+        "image": {
+          "type": "string",
+          "description": "Product image URL",
+          "maxLength": 500
+        },
+        "availableOnline": {
+          "type": "boolean",
+          "description": "Online availability flag"
+        },
+        "inStock": {
+          "type": "boolean",
+          "description": "Boolean stock availability without leaking internal quantity"
+        },
+        "description": {
+          "type": "string",
+          "description": "Public description",
+          "maxLength": 400
+        }
+      },
+      "required": ["id", "tenantId", "name", "category", "price", "availableOnline", "inStock"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Unified omnichannel commercial order (POS, Waiter/Table, Storefront, Marketplace)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Order ID / Idempotency Key",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Tenant store ID",
+          "maxLength": 64
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Authenticated consumer UID",
+          "maxLength": 128
+        },
+        "staffUids": {
+          "type": "array",
+          "description": "Bounded list (<= 20) of store staff UIDs authorized for realtime reads"
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Human-readable order code",
+          "maxLength": 32
+        },
+        "type": {
+          "type": "string",
+          "description": "Order modality",
+          "enum": ["dine-in", "takeout", "delivery", "pos-counter"]
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Consumer name",
+          "maxLength": 100
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Consumer contact phone",
+          "maxLength": 32
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Authoritative catalog subtotal"
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Delivery fee"
+        },
+        "tax": {
+          "type": "number",
+          "description": "Service/tax amount"
+        },
+        "discount": {
+          "type": "number",
+          "description": "Authorized discount"
+        },
+        "total": {
+          "type": "number",
+          "description": "Grand total"
+        },
+        "status": {
+          "type": "string",
+          "description": "Canonical order workflow status",
+          "enum": [
+            "pending",
+            "preparing",
+            "ready",
+            "dispatched",
+            "completed",
+            "cancelled",
+            "delivered"
+          ]
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment tender",
+          "enum": ["cash", "card", "pix", "online"]
+        },
+        "paymentTransactionId": {
+          "type": "string",
+          "description": "Authoritative server payment transaction ID",
+          "maxLength": 64
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Verified payment settlement state",
+          "enum": ["pending", "pending_pix", "approved", "declined", "refunded"]
+        },
+        "driverId": {
+          "type": "string",
+          "description": "Assigned courier UID",
+          "maxLength": 128
+        },
+        "channel": {
+          "type": "string",
+          "description": "Origination channel",
+          "enum": [
+            "POS",
+            "Customer Storefront",
+            "Table QR",
+            "iFood",
+            "WhatsApp",
+            "Online Marketplace"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "Bounded list of ordered items"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id",
+        "tenantId",
+        "orderNumber",
+        "type",
+        "total",
+        "status",
+        "paymentMethod",
+        "createdAt"
+      ]
+    },
+    "Table": {
+      "title": "Table",
+      "description": "Physical table in a restaurant floor plan",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Table ID",
+          "maxLength": 64
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Tenant store ID",
+          "maxLength": 64
+        },
+        "staffUids": {
+          "type": "array",
+          "description": "Bounded list (<= 20) of authorized store staff UIDs"
+        },
+        "number": {
+          "type": "number",
+          "description": "Table number"
+        },
+        "capacity": {
+          "type": "number",
+          "description": "Seating capacity"
+        },
+        "status": {
+          "type": "string",
+          "description": "Table status",
+          "enum": ["available", "occupied", "billing", "reserved"]
+        },
+        "zone": {
+          "type": "string",
+          "description": "Table zone",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "tenantId", "number", "status"]
+    },
+    "FinancialRecord": {
+      "title": "FinancialRecord",
+      "description": "Authoritative financial ledger entry (sales, expenses, reversals)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Record ID (`fin-sale-*`, `fin-rev-*`, or `fin-*`)",
+          "maxLength": 64
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Tenant store ID",
+          "maxLength": 64
+        },
+        "type": {
+          "type": "string",
+          "description": "Transaction type",
+          "enum": ["income", "expense", "sale", "payout", "commission"]
+        },
+        "category": {
+          "type": "string",
+          "description": "Financial category",
+          "maxLength": 64
+        },
+        "amount": {
+          "type": "number",
+          "description": "Transaction amount"
+        },
+        "description": {
+          "type": "string",
+          "description": "Ledger memo",
+          "maxLength": 200
+        },
+        "referenceId": {
+          "type": "string",
+          "description": "Linked Order ID or cash operation reference",
+          "maxLength": 64
+        },
+        "date": {
+          "type": "string",
+          "description": "ISO date",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "tenantId", "type", "amount", "date"]
+    },
+    "DeliveryRoute": {
+      "title": "DeliveryRoute",
+      "description": "Delivery route batch managed by Store/HQ and executed by Drivers",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Route ID",
+          "maxLength": 64
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Associated tenant ID",
+          "maxLength": 64
+        },
+        "driverId": {
+          "type": "string",
+          "description": "Assigned driver UID",
+          "maxLength": 128
+        },
+        "staffUids": {
+          "type": "array",
+          "description": "Bounded list (<= 20) of store staff UIDs"
+        },
+        "status": {
+          "type": "string",
+          "description": "Route status",
+          "enum": ["available", "accepted", "at_store", "in_progress", "completed"]
+        },
+        "totalDistanceKm": {
+          "type": "number",
+          "description": "Total route distance"
+        },
+        "totalEstimatedEarnings": {
+          "type": "number",
+          "description": "Driver payout"
+        }
+      },
+      "required": ["id", "tenantId", "status", "totalDistanceKm"]
+    },
+    "Driver": {
+      "title": "Driver",
+      "description": "Delivery courier profile and telemetry",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Driver UID / ID",
+          "maxLength": 128
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Tenant or marketplace affiliation",
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "description": "Driver full name",
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Driver phone",
+          "maxLength": 32
+        },
+        "vehicleType": {
+          "type": "string",
+          "description": "Vehicle used",
+          "enum": ["moto", "bike", "car", "van"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Availability state",
+          "enum": ["available", "delivering", "offline"]
+        }
+      },
+      "required": ["id", "tenantId", "name", "vehicleType", "status"]
+    },
+    "HqSetting": {
+      "title": "HqSetting",
+      "description": "Private HQ Central global governance configuration (commission, maintenance, broadcast)",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": {
+          "type": "boolean",
+          "description": "Global maintenance lock"
+        },
+        "globalBroadcastMessage": {
+          "type": "string",
+          "description": "System broadcast message",
+          "maxLength": 500
+        },
+        "platformCommissionRate": {
+          "type": "number",
+          "description": "SaaS platform commission split"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO update timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["maintenanceMode", "platformCommissionRate", "updatedAt"]
+    },
+    "PublicRegional": {
+      "title": "PublicRegional",
+      "description": "Public Marketplace regional hero and discovery settings",
+      "type": "object",
+      "properties": {
+        "heroTitle": {
+          "type": "string",
+          "description": "Public marketplace headline",
+          "maxLength": 160
+        },
+        "activeRegionName": {
+          "type": "string",
+          "description": "Active commercial region",
+          "maxLength": 100
+        }
+      },
+      "required": ["heroTitle", "activeRegionName"]
+    },
+    "Plan": {
+      "title": "Plan",
+      "description": "SaaS subscription plan tier",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Plan tier ID",
+          "enum": ["Starter", "Professional", "Enterprise"]
+        },
+        "name": {
+          "type": "string",
+          "description": "Plan display name",
+          "maxLength": 80
+        },
+        "priceMonthly": {
+          "type": "number",
+          "description": "Monthly subscription price"
+        },
+        "maxDevices": {
+          "type": "number",
+          "description": "Maximum paired POS terminals"
+        }
+      },
+      "required": ["id", "name", "priceMonthly", "maxDevices"]
+    },
+    "Device": {
+      "title": "Device",
+      "description": "MDM paired POS or KDS hardware terminal",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Device ID",
+          "maxLength": 64
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Assigned tenant ID",
+          "maxLength": 64
+        },
+        "deviceName": {
+          "type": "string",
+          "description": "Terminal label",
+          "maxLength": 100
+        },
+        "serialNumber": {
+          "type": "string",
+          "description": "Hardware serial number",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "description": "MDM status",
+          "enum": ["online", "offline", "locked", "updating"]
+        }
+      },
+      "required": ["id", "tenantId", "deviceName", "serialNumber", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable HQ governance and security audit trail",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Audit log ID",
+          "maxLength": 64
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp",
+          "maxLength": 64
+        },
+        "user": {
+          "type": "string",
+          "description": "Actor identifier",
+          "maxLength": 128
+        },
+        "action": {
+          "type": "string",
+          "description": "Action summary",
+          "maxLength": 120
+        },
+        "severity": {
+          "type": "string",
+          "description": "Audit severity",
+          "enum": ["info", "warning", "critical"]
+        }
+      },
+      "required": ["id", "timestamp", "action", "severity"]
+    },
+    "Consumer": {
+      "title": "Consumer",
+      "description": "Marketplace consumer private profile",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Consumer UID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Consumer name",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Consumer email",
+          "maxLength": 128
+        },
+        "phone": {
+          "type": "string",
+          "description": "Consumer phone",
+          "maxLength": 32
+        }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "PaymentTransaction": {
+      "title": "PaymentTransaction",
+      "description": "Server-authoritative Universal Payment Proxy transaction record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Payment transaction ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Linked Order ID",
+          "maxLength": 64
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Associated tenant ID",
+          "maxLength": 64
+        },
+        "amount": {
+          "type": "number",
+          "description": "Gross payment amount"
+        },
+        "netAmount": {
+          "type": "number",
+          "description": "Net amount after gateway fees"
+        },
+        "method": {
+          "type": "string",
+          "description": "Payment gateway method",
+          "enum": ["pix", "credit_card", "debit_card", "cash", "voucher"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Authoritative transaction status",
+          "enum": ["approved", "pending_pix", "declined", "platform_escrow_hold"]
+        },
+        "environment": {
+          "type": "string",
+          "description": "Execution environment (sandbox until live PSP credentials configured)",
+          "enum": ["sandbox", "live"]
+        },
+        "createdByUid": {
+          "type": "string",
+          "description": "Initiating user UID",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "orderId", "tenantId", "amount", "method", "status", "environment", "createdByUid", "createdAt"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Restaurant table reservation, waitlist entry, or scheduled store appointment",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Reservation ID",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Target store tenant ID",
+          "maxLength": 64
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Optional authenticated consumer UID",
+          "maxLength": 128
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Guest full name",
+          "maxLength": 120
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Guest contact phone",
+          "maxLength": 32
+        },
+        "partySize": {
+          "type": "number",
+          "description": "Number of guests for the table"
+        },
+        "tableId": {
+          "type": "string",
+          "description": "Assigned floor table ID",
+          "maxLength": 64
+        },
+        "tableNumber": {
+          "type": "number",
+          "description": "Assigned floor table number"
+        },
+        "date": {
+          "type": "string",
+          "description": "Reservation date YYYY-MM-DD",
+          "maxLength": 16
+        },
+        "time": {
+          "type": "string",
+          "description": "Reservation time HH:mm",
+          "maxLength": 16
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle status of reservation",
+          "enum": ["pending", "confirmed", "seated", "completed", "cancelled", "no_show"]
+        },
+        "staffUids": {
+          "type": "array",
+          "description": "Authorized store staff UIDs for query-enforced reads"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "tenantId", "customerName", "date", "time", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Verified Super Admin registry for HQ Central"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Write-locked RBAC profile mapping UID to non-HQ role and tenantId"
+    },
+    "/tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Private enterprise configuration for Store OS and HQ"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Private ERP catalog with costPrice, supplier, and exact stock"
+    },
+    "/public_catalog/{productId}": {
+      "schema": "PublicProduct",
+      "description": "Sanitized public Marketplace product catalog"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Unified omnichannel commercial orders"
+    },
+    "/tables/{tableId}": {
+      "schema": "Table",
+      "description": "Restaurant floor tables scoped by tenantId and staffUids"
+    },
+    "/financials/{finId}": {
+      "schema": "FinancialRecord",
+      "description": "Authoritative tenant financial ledger"
+    },
+    "/delivery_routes/{routeId}": {
+      "schema": "DeliveryRoute",
+      "description": "Delivery route batches scoped by staffUids and driverId"
+    },
+    "/drivers/{driverId}": {
+      "schema": "Driver",
+      "description": "Courier profiles and GPS telemetry"
+    },
+    "/hq_settings/{settingId}": {
+      "schema": "HqSetting",
+      "description": "Private HQ Central global governance settings"
+    },
+    "/public_regional/{regionId}": {
+      "schema": "PublicRegional",
+      "description": "Public regional Marketplace hero & discovery metadata"
+    },
+    "/plans/{planId}": {
+      "schema": "Plan",
+      "description": "Public SaaS subscription tiers"
+    },
+    "/devices/{deviceId}": {
+      "schema": "Device",
+      "description": "MDM hardware fleet inventory"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable HQ governance audit trail"
+    },
+    "/consumers/{consumerId}": {
+      "schema": "Consumer",
+      "description": "PII-isolated Marketplace consumer profiles"
+    },
+    "/payment_transactions/{txId}": {
+      "schema": "PaymentTransaction",
+      "description": "Server-authoritative payment transactions managed by /api/payments"
+    },
+    "/reservations/{reservationId}": {
+      "schema": "Reservation",
+      "description": "Server-authoritative table reservations and store appointments scoped by tenantId, staffUids, and customerId"
+    }
+  }
+}

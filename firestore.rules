@@ -1,0 +1,380 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // 0. GLOBAL DEFAULT-DENY SAFETY NET
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // 1. HARDENED GLOBAL PRIMITIVES
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Bootstrapped Super Admins require `email_verified == true` (Defeats Email Spoofing)
+    // Wildcard domain checks (@3eatcru.com) are strictly forbidden.
+    function isBootstrappedAdmin() {
+      // PROD-SEC: Hardcoded emails removed. Use Custom Claims (role == 'hq_admin') or Admin Registry.
+      return isVerified() && request.auth.token.role == 'hq_admin';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerified() && (
+          request.auth.token.role == 'hq_admin' ||
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        )
+      );
+    }
+
+    function isStaffInArray(data) {
+      return isSignedIn() &&
+        'staffUids' in data &&
+        data.staffUids is list &&
+        data.staffUids.size() <= 20 &&
+        request.auth.uid in data.staffUids;
+    }
+
+    function isAssignedDriver(data) {
+      return isSignedIn() &&
+        'driverId' in data &&
+        data.driverId is string &&
+        data.driverId.size() > 0 &&
+        data.driverId.size() <= 128 &&
+        data.driverId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // 2. VALIDATION BLUEPRINTS (ANTI-UPDATE-GAP & STRICT SIZE BOUNDS)
+    // =========================================================================
+    function isValidAdminDoc(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'role', 'assignedBy', 'createdAt']) &&
+        data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() > 3 && data.email.size() <= 128 &&
+        data.role in ['hq_admin', 'super_admin'] &&
+        data.createdAt == request.time &&
+        (!('assignedBy' in data) || (data.assignedBy is string && data.assignedBy.size() <= 128));
+    }
+
+    function isValidHqSetting(data) {
+      return data.keys().hasAll(['maintenanceMode', 'platformCommissionRate', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'maintenanceMode',
+          'globalBroadcastMessage',
+          'platformCommissionRate',
+          'updatedAt'
+        ]) &&
+        data.maintenanceMode is bool &&
+        data.platformCommissionRate is number &&
+        data.platformCommissionRate >= 0 &&
+        data.platformCommissionRate <= 0.5 &&
+        data.updatedAt == request.time &&
+        (!('globalBroadcastMessage' in data) ||
+          data.globalBroadcastMessage == null ||
+          (data.globalBroadcastMessage is string && data.globalBroadcastMessage.size() <= 500));
+    }
+
+    function isValidConsumer(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'name', 'email', 'phone', 'address', 'updatedAt']) &&
+        data.id is string && data.id == request.auth.uid && data.id.size() <= 128 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 128 &&
+        data.updatedAt == request.time &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        (!('address' in data) || (data.address is string && data.address.size() <= 240));
+    }
+
+    function isValidDriverTelemetry(data) {
+      return data.keys().hasAll(['id', 'tenantId', 'name', 'vehicleType', 'status', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'id',
+          'tenantId',
+          'name',
+          'phone',
+          'vehicleType',
+          'licensePlate',
+          'status',
+          'activeDeliveriesCount',
+          'rating',
+          'completedTodayCount',
+          'driverType',
+          'complianceVerified',
+          'currentLocationName',
+          'batteryLevel',
+          'lat',
+          'lng',
+          'lastGpsPing',
+          'updatedAt'
+        ]) &&
+        data.id is string && data.id == request.auth.uid && data.id.size() <= 128 &&
+        data.tenantId is string && data.tenantId.size() >= 1 && data.tenantId.size() <= 64 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.vehicleType in ['moto', 'bike', 'car', 'van'] &&
+        data.status in ['available', 'delivering', 'offline'] &&
+        data.updatedAt == request.time &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        (!('licensePlate' in data) || (data.licensePlate is string && data.licensePlate.size() <= 16)) &&
+        (!('currentLocationName' in data) || (data.currentLocationName is string && data.currentLocationName.size() <= 120)) &&
+        (!('lastGpsPing' in data) || (data.lastGpsPing is string && data.lastGpsPing.size() <= 64)) &&
+        (!('lat' in data) || data.lat is number) &&
+        (!('lng' in data) || data.lng is number) &&
+        (!('batteryLevel' in data) || (data.batteryLevel is number && data.batteryLevel >= 0 && data.batteryLevel <= 100));
+    }
+
+    // =========================================================================
+    // 3. COLLECTION SECURITY GATES (ALL 17 BLUEPRINT COLLECTIONS)
+    // =========================================================================
+
+    // 3.1 Super Admin Registry
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isBootstrappedAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminDoc(incoming());
+      allow update: if isBootstrappedAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminDoc(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['role']);
+      allow delete: if isBootstrappedAdmin() && isValidId(adminId);
+    }
+
+    // 3.2 User RBAC Profiles — STRICTLY SERVER-CONTROLLED (Prevents Self-Escalation)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (
+        (isSignedIn() && request.auth.uid == userId) ||
+        isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.3 Private HQ Global Settings — NO PUBLIC READS
+    match /hq_settings/{settingId} {
+      allow get: if isValidId(settingId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(settingId) && isValidHqSetting(incoming());
+      allow update: if isAdmin() &&
+        isValidId(settingId) &&
+        isValidHqSetting(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'maintenanceMode',
+          'globalBroadcastMessage',
+          'platformCommissionRate',
+          'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // 3.4 Public Regional Marketplace Discovery Metadata (Non-sensitive banner config only)
+    match /public_regional/{regionId} {
+      allow get: if isValidId(regionId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    // 3.5 Public SaaS Subscription Plans
+    match /plans/{planId} {
+      allow get: if isValidId(planId);
+      allow list: if true;
+      allow create, update, delete: if false;
+    }
+
+    // 3.6 Private Tenant Enterprises (Contains CNPJ, contactEmail, staffUids, fee splits)
+    match /tenants/{tenantId} {
+      allow get: if isValidId(tenantId) && (
+        isStaffInArray(existing()) ||
+        (isSignedIn() && 'ownerUid' in existing() && existing().ownerUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if isStaffInArray(resource.data) || isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.7 Private ERP Products (Contains costPrice, wholesalePrice, supplierId, exact stock)
+    match /products/{productId} {
+      allow get: if isValidId(productId) && (
+        isAdmin() ||
+        (isSignedIn() &&
+          exists(/databases/$(database)/documents/tenants/$(existing().tenantId)) &&
+          request.auth.uid in get(/databases/$(database)/documents/tenants/$(existing().tenantId)).data.staffUids)
+      );
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.8 Sanitized Public Marketplace Catalog (Strictly enforces availableOnline == true)
+    match /public_catalog/{productId} {
+      allow get: if isValidId(productId) && existing().availableOnline == true;
+      allow list: if resource.data.availableOnline == true;
+      allow create, update, delete: if false;
+    }
+
+    // 3.9 Unified Omnichannel Orders (Mutated exclusively via Express CommerceEngine Transactions)
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && (
+        (isSignedIn() && 'customerId' in existing() && existing().customerId == request.auth.uid) ||
+        isAssignedDriver(existing()) ||
+        isStaffInArray(existing()) ||
+        isAdmin()
+      );
+      // Zero get()/exists() in list! Enforces query boundary on resource.data directly.
+      allow list: if isSignedIn() && (
+        ('customerId' in resource.data && resource.data.customerId == request.auth.uid) ||
+        isAssignedDriver(resource.data) ||
+        isStaffInArray(resource.data) ||
+        isAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+
+    // 3.10 Server-Authoritative Payment Transactions (Universal Payment Proxy)
+    match /payment_transactions/{txId} {
+      allow get: if isValidId(txId) && (
+        (isSignedIn() && 'createdByUid' in existing() && existing().createdByUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.11 Restaurant Floor Tables
+    match /tables/{tableId} {
+      allow get: if isValidId(tableId) && (isStaffInArray(existing()) || isAdmin());
+      allow list: if isSignedIn() && (isStaffInArray(resource.data) || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // 3.12 Authoritative Financial Ledger (Immutable to clients; managed via CommerceEngine & API)
+    match /financials/{finId} {
+      allow get: if isValidId(finId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.13 Delivery Routes (Logistics Engine — Strict Assignment & Tenant Staff Boundary)
+    match /delivery_routes/{routeId} {
+      allow get: if isValidId(routeId) && isSignedIn() && (
+        isAssignedDriver(existing()) ||
+        isStaffInArray(existing()) ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        isAssignedDriver(resource.data) ||
+        isStaffInArray(resource.data) ||
+        isAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+
+    // 3.14 Drivers Profile & Telemetry (PII Isolated to Self or HQ Admin)
+    match /drivers/{driverId} {
+      allow get: if isValidId(driverId) && (
+        (isSignedIn() && request.auth.uid == driverId) ||
+        isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create: if false;
+      allow update: if isVerified() &&
+        isValidId(driverId) &&
+        isValidDriverTelemetry(incoming()) && (
+          isAdmin() ||
+          (request.auth.uid == driverId &&
+            incoming().id == existing().id &&
+            incoming().tenantId == existing().tenantId &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status',
+              'currentLocationName',
+              'batteryLevel',
+              'lat',
+              'lng',
+              'lastGpsPing',
+              'updatedAt'
+            ]))
+        );
+      allow delete: if false;
+    }
+
+    // 3.15 MDM Hardware Devices
+    match /devices/{deviceId} {
+      allow get: if isValidId(deviceId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.16 Immutable HQ Governance Audit Logs
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // 3.17 PII-Isolated Consumer Accounts
+    match /consumers/{consumerId} {
+      allow get: if isValidId(consumerId) && (
+        (isSignedIn() && request.auth.uid == consumerId) ||
+        isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create: if isVerified() &&
+        isValidId(consumerId) &&
+        request.auth.uid == consumerId &&
+        isValidConsumer(incoming());
+      allow update: if isVerified() &&
+        isValidId(consumerId) &&
+        isValidConsumer(incoming()) && (
+          isAdmin() ||
+          (request.auth.uid == consumerId &&
+            incoming().id == existing().id &&
+            incoming().email == existing().email &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'name',
+              'phone',
+              'address',
+              'updatedAt'
+            ]))
+        );
+      allow delete: if isAdmin() && isValidId(consumerId);
+    }
+
+    // 3.18 Restaurant Table Reservations & Store Appointments (Server-Authoritative)
+    match /reservations/{reservationId} {
+      allow get: if isValidId(reservationId) && isSignedIn() && (
+        ('customerId' in existing() && existing().customerId == request.auth.uid) ||
+        isStaffInArray(existing()) ||
+        isAdmin()
+      );
+      // Zero get()/exists() in list! Evaluates resource.data directly.
+      allow list: if isSignedIn() && (
+        ('customerId' in resource.data && resource.data.customerId == request.auth.uid) ||
+        isStaffInArray(resource.data) ||
+        isAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+  }
+}

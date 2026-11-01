@@ -20,7 +20,7 @@ import { GoogleDriveService, GoogleDriveFile } from '../../core/google-drive/goo
             </div>
             <div>
               <h3 class="font-serif font-black text-white text-base">{{ title() }}</h3>
-              <p class="text-[11px] text-stone-400">Selecione uma imagem salva no Google Drive da sua loja</p>
+              <p class="text-[11px] text-stone-400">Conecte o Drive para arquivos reais; desconectado, o seletor usa dados locais</p>
             </div>
           </div>
 
@@ -55,11 +55,17 @@ import { GoogleDriveService, GoogleDriveFile } from '../../core/google-drive/goo
 
             <label class="bg-[#2b160b] hover:bg-[#3d200f] text-amber-300 border border-[#482814] px-3 py-1 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-all">
               <mat-icon class="text-sm">upload_file</mat-icon>
-              <span>Fazer Upload</span>
+              <span>{{ drive.isConnected() ? 'Enviar ao Drive' : 'Adicionar arquivo local' }}</span>
               <input type="file" accept="image/*" class="hidden" (change)="onUpload($event)">
             </label>
           </div>
         </div>
+
+        @if (drive.error()) {
+          <div class="mx-4 mt-3 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-[11px] text-amber-200">
+            {{ drive.error() }}
+          </div>
+        }
 
         <!-- File Grid -->
         <div class="flex-1 overflow-y-auto p-4 space-y-3">
@@ -162,8 +168,14 @@ export class GoogleDrivePickerModalComponent {
     const target = event.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
       const file = target.files[0];
-      const uploaded = await this.drive.uploadFile(file);
-      this.selectedFile.set(uploaded);
+      try {
+        const uploaded = await this.drive.uploadFile(file);
+        this.selectedFile.set(uploaded);
+      } catch {
+        // The service exposes the upload failure through its error signal.
+      } finally {
+        target.value = '';
+      }
     }
   }
 }

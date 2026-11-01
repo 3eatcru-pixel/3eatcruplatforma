@@ -39,7 +39,7 @@ import { Router } from '@angular/router';
               Ambiente Operacional Exclusivo para Computadores e Tablets
             </h2>
             <p class="text-xs text-stone-300 leading-relaxed">
-              O <strong>Store OS</strong> é a estação de trabalho comercial dos operadores e gerentes da loja (Frente de Caixa PDV, Comandas KDS, Estoque ERP, Salão de Mesas e Tesouraria).
+              O <strong>Store OS</strong> é a estação web de operação da loja. O PDV está conectado; outras janelas do catálogo podem aparecer como ainda não integradas.
             </p>
             <p class="text-[11px] text-stone-400 leading-relaxed">
               Para garantir máxima agilidade, velocidade no leitor e controle das comandas, a interface completa foi desenhada exclusivamente para telas a partir de <strong>768px</strong>.
@@ -68,7 +68,7 @@ import { Router } from '@angular/router';
         <div class="bg-[#140a04] border border-[#381c0c] rounded-2xl p-4 space-y-3">
           <div class="flex items-center gap-2 text-amber-400 font-mono text-[10px] font-bold uppercase tracking-wider">
             <mat-icon class="text-xs">smartphone</mat-icon>
-            <span>Apps Móveis Otimizados para Celular</span>
+            <span>Rotas web auxiliares para celular</span>
           </div>
           <div class="grid grid-cols-2 gap-2 text-xs">
             <button
@@ -90,14 +90,14 @@ import { Router } from '@angular/router';
                 <mat-icon class="text-sm">two_wheeler</mat-icon>
                 <span>App Entregas</span>
               </div>
-              <p class="text-[10px] text-stone-400 leading-tight">Rotas com GPS e prova de entrega.</p>
+              <p class="text-[10px] text-stone-400 leading-tight">Rotas e baixa; prévia do mapa só na simulação.</p>
             </button>
           </div>
         </div>
 
         <div class="p-3.5 rounded-xl bg-black/40 border border-[#381c0c] text-[11px] text-stone-400 flex items-start gap-2.5">
           <mat-icon class="text-amber-500 text-sm shrink-0 mt-0.5">info</mat-icon>
-          <span>Para abrir o PDV, KDS e Frente de Caixa, acesse este mesmo link no navegador do computador ou tablet da sua loja.</span>
+          <span>Para abrir o PDV, acesse este link em uma tela de computador ou tablet. Os demais módulos do catálogo informam seu estado de integração ao serem abertos.</span>
         </div>
 
       </div>

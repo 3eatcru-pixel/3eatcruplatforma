@@ -18,14 +18,13 @@ import { MatIconModule } from '@angular/material/icon';
           </div>
           <div>
             <h2 class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>&#64;3eatcru.oficial</span>
-              <mat-icon class="text-blue-400 text-xs">verified</mat-icon>
+              <span>Instagram • Protótipo local</span>
             </h2>
-            <p class="text-[10px] text-stone-400">Instagram Business Direct & Promoções Sociais.</p>
+            <p class="text-[10px] text-stone-400">Publicações de exemplo; não consulta nem publica no Instagram.</p>
           </div>
         </div>
 
-        <span class="text-xs font-bold text-stone-300">14.8k Seguidores</span>
+        <span class="text-[10px] font-bold text-amber-300">Dados demonstrativos</span>
       </div>
 
       <!-- FEED POSTS PREVIEW -->

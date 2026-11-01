@@ -1,7 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { InventoryService } from '../../services/inventory.service';
 
 interface AuditItem {
   id: string;
@@ -26,19 +25,26 @@ interface AuditItem {
             <mat-icon class="text-xl">fact_check</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Inventário Cego • Auditoria de Estoque</h2>
-            <p class="text-[10px] text-stone-400">Contagem física de itens com coletor de dados para apuração de quebras.</p>
+            <h2 class="text-sm font-serif font-black text-white">Inventário Cego • Protótipo</h2>
+            <p class="text-[10px] text-stone-400">Contagem demonstrativa; esta janela não está integrada e não altera saldos de estoque.</p>
           </div>
         </div>
 
         <button
           type="button"
           (click)="finalizeAudit()"
-          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5">
+          [disabled]="auditFinalized()"
+          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <mat-icon class="text-sm">verified</mat-icon>
-          <span>Concluir Auditoria</span>
+          <span>{{ auditFinalized() ? 'Demonstração concluída' : 'Concluir demonstração' }}</span>
         </button>
       </div>
+
+      @if (auditFinalized()) {
+        <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">
+          Demonstração encerrada localmente. Nenhuma contagem ou ajuste foi gravado.
+        </div>
+      }
 
       <!-- LISTA DE ITENS AUDITADOS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar border border-[#381c0c] rounded-2xl bg-[#180b04]">
@@ -84,7 +90,7 @@ interface AuditItem {
   `
 })
 export class EAppStockAuditWindow {
-  readonly inventory = inject(InventoryService);
+  readonly auditFinalized = signal(false);
 
   readonly auditItems = signal<AuditItem[]>([
     { id: '1', name: 'Refrigerante Coca-Cola 350ml', sku: 'SKU-0012', systemStock: 48, countedStock: 48 },
@@ -106,6 +112,6 @@ export class EAppStockAuditWindow {
   }
 
   finalizeAudit() {
-    alert('Auditoria concluída com sucesso! Ajustes de inventário homologados.');
+    this.auditFinalized.set(true);
   }
 }

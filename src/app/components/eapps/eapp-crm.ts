@@ -18,17 +18,17 @@ import { CrmService } from '../../services/crm.service';
             <mat-icon class="text-xl">loyalty</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Fidelidade & CRM de Clientes</h2>
-            <p class="text-[10px] text-stone-400">Pontuação, cashback e relacionamento com clientes da loja.</p>
+            <h2 class="text-sm font-serif font-black text-white">Fidelidade & CRM • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Clientes e pontos são dados de demonstração em memória; nada é enviado à API.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="addMockCustomer()"
+          (click)="addDemoCustomer()"
           class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1">
           <mat-icon class="text-sm">person_add</mat-icon>
-          <span>Novo Cliente</span>
+          <span>Adicionar exemplo</span>
         </button>
       </div>
 
@@ -67,7 +67,7 @@ import { CrmService } from '../../services/crm.service';
                     type="button"
                     (click)="addPoints(c.id, 50)"
                     class="px-2 py-1 bg-[#261207] hover:bg-[#381c0c] text-emerald-400 rounded-lg text-[10px] font-bold border border-[#482814] cursor-pointer">
-                    +50 pts
+                    +50 pts teste
                   </button>
                 </td>
               </tr>
@@ -82,15 +82,15 @@ import { CrmService } from '../../services/crm.service';
 export class EAppCrmWindow {
   readonly crm = inject(CrmService);
 
-  addMockCustomer() {
+  addDemoCustomer() {
     this.crm.customers.update(cur => [
       ...cur,
       {
         id: 'cust-' + Date.now(),
         name: 'Cliente Fidelidade #' + (cur.length + 1),
         email: 'cliente@exemplo.com',
-        phone: '(11) 9' + Math.floor(Math.random() * 90000000 + 10000000),
-        cpf: '123.456.789-00',
+        phone: 'Número de exemplo',
+        cpf: '',
         loyaltyPoints: 100,
         totalSpent: 250.00
       }

@@ -23,6 +23,40 @@ O registro contém 33 IDs. No desktop, apenas o PDV possui uma rota operacional 
 
 As telas /waiter, /driver, /hq e as vitrines públicas são rotas próprias, não janelas do Store OS. A existência dessas rotas não altera o estado dos IDs homônimos no desktop.
 
+### Componentes de protótipo fora do desktop
+
+Estes arquivos existem no repositório, mas não estão importados nem renderizados por `client-os.ts`; os IDs continuam abrindo placeholder no Store OS.
+
+| Arquivo | Limite verificado |
+|---|---|
+| `eapp-kds.ts` | Protótipo de fila que altera pedidos apenas até `ready`; não finaliza pedidos nem liquida pagamentos. No modo simulado, a notificação identifica a alteração como local. |
+| `eapp-tables.ts` | Protótipo de mesas; recusa liberar reserva, conta solicitada ou mesa com valor em aberto. |
+| `eapp-store-manager.ts` | Formulário protótipo; o desktop não abre a janela. O componente chama a API de tenant no modo real e altera apenas estado local no modo simulado. |
+| `eapp-ifood.ts` | Demonstração com pedidos estáticos e estado local; não possui API, webhook ou despacho conectado. |
+| `eapp-services.ts` | Demonstração de O.S. em signal local; não envia ordens de exemplo à API. |
+| `eapp-crm.ts` | Altera apenas o signal local `customers`; não carrega nem grava clientes e pontos na API de CRM. |
+| `eapp-inventory.ts` | Componente fora do desktop; o cadastro chama o serviço de produtos, mas não há ajuste de saldo sem movimento auditável. |
+| `eapp-stock-audit.ts` | Contagem demonstrativa em memória; concluir não grava contagem nem aplica ajuste. |
+| `eapp-google-drive.ts` | Lista arquivos de exemplo; o botão de backup fica desabilitado e não chama o serviço de Drive. |
+| `GoogleDriveService` e seletor compartilhado | OAuth só marca conexão ativa após obter token e carregar arquivos. Sem token, a lista e uploads são locais/demonstrativos; não estão conectados ao desktop do lojista. |
+| `eapp-whatsapp.ts` | Contatos e mensagens locais de demonstração; não envia mensagens externas. |
+| `eapp-instagram.ts` | Publicações e métricas estáticas; não consulta nem publica na rede social. |
+| `eapp-reports.ts` | Resume pedidos pagos carregados do tenant ativo; distribuição de canais não é calculada nem conciliada. |
+| `eapp-reconciliation.ts` | Sem importação de extratos; não calcula taxas, liquidação ou divergências. |
+| `eapp-docs.ts` | Manual embutido com limites operacionais alinhados ao fluxo offline documentado; não é uma janela de suporte integrada. |
+| `eapp-reservations.ts` | Reservas de exemplo e transição local para acomodado; não chama o serviço de reservas. |
+| `eapp-suppliers.ts` | Lista de fornecedores demonstrativa em memória; não mantém cadastro nem gera compras. |
+| `eapp-drivers.ts` | Entregadores demonstrativos; não chama logística, despacha rotas ou consulta GPS. |
+| `eapp-rh.ts` | Colaboradores de exemplo; não chama a API nem persiste dados pessoais. |
+| `eapp-notes.ts` | Notas locais de demonstração; não envia dados ao serviço de notas. |
+| `eapp-admin-hub.ts` | Mostra dados da sessão/unidade; não monitora terminais nem executa MDM. |
+| `eapp-settings.ts` | Perfil e papel de parede são preferências locais; a seção de hardware informa dispositivos não configurados. |
+| `eapp-tasks.ts` | Checklist demonstrativo; marcações não persistem nem são atribuídas a operadores. |
+| `eapp-calendar.ts` | Eventos estáticos de exemplo; não consulta agenda nem reservas. |
+| `eapp-system.ts` | Resumo estático da aplicação, sem diagnóstico do dispositivo ou verificação de conexão. |
+| `eapp-finance.ts` | Resumo visual dos lançamentos carregados do tenant ativo; não é janela integrada de DRE nem de conciliação. |
+| `eapp-order-history.ts` | Lista apenas pedidos carregados do tenant ativo; não consulta histórico completo nem está integrada ao desktop. |
+
 ## Módulos de negócio existentes fora das janelas
 
 | Domínio | Serviços/rotas encontrados | Situação da interface desktop |

@@ -1,7 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { EcosystemService } from '../../services/ecosystem.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,8 +17,8 @@ import { EcosystemService } from '../../services/ecosystem.service';
             iF
           </div>
           <div>
-            <h2 class="text-sm font-sans font-black text-white">Portal iFood • Integração Gestor</h2>
-            <p class="text-[10px] text-stone-400">Cardápio sincronizado, despachos e pedidos de delivery.</p>
+            <h2 class="text-sm font-sans font-black text-white">iFood • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Pedidos estáticos de demonstração; API, webhook e despacho não estão conectados.</p>
           </div>
         </div>
 
@@ -29,15 +28,15 @@ import { EcosystemService } from '../../services/ecosystem.service';
           [class]="isOpen() ? 'bg-emerald-600 text-white' : 'bg-rose-900 text-rose-300'"
           class="px-3 py-1.5 rounded-xl font-bold text-xs uppercase cursor-pointer border border-white/10 flex items-center gap-1.5 shadow">
           <span class="w-2 h-2 rounded-full" [class]="isOpen() ? 'bg-emerald-300 animate-pulse' : 'bg-rose-400'"></span>
-          <span>{{ isOpen() ? 'Loja Aberta' : 'Loja Fechada' }}</span>
+          <span>{{ isOpen() ? 'Demonstração aberta' : 'Demonstração fechada' }}</span>
         </button>
       </div>
 
       <!-- PEDIDOS IFOOD ATIVOS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-3">
         <div class="flex justify-between items-center text-xs">
-          <h3 class="font-bold text-stone-300 uppercase">Pedidos Recebidos via iFood API</h3>
-          <span class="text-stone-500 text-[10px]">Webhook: Ativo (Polling 5s)</span>
+          <h3 class="font-bold text-stone-300 uppercase">Pedidos demonstrativos</h3>
+          <span class="text-stone-500 text-[10px]">Sem API ou webhook</span>
         </div>
 
         <div class="space-y-2">
@@ -66,7 +65,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
                   </button>
                 } @else {
                   <span class="px-2.5 py-1 bg-emerald-950 text-emerald-400 font-bold text-[10px] uppercase rounded-xl border border-emerald-800">
-                    Em Produção KDS
+                    Confirmado localmente
                   </span>
                 }
               </div>
@@ -79,13 +78,11 @@ import { EcosystemService } from '../../services/ecosystem.service';
   `
 })
 export class EAppIfoodWindow {
-  readonly ecosystem = inject(EcosystemService);
-
   readonly isOpen = signal<boolean>(true);
 
   readonly ifoodOrders = signal([
-    { id: 'if-1', code: 'iF-8921', customer: 'Fernanda Lima', itemsSummary: '2x Smash Burger + 1x Batata Frita', total: 68.00, eta: '25-35 min', status: 'aguardando' },
-    { id: 'if-2', code: 'iF-8922', customer: 'Guilherme Santos', itemsSummary: '1x Pizza Calabresa Grande + 1x Guaraná 2L', total: 79.90, eta: '40-50 min', status: 'confirmado' }
+    { id: 'if-1', code: 'DEMO-01', customer: 'Cliente de demonstração 1', itemsSummary: '2x Hambúrguer de exemplo + 1x acompanhamento', total: 68.00, eta: 'Previsão fictícia', status: 'aguardando' },
+    { id: 'if-2', code: 'DEMO-02', customer: 'Cliente de demonstração 2', itemsSummary: '1x Pizza de exemplo + 1x bebida', total: 79.90, eta: 'Previsão fictícia', status: 'confirmado' }
   ]);
 
   toggleStoreOpen() {
@@ -94,6 +91,5 @@ export class EAppIfoodWindow {
 
   confirmOrder(id: string) {
     this.ifoodOrders.update(ords => ords.map(o => o.id === id ? { ...o, status: 'confirmado' } : o));
-    this.ecosystem.notify('Pedido iFood aceito e despachado para a Cozinha KDS!', 'success');
   }
 }

@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { AppointmentsService } from '../../services/appointments.service';
+import { Appointment } from '../../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,23 +18,23 @@ import { AppointmentsService } from '../../services/appointments.service';
             <mat-icon class="text-xl">event_seat</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Reservas de Mesa & Fila de Espera</h2>
-            <p class="text-[10px] text-stone-400">Controle de reservas online e fila presencial da recepção.</p>
+            <h2 class="text-sm font-serif font-black text-white">Reservas • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Dados de exemplo em memória; não cria reservas no servidor.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="addMockReservation()"
+          (click)="addDemoReservation()"
           class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1">
           <mat-icon class="text-sm">add</mat-icon>
-          <span>Nova Reserva</span>
+          <span>Adicionar exemplo</span>
         </button>
       </div>
 
       <!-- LISTA DE RESERVAS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2">
-        @for (res of appointments.appointments(); track res.id) {
+        @for (res of demoAppointments(); track res.id) {
           <div class="bg-[#1c0d06] border border-[#381c0c] hover:border-amber-600/60 p-3 rounded-2xl flex flex-wrap items-center justify-between gap-3 transition-all">
             <div class="space-y-0.5">
               <div class="flex items-center gap-2">
@@ -58,7 +58,7 @@ import { AppointmentsService } from '../../services/appointments.service';
                 {{ res.status }}
               </span>
 
-              @if (res.status !== 'seated') {
+              @if (res.status === 'confirmed' || res.status === 'pending') {
                 <button
                   type="button"
                   (click)="seatGuest(res.id)"
@@ -75,21 +75,26 @@ import { AppointmentsService } from '../../services/appointments.service';
   `
 })
 export class EAppReservationsWindow {
-  readonly appointments = inject(AppointmentsService);
+  readonly demoAppointments = signal<Appointment[]>([]);
 
-  addMockReservation() {
-    this.appointments.addAppointment({
-      customerName: 'Família Souza',
-      customerPhone: '(11) 98877-6655',
+  addDemoReservation() {
+    const number = this.demoAppointments().length + 1;
+    this.demoAppointments.update((appointments) => [...appointments, {
+      id: `demo-res-${number}`,
+      customerName: `Cliente de demonstração ${number}`,
+      customerPhone: 'Número de exemplo',
       date: new Date().toISOString().slice(0, 10),
       partySize: 4,
       time: '20:30',
-      tableNumber: 5,
-      status: 'confirmed'
-    });
+      status: 'pending'
+    }]);
   }
 
   seatGuest(id: string) {
-    this.appointments.updateStatus(id, 'seated');
+    this.demoAppointments.update((appointments) => appointments.map((appointment) =>
+      appointment.id === id && (appointment.status === 'pending' || appointment.status === 'confirmed')
+        ? { ...appointment, status: 'seated' }
+        : appointment
+    ));
   }
 }

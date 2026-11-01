@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { HrService } from '../../services/hr.service';
+import { Employee } from '../../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,17 +18,17 @@ import { HrService } from '../../services/hr.service';
             <mat-icon class="text-xl">badge</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">RH & Gestão de Pessoal</h2>
-            <p class="text-[10px] text-stone-400">Quadro de colaboradores, turnos e escala de trabalho.</p>
+            <h2 class="text-sm font-serif font-black text-white">RH • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Colaboradores de exemplo em memória; não grava dados pessoais ou contratuais.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="addMockEmployee()"
+          (click)="addDemoEmployee()"
           class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1">
           <mat-icon class="text-sm">add</mat-icon>
-          <span>Novo Colaborador</span>
+          <span>Adicionar exemplo</span>
         </button>
       </div>
 
@@ -44,7 +44,7 @@ import { HrService } from '../../services/hr.service';
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
-            @for (emp of hr.employees(); track emp.id) {
+            @for (emp of demoEmployees(); track emp.id) {
               <tr class="hover:bg-[#200e05]/60 transition-colors">
                 <td class="p-3 font-bold text-white">
                   {{ emp.name }}
@@ -70,14 +70,21 @@ import { HrService } from '../../services/hr.service';
   `
 })
 export class EAppRhWindow {
-  readonly hr = inject(HrService);
+  readonly demoEmployees = signal<Employee[]>([]);
 
-  addMockEmployee() {
-    this.hr.addEmployee({
-      name: 'Colaborador #' + (this.hr.employees().length + 1),
+  addDemoEmployee() {
+    const number = this.demoEmployees().length + 1;
+    this.demoEmployees.update((employees) => [...employees, {
+      id: `demo-employee-${number}`,
+      tenantId: 'demo',
+      name: `Colaborador de demonstração ${number}`,
       role: 'atendente',
+      cpf: '',
+      phone: 'Contato de exemplo',
+      salary: 0,
+      status: 'active',
       shift: 'noite',
-      status: 'active'
-    });
+      hireDate: new Date().toISOString().slice(0, 10)
+    }]);
   }
 }

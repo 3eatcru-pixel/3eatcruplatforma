@@ -21,7 +21,7 @@ import { TableInfo } from '../../models/ecosystem.model';
           </div>
           <div>
             <h2 class="text-sm font-serif font-black text-white">Mapa de Mesas & Salão</h2>
-            <p class="text-[10px] text-stone-400">Controle em tempo real de ocupação e comandas volantes.</p>
+            <p class="text-[10px] text-stone-400">Protótipo de gestão de mesas; esta janela ainda não está conectada ao Store OS.</p>
           </div>
         </div>
 
@@ -43,7 +43,7 @@ import { TableInfo } from '../../models/ecosystem.model';
 
       <!-- FILTRO DE ZONAS -->
       <div class="flex items-center gap-2 shrink-0 overflow-x-auto pb-1">
-        @for (zone of zones; track zone) {
+        @for (zone of zones(); track zone) {
           <button
             type="button"
             (click)="selectedZone.set(zone)"
@@ -56,6 +56,12 @@ import { TableInfo } from '../../models/ecosystem.model';
 
       <!-- GRID DE MESAS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        @if (filteredTables().length === 0) {
+          <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-stone-500">
+            <mat-icon class="text-4xl">table_restaurant</mat-icon>
+            <p class="text-sm font-bold">Nenhuma mesa nesta área</p>
+          </div>
+        } @else {
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           @for (table of filteredTables(); track table.id) {
             <button
@@ -81,11 +87,11 @@ import { TableInfo } from '../../models/ecosystem.model';
                   {{ table.server ? 'Garçom: ' + table.server : (table.zone || 'Salão') }}
                 </div>
                 <div class="text-[10px] text-stone-400">
-                  Capacidade: {{ table.guests || table.capacity }} lug.
+                  Capacidade: {{ table.capacity }} lug.
                 </div>
-                @if (table.currentTotal) {
+                @if ((table.currentTotal || 0) > 0) {
                   <strong class="text-xs text-amber-400 block pt-1">
-                    R$ {{ table.currentTotal.toFixed(2) }}
+                    R$ {{ table.currentTotal!.toFixed(2) }}
                   </strong>
                 }
               </div>
@@ -93,6 +99,7 @@ import { TableInfo } from '../../models/ecosystem.model';
             </button>
           }
         </div>
+        }
       </div>
 
       <!-- DETALHE DA MESA SELECIONADA (MODAL / PAINEL) -->
@@ -106,6 +113,9 @@ import { TableInfo } from '../../models/ecosystem.model';
             <p class="text-[11px] text-stone-400 mt-0.5">
               Status: <span class="uppercase font-bold text-white">{{ statusLabel(t.status) }}</span> • Garçom: {{ t.server || 'Nenhum' }}
             </p>
+            @if ((t.currentTotal || 0) > 0) {
+              <p class="text-[10px] text-amber-300 mt-1">Valor em aberto: R$ {{ t.currentTotal!.toFixed(2) }}. Quite o valor antes de liberar a mesa.</p>
+            }
           </div>
 
           <div class="flex items-center gap-2">
@@ -113,20 +123,27 @@ import { TableInfo } from '../../models/ecosystem.model';
               <button
                 type="button"
                 (click)="occupyTable(t.id)"
-                class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow">
-                Abrir Mesa
+                [disabled]="updatingTableId() === t.id"
+                class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                {{ updatingTableId() === t.id ? 'Salvando…' : 'Abrir Mesa' }}
               </button>
-            } @else {
+            } @else if (t.status === 'occupied') {
               <button
                 type="button"
                 (click)="freeTable(t.id)"
-                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl cursor-pointer shadow">
-                Liberar Mesa
+                [disabled]="updatingTableId() === t.id || (t.currentTotal || 0) > 0"
+                [title]="(t.currentTotal || 0) > 0 ? 'Há valor em aberto nesta mesa' : 'Encerrar a ocupação da mesa'"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl cursor-pointer shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                {{ updatingTableId() === t.id ? 'Salvando…' : 'Liberar Mesa' }}
               </button>
+            } @else {
+              <span class="px-3 py-2 text-[10px] text-stone-400 font-bold uppercase">
+                {{ t.status === 'reserved' ? 'Reserva ativa' : 'Conta solicitada' }}
+              </span>
             }
             <button
               type="button"
-              (click)="selectedTable.set(null)"
+              (click)="selectedTableId.set(null)"
               class="px-3 py-2 bg-[#2a1307] text-stone-400 hover:text-white rounded-xl text-xs cursor-pointer">
               Fechar Detalhes
             </button>
@@ -142,11 +159,16 @@ export class EAppTablesWindow {
   readonly ecosystem = inject(EcosystemService);
 
   readonly selectedZone = signal<string>('Todas');
-  readonly selectedTable = signal<TableInfo | null>(null);
-
-  readonly zones = ['Todas', 'Salão Principal', 'Varanda', 'Deck Superior', 'Bar'];
-
+  readonly selectedTableId = signal<string | null>(null);
+  readonly updatingTableId = signal<string | null>(null);
   readonly tables = computed(() => this.ecosystem.tables());
+  readonly selectedTable = computed(() =>
+    this.tables().find((table) => table.id === this.selectedTableId()) || null
+  );
+  readonly zones = computed(() => [
+    'Todas',
+    ...new Set(this.tables().map((table) => table.zone || 'Salão'))
+  ]);
 
   readonly availableCount = computed(() => this.tables().filter(t => t.status === 'available').length);
   readonly occupiedCount = computed(() => this.tables().filter(t => t.status === 'occupied').length);
@@ -154,22 +176,63 @@ export class EAppTablesWindow {
 
   readonly filteredTables = computed(() => {
     const z = this.selectedZone();
-    if (z === 'Todas') return this.tables();
-    return this.tables().filter(t => t.zone === z);
+    if (z === 'Todas' || !this.zones().includes(z)) return this.tables();
+    return this.tables().filter((table) => (table.zone || 'Salão') === z);
   });
 
   selectTable(t: TableInfo) {
-    this.selectedTable.set(t);
+    this.selectedTableId.set(t.id);
   }
 
-  occupyTable(tableId: string) {
-    this.ecosystem.updateTable(tableId, { status: 'occupied', guests: 2, server: 'Garçom 01' });
-    this.selectedTable.update(t => t ? { ...t, status: 'occupied' } : null);
+  async occupyTable(tableId: string) {
+    if (this.updatingTableId()) return;
+    const table = this.tables().find((item) => item.id === tableId);
+    if (!table || table.status !== 'available') return;
+
+    this.updatingTableId.set(tableId);
+    try {
+      await this.tablesService.updateTable(tableId, {
+        status: 'occupied',
+        guests: Math.min(2, Math.max(1, table.capacity || 2)),
+        server: this.ecosystem.currentSession()?.name || 'Operador'
+      });
+      this.ecosystem.notify(
+        `Mesa ${table.number} aberta.`,
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível abrir a mesa.', 'error');
+    } finally {
+      this.updatingTableId.set(null);
+    }
   }
 
-  freeTable(tableId: string) {
-    this.ecosystem.updateTable(tableId, { status: 'available', currentTotal: 0 });
-    this.selectedTable.update(t => t ? { ...t, status: 'available' } : null);
+  async freeTable(tableId: string) {
+    if (this.updatingTableId()) return;
+    const table = this.tables().find((item) => item.id === tableId);
+    if (!table || table.status !== 'occupied') return;
+    if ((table.currentTotal || 0) > 0) {
+      this.ecosystem.notify('Quite o valor em aberto antes de liberar a mesa.', 'warning');
+      return;
+    }
+
+    this.updatingTableId.set(tableId);
+    try {
+      await this.tablesService.updateTable(tableId, {
+        status: 'available',
+        currentTotal: 0,
+        guests: 0,
+        server: ''
+      });
+      this.ecosystem.notify(
+        `Mesa ${table.number} liberada.`,
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível liberar a mesa.', 'error');
+    } finally {
+      this.updatingTableId.set(null);
+    }
   }
 
   statusLabel(status: string) {
@@ -177,7 +240,7 @@ export class EAppTablesWindow {
       case 'available': return 'Livre';
       case 'occupied': return 'Ocupada';
       case 'reserved': return 'Reservada';
-      case 'billing': return 'Fechando';
+      case 'billing': return 'Conta solicitada';
       default: return status;
     }
   }

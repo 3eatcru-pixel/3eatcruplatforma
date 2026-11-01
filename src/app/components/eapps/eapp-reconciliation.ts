@@ -17,34 +17,34 @@ import { MatIconModule } from '@angular/material/icon';
             <mat-icon class="text-xl">swap_horiz</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Reconciliação Financeira & Adquirentes</h2>
-            <p class="text-[10px] text-stone-400">Batimento de extrato de cartões (TEF/POS), taxas e liquidação PIX.</p>
+            <h2 class="text-sm font-serif font-black text-white">Reconciliação • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Sem conexão com banco, adquirentes, TEF ou extratos de liquidação.</p>
           </div>
         </div>
 
         <span class="px-2.5 py-1 rounded-xl bg-emerald-950 text-emerald-300 text-xs font-bold border border-emerald-800">
-          Status: 100% Conciliado
+          Sem dados conciliados
         </span>
       </div>
 
       <!-- CARDS DE ADQUIRENTES -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0 text-xs">
         <div class="bg-[#1b0d06] border border-[#381c0c] p-3 rounded-2xl">
-          <span class="text-stone-500 text-[10px] uppercase block">PIX Direto / Banco Central</span>
-          <strong class="text-emerald-400 block mt-0.5 text-base">R$ 4.280,00</strong>
-          <span class="text-[10px] text-stone-400">Taxa Média: 0.8% • D+0 Imediato</span>
+          <span class="text-stone-500 text-[10px] uppercase block">PIX (exemplo)</span>
+          <strong class="text-stone-300 block mt-0.5 text-base">—</strong>
+          <span class="text-[10px] text-stone-400">Extrato PIX não importado</span>
         </div>
 
         <div class="bg-[#1b0d06] border border-[#381c0c] p-3 rounded-2xl">
-          <span class="text-stone-500 text-[10px] uppercase block">Cartões Crédito / Débito (TEF)</span>
-          <strong class="text-amber-400 block mt-0.5 text-base">R$ 8.940,50</strong>
-          <span class="text-[10px] text-stone-400">Taxa Média: 2.1% • Antecipação Ativa</span>
+          <span class="text-stone-500 text-[10px] uppercase block">Cartões (exemplo)</span>
+          <strong class="text-stone-300 block mt-0.5 text-base">—</strong>
+          <span class="text-[10px] text-stone-400">Adquirente não conectada</span>
         </div>
 
         <div class="bg-[#1b0d06] border border-[#381c0c] p-3 rounded-2xl">
           <span class="text-stone-500 text-[10px] uppercase block">Divergências Encontradas</span>
-          <strong class="text-white block mt-0.5 text-base">R$ 0,00</strong>
-          <span class="text-[10px] text-emerald-400 font-bold">Sem estornos pendentes</span>
+          <strong class="text-stone-300 block mt-0.5 text-base">—</strong>
+          <span class="text-[10px] text-stone-400">Divergências não calculadas</span>
         </div>
       </div>
 
@@ -62,6 +62,11 @@ import { MatIconModule } from '@angular/material/icon';
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
+            @if (transactions.length === 0) {
+              <tr>
+                <td colspan="6" class="p-8 text-center text-stone-500">Nenhum extrato importado; esta interface não consulta transações reais.</td>
+              </tr>
+            } @else {
             @for (tx of transactions; track tx.nsu) {
               <tr class="hover:bg-[#200e05]/60 transition-colors">
                 <td class="p-3 font-bold text-white">
@@ -86,6 +91,7 @@ import { MatIconModule } from '@angular/material/icon';
                 </td>
               </tr>
             }
+            }
           </tbody>
         </table>
       </div>
@@ -94,10 +100,11 @@ import { MatIconModule } from '@angular/material/icon';
   `
 })
 export class EAppReconciliationWindow {
-  readonly transactions = [
-    { nsu: 'NSU-9840192', acquirer: 'Rede / Itaú', method: 'Crédito à Vista', gross: 145.00, fee: 3.19 },
-    { nsu: 'NSU-9840193', acquirer: 'Banco Central', method: 'PIX Dinâmico', gross: 88.50, fee: 0.70 },
-    { nsu: 'NSU-9840194', acquirer: 'Stone Pagamentos', method: 'Débito Chip', gross: 210.00, fee: 2.52 },
-    { nsu: 'NSU-9840195', acquirer: 'Cielo TEF', method: 'Crédito 2x', gross: 320.00, fee: 9.60 }
-  ];
+  readonly transactions: {
+    nsu: string;
+    acquirer: string;
+    method: string;
+    gross: number;
+    fee: number;
+  }[] = [];
 }

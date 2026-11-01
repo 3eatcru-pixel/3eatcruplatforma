@@ -19,8 +19,8 @@ import { EcosystemService } from '../../services/ecosystem.service';
             <mat-icon class="text-xl">account_balance_wallet</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Livro-Razão & Caixa Financeiro</h2>
-            <p class="text-[10px] text-stone-400">Entradas, saídas de caixa, despesas e DRE consolidado.</p>
+            <h2 class="text-sm font-serif font-black text-white">Financeiro • Protótipo fora do desktop</h2>
+            <p class="text-[10px] text-stone-400">Resumo de lançamentos carregados; não gera DRE nem conciliação nesta janela.</p>
           </div>
         </div>
 
@@ -98,7 +98,11 @@ export class EAppFinanceWindow {
   readonly financialsService = inject(FinancialsService);
   readonly ecosystem = inject(EcosystemService);
 
-  readonly records = computed(() => this.financialsService.records());
+  readonly records = computed(() => {
+    const tenantId = this.ecosystem.currentTenantId();
+    if (!tenantId) return [];
+    return this.financialsService.records().filter((record) => record.tenantId === tenantId);
+  });
 
   readonly totalIncome = computed(() =>
     this.records().filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0)

@@ -20,7 +20,7 @@ import { OrderTransaction } from '../../models/ecosystem.model';
           </div>
           <div>
             <h2 class="text-sm font-serif font-black text-white">KDS • Tela da Cozinha</h2>
-            <p class="text-[10px] text-stone-400">Linha de produção gastronômica e cadência de 3 tempos.</p>
+            <p class="text-[10px] text-stone-400">Protótipo de fila; esta janela ainda não está conectada ao Store OS.</p>
           </div>
         </div>
 
@@ -62,8 +62,8 @@ import { OrderTransaction } from '../../models/ecosystem.model';
         @if (filteredOrders().length === 0) {
           <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-stone-600">
             <mat-icon class="text-5xl text-stone-700">check_circle_outline</mat-icon>
-            <p class="text-sm font-bold text-stone-400">Cozinha em Dia!</p>
-            <p class="text-xs text-stone-600">Nenhum pedido aguardando preparo no momento.</p>
+            <p class="text-sm font-bold text-stone-400">Nenhum pedido ativo</p>
+            <p class="text-xs text-stone-600">A fila está vazia ou ainda não foi carregada.</p>
           </div>
         } @else {
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -113,7 +113,7 @@ import { OrderTransaction } from '../../models/ecosystem.model';
                 <!-- CONTROLE DE ETAPAS -->
                 <div class="border-t border-[#381c0c] pt-2 flex items-center justify-between gap-2">
                   <span class="text-[10px] text-stone-500 font-mono">
-                    {{ order.createdAt.slice(11, 16) }}
+                    {{ formatOrderTime(order.createdAt) }}
                   </span>
 
                   <div class="flex items-center gap-1">
@@ -121,23 +121,20 @@ import { OrderTransaction } from '../../models/ecosystem.model';
                       <button
                         type="button"
                         (click)="advanceStatus(order, 'preparing')"
-                        class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs rounded-xl cursor-pointer">
-                        Iniciar Preparo
+                        [disabled]="isUpdating(order.id)"
+                        class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        {{ isUpdating(order.id) ? 'Salvando…' : 'Iniciar Preparo' }}
                       </button>
                     } @else if (order.status === 'preparing') {
                       <button
                         type="button"
                         (click)="advanceStatus(order, 'ready')"
-                        class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl cursor-pointer">
-                        Marcar Pronto
+                        [disabled]="isUpdating(order.id)"
+                        class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        {{ isUpdating(order.id) ? 'Salvando…' : 'Marcar Pronto' }}
                       </button>
                     } @else if (order.status === 'ready') {
-                      <button
-                        type="button"
-                        (click)="advanceStatus(order, 'completed')"
-                        class="px-3 py-1 bg-stone-700 hover:bg-stone-600 text-stone-200 font-bold text-xs rounded-xl cursor-pointer">
-                        Concluir Entrega
-                      </button>
+                      <span class="px-2 py-1 text-[10px] text-emerald-300 font-bold">Pronto para atendimento</span>
                     }
                   </div>
                 </div>
@@ -154,20 +151,54 @@ import { OrderTransaction } from '../../models/ecosystem.model';
 export class EAppKdsWindow {
   readonly ecosystem = inject(EcosystemService);
 
-  readonly selectedStatus = signal<string>('all');
+  readonly selectedStatus = signal<'all' | 'pending' | 'preparing' | 'ready'>('all');
+  private readonly updatingOrderIds = signal<ReadonlySet<string>>(new Set());
 
   readonly activeOrders = computed(() => {
-    return this.ecosystem.orders().filter(o => o.status !== 'cancelled');
+    const tenantId = this.ecosystem.currentTenantId();
+    return this.ecosystem.orders().filter((order) =>
+      (!tenantId || order.tenantId === tenantId) &&
+      (order.status === 'pending' || order.status === 'preparing' || order.status === 'ready')
+    );
   });
 
   readonly filteredOrders = computed(() => {
     const s = this.selectedStatus();
-    if (s === 'all') return this.activeOrders().filter(o => o.status !== 'completed');
+    if (s === 'all') return this.activeOrders();
     return this.activeOrders().filter(o => o.status === s);
   });
 
-  advanceStatus(order: OrderTransaction, nextStatus: OrderTransaction['status']) {
-    this.ecosystem.updateOrderStatus(order.id, nextStatus);
+  isUpdating(orderId: string): boolean {
+    return this.updatingOrderIds().has(orderId);
+  }
+
+  formatOrderTime(createdAt: string): string {
+    const date = new Date(createdAt);
+    return Number.isNaN(date.getTime())
+      ? '--:--'
+      : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  async advanceStatus(order: OrderTransaction, nextStatus: 'preparing' | 'ready') {
+    if (this.isUpdating(order.id)) return;
+    this.updatingOrderIds.update((ids) => new Set(ids).add(order.id));
+    try {
+      await this.ecosystem.updateOrderStatus(order.id, nextStatus);
+      this.ecosystem.notify(
+        this.ecosystem.isSimulationMode()
+          ? `Pedido ${order.orderNumber || order.id} atualizado para ${nextStatus === 'preparing' ? 'em preparo' : 'pronto'} somente na simulação.`
+          : `Pedido ${order.orderNumber || order.id} atualizado para ${nextStatus === 'preparing' ? 'em preparo' : 'pronto'}.`,
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível atualizar o pedido. Confira o acesso e tente novamente.', 'error');
+    } finally {
+      this.updatingOrderIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(order.id);
+        return next;
+      });
+    }
   }
 
   ticketBorderClass(status: string) {

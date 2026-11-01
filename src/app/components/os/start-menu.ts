@@ -173,7 +173,7 @@ export interface AppDefinition {
           type="button" 
           (click)="appSelected.emit({id: 'finance', title: 'Financeiro & Caixa', icon: 'account_balance_wallet'})"
           class="text-[10px] text-amber-400 hover:underline font-bold flex items-center gap-1 cursor-pointer">
-          Ver DRE <mat-icon class="text-xs">arrow_forward</mat-icon>
+          Financeiro (janela não integrada) <mat-icon class="text-xs">arrow_forward</mat-icon>
         </button>
       </div>
 
@@ -293,13 +293,24 @@ export class StartMenuComponent {
 
   todayRevenue = computed(() => {
     const orders: OrderTransaction[] = this.ecosystem.orders();
-    return orders.reduce((sum: number, o: OrderTransaction) => sum + (o.total || 0), 0);
+    const tenantId = this.ecosystem.currentTenantId();
+    if (!tenantId) return 0;
+    const today = new Date().toDateString();
+    return orders
+      .filter((order) => {
+        const createdAt = new Date(order.createdAt);
+        const isToday = !Number.isNaN(createdAt.getTime()) && createdAt.toDateString() === today;
+        const isSettled = order.status === 'completed' &&
+          (order.paymentStatus === 'approved' || order.isSimulated || order.mode === 'simulation');
+        return order.tenantId === tenantId && isToday && isSettled;
+      })
+      .reduce((sum: number, order: OrderTransaction) => sum + (order.total || 0), 0);
   });
 
   readonly allApps: AppDefinition[] = [
     { id: 'pos', title: 'eApp PDV Caixa', icon: 'point_of_sale', category: 'vendas', badge: 'HOT', color: 'from-amber-500 via-orange-600 to-amber-700' },
     { id: 'tables', title: 'eApp Mesas & Salão', icon: 'table_restaurant', category: 'vendas', color: 'from-amber-600 to-amber-800' },
-    { id: 'kds', title: 'eApp KDS Cozinha', icon: 'soup_kitchen', category: 'vendas', badge: 'LIVE', color: 'from-emerald-600 to-emerald-800' },
+    { id: 'kds', title: 'eApp KDS Cozinha', icon: 'soup_kitchen', category: 'vendas', color: 'from-emerald-600 to-emerald-800' },
     { id: 'inventory', title: 'eApp Estoque ERP', icon: 'inventory_2', category: 'gestao', color: 'from-amber-500 to-amber-700' },
     { id: 'finance', title: 'eApp Caixa & DRE', icon: 'account_balance_wallet', category: 'gestao', color: 'from-emerald-500 to-teal-700' },
     { id: 'store-manager', title: 'eApp Minha Loja', icon: 'storefront', category: 'vendas', color: 'from-amber-400 via-orange-500 to-amber-600' },
@@ -312,15 +323,15 @@ export class StartMenuComponent {
     { id: 'crm', title: 'eApp Fidelidade CRM', icon: 'loyalty', category: 'vendas', color: 'from-indigo-400 to-indigo-600' },
     { id: 'services', title: 'eApp Serviços & OS', icon: 'handyman', category: 'gestao', color: 'from-amber-600 to-amber-800' },
     { id: 'tasks', title: 'eApp Tarefas OS', icon: 'task_alt', category: 'sistema', color: 'from-rose-600 to-rose-800' },
-    { id: 'calendar', title: 'eApp Calendário OS', icon: 'calendar_month', category: 'sistema', badge: 'NEW', color: 'from-amber-500 to-orange-600' },
-    { id: 'agenda', title: 'eApp Reservas & Fila', icon: 'event_seat', category: 'vendas', badge: 'LIVE', color: 'from-amber-500 to-orange-600' },
-    { id: 'suppliers', title: 'eApp Fornecedores', icon: 'local_shipping', category: 'gestao', badge: 'NEW', color: 'from-amber-600 via-orange-600 to-amber-800' },
-    { id: 'reconciliation', title: 'eApp Reconciliação', icon: 'swap_horiz', category: 'gestao', badge: 'NEW', color: 'from-emerald-600 to-teal-800' },
-    { id: 'stock-audit', title: 'eApp Inventário Cego', icon: 'fact_check', category: 'gestao', badge: 'NEW', color: 'from-amber-500 to-orange-700' },
+    { id: 'calendar', title: 'eApp Calendário OS', icon: 'calendar_month', category: 'sistema', color: 'from-amber-500 to-orange-600' },
+    { id: 'agenda', title: 'eApp Reservas & Fila', icon: 'event_seat', category: 'vendas', color: 'from-amber-500 to-orange-600' },
+    { id: 'suppliers', title: 'eApp Fornecedores', icon: 'local_shipping', category: 'gestao', color: 'from-amber-600 via-orange-600 to-amber-800' },
+    { id: 'reconciliation', title: 'eApp Reconciliação', icon: 'swap_horiz', category: 'gestao', color: 'from-emerald-600 to-teal-800' },
+    { id: 'stock-audit', title: 'eApp Inventário Cego', icon: 'fact_check', category: 'gestao', color: 'from-amber-500 to-orange-700' },
     { id: 'calculator', title: 'eApp Calculadora', icon: 'calculate', category: 'sistema', color: 'from-stone-600 to-stone-800' },
     { id: 'notes', title: 'eApp Notas & Memos', icon: 'description', category: 'sistema', color: 'from-amber-400 to-amber-600' },
     { id: 'docs', title: 'eApp Manual 3EAT', icon: 'menu_book', category: 'sistema', color: 'from-amber-500 to-amber-700' },
-    { id: 'google-drive', title: 'eApp Google Drive', icon: 'cloud_queue', category: 'sistema', badge: 'CLOUD', color: 'from-amber-500 via-emerald-600 to-blue-600' },
+    { id: 'google-drive', title: 'eApp Google Drive', icon: 'cloud_queue', category: 'sistema', color: 'from-amber-500 via-emerald-600 to-blue-600' },
     { id: 'settings', title: 'eApp Painel Controle', icon: 'settings', category: 'sistema', color: 'from-stone-700 to-stone-900' },
     { id: 'system', title: 'eApp Este Computador', icon: 'folder', category: 'sistema', color: 'from-amber-700 to-amber-900' },
     { id: 'admin-hub', title: 'eApp Diretoria Loja', icon: 'admin_panel_settings', category: 'gestao', color: 'from-rose-600 via-amber-600 to-amber-800' },

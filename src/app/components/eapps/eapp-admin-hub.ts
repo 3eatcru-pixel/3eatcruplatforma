@@ -19,13 +19,13 @@ import { SecurityService } from '../../services/security.service';
             <mat-icon class="text-xl">admin_panel_settings</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Diretoria da Loja • Gabinete Local</h2>
-            <p class="text-[10px] text-stone-400">Painel de governança interna da unidade para o proprietário parceiro.</p>
+            <h2 class="text-sm font-serif font-black text-white">Diretoria da Loja • Protótipo</h2>
+            <p class="text-[10px] text-stone-400">Resumo da unidade; esta janela não está integrada a terminais ou MDM.</p>
           </div>
         </div>
 
         <span class="text-xs text-amber-400 font-bold bg-amber-950 px-2.5 py-1 rounded-xl border border-amber-800">
-          Unidade Ativa
+          Dados da unidade
         </span>
       </div>
 
@@ -33,20 +33,20 @@ import { SecurityService } from '../../services/security.service';
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0 text-xs">
         <div class="bg-[#1b0d06] border border-[#381c0c] p-3 rounded-2xl">
           <span class="text-stone-500 text-[10px] uppercase block">CNPJ / Razão Social:</span>
-          <strong class="text-white block mt-0.5 truncate">{{ tenant().cnpj || '00.000.000/0001-00' }}</strong>
+          <strong class="text-white block mt-0.5 truncate">{{ tenant().cnpj || 'CNPJ não informado' }}</strong>
           <span class="text-[10px] text-amber-500 truncate block">{{ tenant().name }}</span>
         </div>
 
         <div class="bg-[#1b0d06] border border-[#381c0c] p-3 rounded-2xl">
           <span class="text-stone-500 text-[10px] uppercase block">Plano Contratado:</span>
-          <strong class="text-emerald-400 block mt-0.5 uppercase">{{ tenant().plan || 'Enterprise' }}</strong>
-          <span class="text-[10px] text-stone-400">Terminais Conectados: 3</span>
+          <strong class="text-emerald-400 block mt-0.5 uppercase">{{ tenant().plan || 'Plano não informado' }}</strong>
+          <span class="text-[10px] text-stone-400">Estado dos terminais não monitorado</span>
         </div>
 
         <div class="bg-[#1b0d06] border border-[#381c0c] p-3 rounded-2xl">
           <span class="text-stone-500 text-[10px] uppercase block">Responsável Titular:</span>
-          <strong class="text-white block mt-0.5 truncate">{{ security.currentSession()?.name || 'Proprietário' }}</strong>
-          <span class="text-[10px] text-stone-400">{{ security.currentSession()?.email || 'admin@loja.com' }}</span>
+          <strong class="text-white block mt-0.5 truncate">{{ security.currentSession()?.name || 'Não informado' }}</strong>
+          <span class="text-[10px] text-stone-400">{{ security.currentSession()?.email || 'E-mail não informado' }}</span>
         </div>
       </div>
 
@@ -54,37 +54,37 @@ import { SecurityService } from '../../services/security.service';
       <div class="flex-1 min-h-0 bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 overflow-y-auto custom-scrollbar space-y-3">
         <h3 class="text-xs font-bold text-white uppercase flex items-center gap-2">
           <mat-icon class="text-amber-500 text-sm">devices</mat-icon>
-          Terminais Autorizados Nesta Filial
+          Dispositivos da unidade (exemplos não monitorados)
         </h3>
 
         <div class="space-y-2 text-xs">
           <div class="bg-[#200e05] p-3 rounded-xl border border-[#381c0c] flex justify-between items-center">
             <div>
-              <strong class="text-white block">Caixa 01 - Balcão Principal</strong>
-              <span class="text-[10px] text-stone-400">Terminal Touch 15" • IP 192.168.1.50</span>
+              <strong class="text-white block">Terminal de demonstração 1</strong>
+              <span class="text-[10px] text-stone-400">Modelo e endereço de rede não verificados</span>
             </div>
-            <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 text-[10px] rounded font-bold border border-emerald-800">
-              Operando
+            <span class="px-2 py-0.5 bg-stone-800 text-stone-300 text-[10px] rounded font-bold border border-stone-700">
+              Não verificado
             </span>
           </div>
 
           <div class="bg-[#200e05] p-3 rounded-xl border border-[#381c0c] flex justify-between items-center">
             <div>
-              <strong class="text-white block">Monitor KDS 01 - Cozinha</strong>
-              <span class="text-[10px] text-stone-400">Smart Display 24" • IP 192.168.1.51</span>
+              <strong class="text-white block">Terminal de demonstração 2</strong>
+              <span class="text-[10px] text-stone-400">Modelo e endereço de rede não verificados</span>
             </div>
-            <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 text-[10px] rounded font-bold border border-emerald-800">
-              Operando
+            <span class="px-2 py-0.5 bg-stone-800 text-stone-300 text-[10px] rounded font-bold border border-stone-700">
+              Não verificado
             </span>
           </div>
 
           <div class="bg-[#200e05] p-3 rounded-xl border border-[#381c0c] flex justify-between items-center">
             <div>
-              <strong class="text-white block">Comanda Volante 01 - Salão</strong>
-              <span class="text-[10px] text-stone-400">Smartphone Android 14 Garçom</span>
+              <strong class="text-white block">Terminal de demonstração 3</strong>
+              <span class="text-[10px] text-stone-400">Dispositivo não monitorado</span>
             </div>
-            <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 text-[10px] rounded font-bold border border-emerald-800">
-              Pareado
+            <span class="px-2 py-0.5 bg-stone-800 text-stone-300 text-[10px] rounded font-bold border border-stone-700">
+              Não verificado
             </span>
           </div>
         </div>

@@ -17,17 +17,17 @@ import { MatIconModule } from '@angular/material/icon';
             <mat-icon class="text-xl">local_shipping</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Fornecedores & Gestão de Compras</h2>
-            <p class="text-[10px] text-stone-400">Distribuidores parceiros, cotações e reposição de insumos.</p>
+            <h2 class="text-sm font-serif font-black text-white">Fornecedores • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Lista de exemplo em memória; não cadastra fornecedores nem gera compras.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="addMockSupplier()"
+          (click)="addDemoSupplier()"
           class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1">
           <mat-icon class="text-sm">add</mat-icon>
-          <span>Novo Fornecedor</span>
+          <span>Adicionar exemplo</span>
         </button>
       </div>
 
@@ -71,22 +71,21 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class EAppSuppliersWindow {
   readonly suppliers = signal([
-    { id: '1', name: 'Distribuidora Central de Carnes Nobres', category: 'Frigorífico / Carnes', contact: 'Rodrigo Vendas', phone: '(11) 3222-1100', leadTime: '24 a 48h' },
-    { id: '2', name: 'Laticínios & Queijos do Vale', category: 'Queijos e Laticínios', contact: 'Ana Lúcia', phone: '(11) 3333-2211', leadTime: '24h' },
-    { id: '3', name: 'Bebidas & Cervejas Paulistana', category: 'Bebidas & Chopp', contact: 'Marcos Chopp', phone: '(11) 3444-3322', leadTime: 'Imediato (12h)' },
-    { id: '4', name: 'Embalagens Ecológicas Kraft S/A', category: 'Descartáveis / Caixas', contact: 'Patrícia', phone: '(11) 3555-4433', leadTime: '3 dias úteis' }
+    { id: 'demo-1', name: 'Fornecedor de demonstração 1', category: 'Exemplo de categoria', contact: 'Contato de exemplo', phone: 'Número de exemplo', leadTime: 'Prazo demonstrativo' },
+    { id: 'demo-2', name: 'Fornecedor de demonstração 2', category: 'Exemplo de categoria', contact: 'Contato de exemplo', phone: 'Número de exemplo', leadTime: 'Prazo demonstrativo' },
+    { id: 'demo-3', name: 'Fornecedor de demonstração 3', category: 'Exemplo de categoria', contact: 'Contato de exemplo', phone: 'Número de exemplo', leadTime: 'Prazo demonstrativo' }
   ]);
 
-  addMockSupplier() {
+  addDemoSupplier() {
     this.suppliers.update(sups => [
       ...sups,
       {
         id: 'sup-' + Date.now(),
-        name: 'Fornecedor Parceiro #' + (sups.length + 1),
-        category: 'Insumos Diversos',
-        contact: 'Representante Comercial',
-        phone: '(11) 3888-9900',
-        leadTime: '48h'
+        name: 'Fornecedor de demonstração ' + (sups.length + 1),
+        category: 'Exemplo de categoria',
+        contact: 'Contato de exemplo',
+        phone: 'Número de exemplo',
+        leadTime: 'Prazo demonstrativo'
       }
     ]);
   }

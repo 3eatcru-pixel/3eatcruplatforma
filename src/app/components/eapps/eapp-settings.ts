@@ -19,7 +19,7 @@ import { OperationalSegmentProfileId } from '../../models/ecosystem.model';
         </div>
         <div>
           <h2 class="text-sm font-serif font-black text-white">Configurações & Painel de Controle</h2>
-          <p class="text-[10px] text-stone-400">Personalização de tema, perfil de segmento e hardware.</p>
+          <p class="text-[10px] text-stone-400">Personalização local do tema e perfil; hardware não pode ser configurado aqui.</p>
         </div>
       </div>
 
@@ -86,27 +86,27 @@ import { OperationalSegmentProfileId } from '../../models/ecosystem.model';
         <div class="bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 space-y-3">
           <div class="flex items-center gap-2">
             <mat-icon class="text-amber-500 text-base">print</mat-icon>
-            <h3 class="text-xs font-bold text-white uppercase">Impressora Térmica & Balança</h3>
+          <h3 class="text-xs font-bold text-white uppercase">Hardware & Periféricos</h3>
           </div>
 
           <div class="space-y-2 text-xs text-stone-300">
             <div class="flex justify-between items-center bg-[#200e05] p-2.5 rounded-xl border border-[#381c0c]">
               <div>
-                <strong class="text-white block">Driver ESC/POS Térmica 80mm</strong>
-                <span class="text-[10px] text-stone-400">Porta USB / Serial COM3</span>
+                <strong class="text-white block">Impressora térmica</strong>
+                <span class="text-[10px] text-stone-400">Nenhum dispositivo configurado</span>
               </div>
-              <span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-bold">
-                Conectado
+              <span class="px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-700 text-[10px] font-bold">
+                Não configurada
               </span>
             </div>
 
             <div class="flex justify-between items-center bg-[#200e05] p-2.5 rounded-xl border border-[#381c0c]">
               <div>
-                <strong class="text-white block">Balança Filizola / Toledo</strong>
-                <span class="text-[10px] text-stone-400">Protocolo Contínuo 9600 baud</span>
+                <strong class="text-white block">Balança</strong>
+                <span class="text-[10px] text-stone-400">Nenhum dispositivo configurado</span>
               </div>
-              <span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-bold">
-                Conectado
+              <span class="px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-700 text-[10px] font-bold">
+                Não configurada
               </span>
             </div>
           </div>

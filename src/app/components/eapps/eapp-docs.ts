@@ -35,27 +35,28 @@ import { MatIconModule } from '@angular/material/icon';
           @case ('overview') {
             <h2 class="text-lg font-serif font-black text-amber-400">Visão Geral dos 3 Ambientes</h2>
             <p class="text-xs text-stone-300 leading-relaxed">
-              A plataforma 3EATCRU é composta por:
+              A plataforma 3EATCRU possui superfícies com estados diferentes de integração:
             </p>
             <ul class="text-xs text-stone-400 space-y-2 list-disc list-inside">
               <li><strong>HQ Central:</strong> Governança SaaS do dono da plataforma (planos, comissões, MDM).</li>
-              <li><strong>Store OS:</strong> Estação operacional do lojista (PDV Caixa, Salão, KDS, Estoque e DRE).</li>
+              <li><strong>Store OS:</strong> Desktop da unidade, com PDV em rota própria; vários outros IDs ainda exibem placeholder.</li>
               <li><strong>Marketplace Público:</strong> Experiência de compra do consumidor final e QR na Mesa.</li>
             </ul>
           }
           @case ('pos') {
             <h2 class="text-lg font-serif font-black text-amber-400">Guia de Frente de Caixa (PDV)</h2>
             <p class="text-xs text-stone-300 leading-relaxed">
-              O PDV opera em modo online e offline com contingência automática em IndexedDB.
-              Ao escanear códigos de barras (EAN-13), o cupom fiscal acumula os itens em tempo real.
-              Para pesagens a granel, acione o botão "Balança".
+              O PDV tem um fluxo offline limitado para vendas em dinheiro. Cartão e PIX exigem conexão;
+              consulte a fila de sincronização para confirmar pedidos pendentes. A impressão disponível
+              gera um comprovante não fiscal.
             </p>
           }
           @case ('offline') {
             <h2 class="text-lg font-serif font-black text-amber-400">Resiliência Offline & Outbox</h2>
             <p class="text-xs text-stone-300 leading-relaxed">
-              Em caso de queda de conexão, as vendas são gravadas localmente com chaves de idempotência (UUID v4)
-              e sincronizadas automaticamente assim que a conectividade com a nuvem for restabelecida.
+              Apenas os fluxos suportados são enfileirados. O PDV pode manter vendas em dinheiro pendentes
+              com chave de idempotência e reenviá-las após a reconexão; conclusão e baixa de estoque dependem
+              da revalidação no servidor. Isso não confirma liquidação ou persistência financeira.
             </p>
           }
           @default {

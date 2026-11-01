@@ -1,7 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { GoogleDriveService } from '../../core/google-drive/google-drive.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,18 +17,18 @@ import { GoogleDriveService } from '../../core/google-drive/google-drive.service
             <mat-icon class="text-xl">cloud_queue</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Google Drive • Backup na Nuvem</h2>
-            <p class="text-[10px] text-stone-400">Armazenamento seguro de XMLs fiscais, relatórios DRE e contratos.</p>
+            <h2 class="text-sm font-serif font-black text-white">Google Drive • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Arquivos de exemplo; esta janela não consulta o Drive nem realiza backup.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="syncBackup()"
-          [disabled]="isSyncing()"
-          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5 disabled:opacity-50">
-          <mat-icon class="text-sm" [class.animate-spin]="isSyncing()">sync</mat-icon>
-          <span>{{ isSyncing() ? 'Sincronizando...' : 'Fazer Backup Agora' }}</span>
+          disabled
+          title="Backup não integrado"
+          class="px-4 py-2 bg-stone-700 text-stone-300 font-black text-xs uppercase rounded-xl cursor-not-allowed shadow flex items-center gap-1.5 opacity-60">
+          <mat-icon class="text-sm">cloud_off</mat-icon>
+          <span>Backup indisponível</span>
         </button>
       </div>
 
@@ -41,7 +40,7 @@ import { GoogleDriveService } from '../../core/google-drive/google-drive.service
               <th class="p-3">Arquivo / Documento</th>
               <th class="p-3">Tipo</th>
               <th class="p-3">Tamanho</th>
-              <th class="p-3">Última Sincronização</th>
+              <th class="p-3">Origem</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
@@ -58,7 +57,7 @@ import { GoogleDriveService } from '../../core/google-drive/google-drive.service
                   {{ file.size }}
                 </td>
                 <td class="p-3 text-stone-400 text-[11px]">
-                  {{ file.updated }}
+                  Demonstração
                 </td>
               </tr>
             }
@@ -70,20 +69,10 @@ import { GoogleDriveService } from '../../core/google-drive/google-drive.service
   `
 })
 export class EAppGoogleDriveWindow {
-  readonly driveService = inject(GoogleDriveService);
-  readonly isSyncing = signal<boolean>(false);
-
   readonly driveFiles = [
-    { name: 'XML_NFe_Consolidado_Outubro_2026.zip', type: 'Arquivo Fiscal XML', size: '2.4 MB', updated: 'Hoje às 04:00' },
-    { name: 'DRE_Balancete_Mensal_Outubro.pdf', type: 'Relatório Contábil', size: '480 KB', updated: 'Ontem às 23:30' },
-    { name: 'Inventario_Estoque_Auditoria_V7.xlsx', type: 'Planilha de Auditoria', size: '1.1 MB', updated: 'Ontem às 21:15' },
-    { name: 'Backup_IndexedDB_Outbox_Local.json', type: 'Contingência Offline', size: '820 KB', updated: 'Hoje às 06:00' }
+    { name: 'DEMO_XML_Fiscal.zip', type: 'Exemplo de arquivo fiscal', size: '2.4 MB' },
+    { name: 'DEMO_Relatorio_Mensal.pdf', type: 'Exemplo de relatório', size: '480 KB' },
+    { name: 'DEMO_Inventario.xlsx', type: 'Exemplo de planilha', size: '1.1 MB' },
+    { name: 'DEMO_Fila_Offline.json', type: 'Exemplo de arquivo local', size: '820 KB' }
   ];
-
-  syncBackup() {
-    this.isSyncing.set(true);
-    setTimeout(() => {
-      this.isSyncing.set(false);
-    }, 1200);
-  }
 }

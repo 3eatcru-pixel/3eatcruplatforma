@@ -86,8 +86,8 @@ import { OSWindow } from '../../models/os.model';
               <div class="font-bold text-[11px] text-amber-200 truncate max-w-[120px]">
                 {{ currentTenant()?.name }}
               </div>
-              <div class="text-[9px] text-emerald-400 font-bold flex items-center justify-end gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
+              <div class="text-[9px] text-amber-400 font-bold flex items-center justify-end gap-1">
+                Unidade ativa
               </div>
             </div>
             <div class="w-7 h-7 rounded-lg bg-amber-600/30 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
@@ -125,10 +125,10 @@ import { OSWindow } from '../../models/os.model';
         <button
           type="button"
           (click)="toggleSystemTray()"
+          title="Informações do Terminal"
           class="flex items-center gap-1 bg-[#2a160b] hover:bg-[#381e0e] border border-[#4d2813] px-2 py-1 rounded-xl text-stone-300 cursor-pointer shadow-sm">
-          <mat-icon class="text-sm" [class.text-emerald-400]="isOnline()">wifi</mat-icon>
-          <mat-icon class="text-sm text-emerald-400">print</mat-icon>
-          <mat-icon class="text-sm text-amber-400">notifications</mat-icon>
+          <mat-icon class="text-sm text-amber-400">info</mat-icon>
+          <span class="text-[9px] font-bold">Estado do terminal</span>
         </button>
 
         <!-- SYSTEM TRAY BACKDROP DISMISSER -->
@@ -145,30 +145,30 @@ import { OSWindow } from '../../models/os.model';
         @if (showSystemTray()) {
           <div class="absolute bottom-14 right-16 bg-[#180b04]/98 border-2 border-[#4d2813] rounded-3xl p-4 w-72 shadow-2xl z-[500] space-y-3 text-stone-200 backdrop-blur-xl animate-in slide-in-from-bottom-3">
             <div class="text-[10px] font-mono uppercase font-bold text-amber-500 border-b border-[#3d200f] pb-2 flex justify-between items-center">
-              <span>Central de Controle do SO</span>
+              <span>Informações do Terminal</span>
               <button type="button" (click)="closeSystemTray()" class="text-stone-400 hover:text-white cursor-pointer">✕</button>
             </div>
 
             <div class="space-y-2 text-xs">
               <div class="flex items-center justify-between bg-[#2a160b] p-2 rounded-xl border border-[#4d2813]">
-                <span class="flex items-center gap-2 font-bold"><mat-icon class="text-sm text-emerald-400">wifi</mat-icon> Conexão de Rede:</span>
-                <span class="text-emerald-400 font-mono font-bold text-[10px]">100 Mbps (Fibra)</span>
+                <span class="flex items-center gap-2 font-bold"><mat-icon class="text-sm text-stone-400">wifi</mat-icon> Conexão de Rede:</span>
+                <span class="text-stone-300 font-mono font-bold text-[10px]">Não monitorada</span>
               </div>
 
               <div class="flex items-center justify-between bg-[#2a160b] p-2 rounded-xl border border-[#4d2813]">
-                <span class="flex items-center gap-2 font-bold"><mat-icon class="text-sm text-amber-400">volume_up</mat-icon> Som do Alerta KDS:</span>
-                <span class="text-amber-300 font-mono text-[10px]">80%</span>
+                <span class="flex items-center gap-2 font-bold"><mat-icon class="text-sm text-stone-400">soup_kitchen</mat-icon> Alertas KDS:</span>
+                <span class="text-stone-300 font-mono text-[10px]">Não integrado</span>
               </div>
 
               <div class="flex items-center justify-between bg-[#2a160b] p-2 rounded-xl border border-[#4d2813]">
-                <span class="flex items-center gap-2 font-bold"><mat-icon class="text-sm text-cyan-400">print</mat-icon> Impressora Térmica:</span>
-                <span class="text-emerald-400 font-mono text-[10px]">Bematech MP-4200</span>
+                <span class="flex items-center gap-2 font-bold"><mat-icon class="text-sm text-stone-400">print</mat-icon> Impressora Térmica:</span>
+                <span class="text-stone-300 font-mono text-[10px]">Não configurada</span>
               </div>
             </div>
 
             <div class="pt-2 border-t border-[#3d200f] flex justify-between items-center text-[10px] text-stone-400">
-              <span>Servidor Local: <strong class="text-amber-400">0.0.0.0:3000</strong></span>
-              <span class="text-emerald-400 font-bold">100% OK</span>
+              <span>Conectividade da API</span>
+              <span class="text-amber-300 font-bold">Não verificada</span>
             </div>
           </div>
         }
@@ -177,7 +177,7 @@ import { OSWindow } from '../../models/os.model';
         <button
           type="button"
           (click)="clockClicked.emit()"
-          title="Abrir Calendário & Agenda Operacional"
+          title="Abrir módulo Calendário (janela não integrada)"
           class="text-right pl-2 border-l border-[#3d200f] leading-tight cursor-pointer hover:text-white transition-colors group">
           <div class="font-mono font-bold text-xs text-amber-300 group-hover:text-amber-200">{{ currentTime() }}</div>
           <div class="text-[9px] text-stone-400 group-hover:text-stone-200 font-medium">{{ currentDate() }}</div>
@@ -207,8 +207,6 @@ export class TaskbarComponent {
   favorites = input<string[]>([]);
 
   readonly showSystemTray = signal<boolean>(false);
-  readonly isOnline = signal<boolean>(true);
-
   currentTenant = computed(() => {
     const id = this.ecosystem.currentTenantId();
     return this.ecosystem.tenants().find(t => t.id === id);

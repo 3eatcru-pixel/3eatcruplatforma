@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { InventoryService } from '../../services/inventory.service';
 import { EcosystemService } from '../../services/ecosystem.service';
-import { ProductItem } from '../../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,8 +19,8 @@ import { ProductItem } from '../../models/ecosystem.model';
             <mat-icon class="text-xl">inventory_2</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Estoque ERP & Catálogo</h2>
-            <p class="text-[10px] text-stone-400">Cadastro de produtos, controle de saldos, custo e tributação NF-e.</p>
+            <h2 class="text-sm font-serif font-black text-white">Estoque • Protótipo não integrado</h2>
+            <p class="text-[10px] text-stone-400">Cadastro básico de produtos; não registra movimentos auditáveis nem dados fiscais.</p>
           </div>
         </div>
 
@@ -61,7 +60,7 @@ import { ProductItem } from '../../models/ecosystem.model';
               <th class="p-3">Categoria</th>
               <th class="p-3 text-right">Saldo Estoque</th>
               <th class="p-3 text-right">Preço Venda</th>
-              <th class="p-3 text-right">Ações</th>
+              <th class="p-3 text-right">Movimentação</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
@@ -87,22 +86,7 @@ import { ProductItem } from '../../models/ecosystem.model';
                   R$ {{ p.price.toFixed(2) }}
                 </td>
                 <td class="p-3 text-right">
-                  <div class="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      (click)="quickAddStock(p, 5)"
-                      class="px-2 py-1 bg-[#261207] hover:bg-[#381c0c] text-emerald-400 rounded-lg text-[10px] font-bold border border-[#482814] cursor-pointer"
-                      title="Entrada rápida de +5 unidades">
-                      +5
-                    </button>
-                    <button
-                      type="button"
-                      (click)="quickAddStock(p, -1)"
-                      class="px-2 py-1 bg-[#261207] hover:bg-[#381c0c] text-rose-400 rounded-lg text-[10px] font-bold border border-[#482814] cursor-pointer"
-                      title="Baixa de 1 unidade">
-                      -1
-                    </button>
-                  </div>
+                  <span class="text-[10px] text-stone-500">Movimento auditável indisponível</span>
                 </td>
               </tr>
             }
@@ -140,6 +124,17 @@ import { ProductItem } from '../../models/ecosystem.model';
                     class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none" />
                 </div>
                 <div>
+                  <label for="new-prod-cost" class="text-[11px] text-stone-400 block font-bold">Custo Unitário (R$):</label>
+                  <input
+                    id="new-prod-cost"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    [value]="newProdCost()"
+                    (input)="newProdCost.set(+$any($event.target).value)"
+                    class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none" />
+                </div>
+                <div>
                   <label for="new-prod-stock" class="text-[11px] text-stone-400 block font-bold">Saldo Inicial:</label>
                   <input
                     id="new-prod-stock"
@@ -172,8 +167,9 @@ import { ProductItem } from '../../models/ecosystem.model';
               <button
                 type="button"
                 (click)="createProduct()"
+                [disabled]="isSaving()"
                 class="flex-1 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase cursor-pointer">
-                Salvar Produto
+                {{ isSaving() ? 'Salvando…' : 'Salvar Produto' }}
               </button>
             </div>
           </div>
@@ -189,9 +185,11 @@ export class EAppInventoryWindow {
 
   readonly search = signal<string>('');
   readonly showNewModal = signal<boolean>(false);
+  readonly isSaving = signal<boolean>(false);
 
   readonly newProdName = signal<string>('');
   readonly newProdPrice = signal<number>(10);
+  readonly newProdCost = signal<number>(0);
   readonly newProdStock = signal<number>(20);
   readonly newProdCat = signal<string>('Geral');
 
@@ -206,25 +204,47 @@ export class EAppInventoryWindow {
     );
   });
 
-  quickAddStock(p: ProductItem, delta: number) {
-    const newStock = Math.max(0, (p.stock || 0) + delta);
-    this.inventoryService.updateProduct(p.id, { stock: newStock });
-  }
-
-  createProduct() {
-    if (!this.newProdName()) return;
+  async createProduct() {
+    if (this.isSaving()) return;
+    const name = this.newProdName().trim();
+    const category = this.newProdCat().trim();
+    const price = this.newProdPrice();
+    const costPrice = this.newProdCost();
+    const stock = this.newProdStock();
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    this.inventoryService.createProduct({
-      name: this.newProdName(),
-      price: this.newProdPrice(),
-      costPrice: this.newProdPrice() * 0.5,
-      stock: this.newProdStock(),
-      category: this.newProdCat(),
-      sku: 'SKU-' + Date.now().toString().slice(-4),
-      barcode: '789' + Math.floor(Math.random() * 9000000000),
-      tenantId
-    });
-    this.showNewModal.set(false);
-    this.newProdName.set('');
+    if (!tenantId || !name || !category ||
+        !Number.isFinite(price) || price < 0 ||
+        !Number.isFinite(costPrice) || costPrice < 0 ||
+        !Number.isInteger(stock) || stock < 0) {
+      this.ecosystem.notify('Informe unidade, nome, categoria e valores válidos.', 'warning');
+      return;
+    }
+
+    this.isSaving.set(true);
+    try {
+      await this.inventoryService.createProduct({
+        name,
+        price,
+        costPrice,
+        stock,
+        category,
+        tenantId
+      });
+      this.ecosystem.notify(
+        this.ecosystem.isSimulationMode()
+          ? 'Produto adicionado somente à simulação.'
+          : 'Produto cadastrado.',
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+      this.showNewModal.set(false);
+      this.newProdName.set('');
+      this.newProdPrice.set(10);
+      this.newProdCost.set(0);
+      this.newProdStock.set(20);
+    } catch {
+      this.ecosystem.notify('Não foi possível cadastrar o produto.', 'error');
+    } finally {
+      this.isSaving.set(false);
+    }
   }
 }

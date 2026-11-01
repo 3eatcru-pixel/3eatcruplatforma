@@ -18,8 +18,8 @@ import { EcosystemService } from '../../services/ecosystem.service';
             <mat-icon class="text-xl">history</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Histórico de Vendas & Cupons</h2>
-            <p class="text-[10px] text-stone-400">Relação completa de pedidos emitidos no terminal e canais online.</p>
+            <h2 class="text-sm font-serif font-black text-white">Histórico • Protótipo fora do desktop</h2>
+            <p class="text-[10px] text-stone-400">Mostra pedidos carregados da unidade ativa; não consulta o histórico completo.</p>
           </div>
         </div>
       </div>
@@ -38,6 +38,11 @@ import { EcosystemService } from '../../services/ecosystem.service';
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
+            @if (orders().length === 0) {
+              <tr>
+                <td colspan="6" class="p-8 text-center text-stone-500">Nenhum pedido da unidade está carregado nesta sessão.</td>
+              </tr>
+            } @else {
             @for (ord of orders(); track ord.id) {
               <tr class="hover:bg-[#200e05]/60 transition-colors">
                 <td class="p-3 font-bold text-amber-400">
@@ -55,12 +60,13 @@ import { EcosystemService } from '../../services/ecosystem.service';
                   {{ ord.customerName || 'Cliente Balcão' }}
                 </td>
                 <td class="p-3 text-stone-300 uppercase text-[11px]">
-                  {{ ord.paymentMethod || 'Dinheiro' }}
+                  {{ ord.paymentMethod || 'Não informado' }}
                 </td>
                 <td class="p-3 text-right font-black text-white">
                   R$ {{ ord.total.toFixed(2) }}
                 </td>
               </tr>
+            }
             }
           </tbody>
         </table>
@@ -72,5 +78,9 @@ import { EcosystemService } from '../../services/ecosystem.service';
 export class EAppOrderHistoryWindow {
   readonly ecosystem = inject(EcosystemService);
 
-  readonly orders = computed(() => this.ecosystem.orders());
+  readonly orders = computed(() => {
+    const tenantId = this.ecosystem.currentTenantId();
+    if (!tenantId) return [];
+    return this.ecosystem.orders().filter((order) => order.tenantId === tenantId);
+  });
 }

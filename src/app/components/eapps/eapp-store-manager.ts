@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
-import { TenantsService } from '../../services/tenants.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,9 +26,10 @@ import { TenantsService } from '../../services/tenants.service';
         <button
           type="button"
           (click)="saveChanges()"
-          class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5">
+          [disabled]="isSaving()"
+          class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <mat-icon class="text-sm">save</mat-icon>
-          <span>Salvar Alterações</span>
+          <span>{{ isSaving() ? 'Salvando…' : 'Salvar Alterações' }}</span>
         </button>
       </div>
 
@@ -101,7 +101,7 @@ import { TenantsService } from '../../services/tenants.service';
 })
 export class EAppStoreManagerWindow {
   readonly ecosystem = inject(EcosystemService);
-  readonly tenants = inject(TenantsService);
+  readonly isSaving = signal(false);
 
   readonly tenant = this.ecosystem.currentTenant();
   readonly tenantId = signal<string>(this.tenant.id);
@@ -114,13 +114,36 @@ export class EAppStoreManagerWindow {
     return window.location.origin;
   }
 
-  saveChanges() {
-    this.ecosystem.updateTenant(this.tenantId(), {
-      name: this.storeName(),
-      deliveryFee: this.deliveryFee(),
-      minOrderValue: this.minOrder(),
-      aboutText: this.description()
-    });
-    this.ecosystem.notify('Configurações da loja atualizadas com sucesso!', 'success');
+  async saveChanges() {
+    if (this.isSaving()) return;
+
+    const name = this.storeName().trim();
+    const deliveryFee = this.deliveryFee();
+    const minOrderValue = this.minOrder();
+    if (!name || !Number.isFinite(deliveryFee) || deliveryFee < 0 ||
+        !Number.isFinite(minOrderValue) || minOrderValue < 0) {
+      this.ecosystem.notify('Informe nome, taxa e pedido mínimo válidos.', 'warning');
+      return;
+    }
+
+    this.isSaving.set(true);
+    try {
+      await this.ecosystem.updateTenant(this.tenantId(), {
+        name,
+        deliveryFee,
+        minOrderValue,
+        aboutText: this.description().trim()
+      });
+      this.ecosystem.notify(
+        this.ecosystem.isSimulationMode()
+          ? 'Alterações salvas somente na simulação.'
+          : 'Configurações da loja atualizadas.',
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível salvar as configurações da loja.', 'error');
+    } finally {
+      this.isSaving.set(false);
+    }
   }
 }

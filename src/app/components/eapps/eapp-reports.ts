@@ -18,8 +18,8 @@ import { EcosystemService } from '../../services/ecosystem.service';
             <mat-icon class="text-xl">analytics</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Relatórios & Inteligência de Negócio</h2>
-            <p class="text-[10px] text-stone-400">Indicadores de faturamento, ticket médio e mix de canais.</p>
+            <h2 class="text-sm font-serif font-black text-white">Relatórios • Protótipo não integrado</h2>
+            <p class="text-[10px] text-stone-400">Resumo demonstrativo dos pedidos pagos carregados da unidade atual.</p>
           </div>
         </div>
       </div>
@@ -27,14 +27,14 @@ import { EcosystemService } from '../../services/ecosystem.service';
       <!-- CARDS DE METRICAS KPI -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
         <div class="bg-[#1b0d06] border border-[#381c0c] rounded-2xl p-4 text-center">
-          <span class="text-[10px] text-stone-500 uppercase block">Faturamento Total</span>
+          <span class="text-[10px] text-stone-500 uppercase block">Vendas pagas carregadas</span>
           <strong class="text-xl text-amber-400 font-black">
             R$ {{ totalSales().toFixed(2) }}
           </strong>
         </div>
 
         <div class="bg-[#1b0d06] border border-[#381c0c] rounded-2xl p-4 text-center">
-          <span class="text-[10px] text-stone-500 uppercase block">Total de Pedidos</span>
+          <span class="text-[10px] text-stone-500 uppercase block">Pedidos pagos carregados</span>
           <strong class="text-xl text-white font-black">
             {{ orders().length }}
           </strong>
@@ -52,7 +52,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
       <div class="flex-1 min-h-0 bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 overflow-y-auto custom-scrollbar space-y-3">
         <h3 class="text-xs font-bold text-white uppercase flex items-center gap-2">
           <mat-icon class="text-amber-500 text-sm">pie_chart</mat-icon>
-          Distribuição de Vendas por Canal
+          Disponibilidade de Análise por Canal
         </h3>
 
         <div class="space-y-2 text-xs">
@@ -61,7 +61,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
               <span class="w-3 h-3 rounded-full bg-amber-500"></span>
               <strong class="text-white">PDV Frente de Caixa (Balcão)</strong>
             </div>
-            <span class="text-stone-300 font-bold">58% do faturamento</span>
+            <span class="text-stone-300 font-bold">Sem análise de canal</span>
           </div>
 
           <div class="bg-[#200e05] p-3 rounded-xl border border-[#381c0c] flex justify-between items-center">
@@ -69,7 +69,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
               <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
               <strong class="text-white">Marketplace Regional & Vitrine Online</strong>
             </div>
-            <span class="text-stone-300 font-bold">27% do faturamento</span>
+            <span class="text-stone-300 font-bold">Sem integração de canal</span>
           </div>
 
           <div class="bg-[#200e05] p-3 rounded-xl border border-[#381c0c] flex justify-between items-center">
@@ -77,7 +77,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
               <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
               <strong class="text-white">Salão & QR Code na Mesa</strong>
             </div>
-            <span class="text-stone-300 font-bold">15% do faturamento</span>
+            <span class="text-stone-300 font-bold">Sem integração de canal</span>
           </div>
         </div>
       </div>
@@ -88,7 +88,15 @@ import { EcosystemService } from '../../services/ecosystem.service';
 export class EAppReportsWindow {
   readonly ecosystem = inject(EcosystemService);
 
-  readonly orders = computed(() => this.ecosystem.orders());
+  readonly orders = computed(() => {
+    const tenantId = this.ecosystem.currentTenantId();
+    if (!tenantId) return [];
+    return this.ecosystem.orders().filter((order) =>
+      order.tenantId === tenantId &&
+      order.status === 'completed' &&
+      (order.paymentStatus === 'approved' || order.isSimulated || order.mode === 'simulation')
+    );
+  });
 
   readonly totalSales = computed(() =>
     this.orders().reduce((s, o) => s + (o.total || 0), 0)

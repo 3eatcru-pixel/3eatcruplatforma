@@ -36,7 +36,7 @@ import { DriverAppComponent } from '../driver-app';
           <div class="absolute top-4 right-4 bg-black/80 backdrop-blur-md border border-emerald-500/30 rounded-xl p-2 z-50">
              <div class="flex items-center gap-2">
                 <div class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
-                <span class="text-[9px] font-mono text-emerald-400">GPS: ACTIVE (-23.55, -46.63)</span>
+                <span class="text-[9px] font-mono text-emerald-400">GPS SIMULADO (-23.55, -46.63)</span>
              </div>
           </div>
         </div>

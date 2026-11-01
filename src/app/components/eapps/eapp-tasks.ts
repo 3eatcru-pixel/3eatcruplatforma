@@ -25,8 +25,8 @@ interface StoreTask {
             <mat-icon class="text-xl">task_alt</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Tarefas Operacionais</h2>
-            <p class="text-[10px] text-stone-400">Checklist diário de abertura, manipulação e encerramento.</p>
+            <h2 class="text-sm font-serif font-black text-white">Tarefas • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Checklist demonstrativo; alterações não são salvas nem atribuídas a operadores.</p>
           </div>
         </div>
 
@@ -63,8 +63,8 @@ interface StoreTask {
 })
 export class EAppTasksWindow {
   readonly tasks = signal<StoreTask[]>([
-    { id: '1', title: 'Conferência de Fundo de Troco do Caixa', sector: 'Frente de Caixa', completed: true, time: '09:00' },
-    { id: '2', title: 'Aferição de Temperatura dos Refrigeradores', sector: 'Cozinha', completed: true, time: '09:30' },
+    { id: '1', title: 'Conferência de Fundo de Troco do Caixa', sector: 'Frente de Caixa', completed: false, time: '09:00' },
+    { id: '2', title: 'Aferição de Temperatura dos Refrigeradores', sector: 'Cozinha', completed: false, time: '09:30' },
     { id: '3', title: 'Higienização e Montagem das Mesas do Salão', sector: 'Salão', completed: false, time: '10:00' },
     { id: '4', title: 'Conferência de Bobinas Térmicas nos Terminais', sector: 'Frente de Caixa', completed: false, time: '11:00' },
     { id: '5', title: 'Recebimento de Mercadorias de Hortifrúti', sector: 'Estoque', completed: false, time: '14:00' },

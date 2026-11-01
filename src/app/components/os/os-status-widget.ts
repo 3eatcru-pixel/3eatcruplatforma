@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, output, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -31,7 +31,12 @@ import { OsPreferencesService } from '../../services/os-preferences.service';
           <mat-icon class="text-xs text-amber-400">store</mat-icon>
           <span>{{ currentTenant().name }}</span>
         </span>
-        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" title="Terminal Operacional Online"></span>
+        <span
+          class="w-2.5 h-2.5 rounded-full shrink-0"
+          [class.bg-emerald-400]="!!ecosystem.currentSession()"
+          [class.bg-amber-400]="!ecosystem.currentSession()"
+          [title]="ecosystem.currentSession() ? 'Sessão ativa' : 'Sessão sem usuário'">
+        </span>
       </div>
 
       <div class="space-y-2 text-xs font-sans">
@@ -40,35 +45,36 @@ import { OsPreferencesService } from '../../services/os-preferences.service';
           <strong class="font-bold text-amber-300 uppercase text-[10px]">PILAR 2: STORE OS LOJISTA</strong>
         </div>
         <div class="text-[9px] text-stone-300 bg-black/40 p-2 rounded-xl border border-[#3d200f] leading-tight space-y-1">
-          <div>Terminal exclusivo da unidade <strong>{{ currentTenant().name }}</strong> (PDV, KDS, Estoque e DRE).</div>
+          <div>Unidade ativa: <strong>{{ currentTenant().name }}</strong>. O PDV está conectado; outras janelas do catálogo podem mostrar que ainda não foram integradas.</div>
           <div class="text-amber-400 font-mono">⚠️ Não é o HQ Central (Pilar 1) e não é o Marketplace (Pilar 3).</div>
         </div>
         <div class="flex justify-between items-center bg-[#150a04] p-1.5 rounded-xl border border-[#3d200f]">
           <span class="text-[10px] text-stone-400">Modo de Dados:</span>
           <span class="text-[9px] font-mono font-bold px-2 py-0.5 rounded" [class]="ecosystem.isRealMode() ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50' : 'bg-amber-950 text-amber-300 border border-amber-700/50'">
-            {{ ecosystem.isRealMode() ? '🟢 FIRESTORE REAL' : '🧪 SIMULAÇÃO SANDBOX' }}
+            {{ ecosystem.isRealMode() ? '🟢 MODO REAL' : '🧪 MODO SIMULADO' }}
           </span>
         </div>
         <div class="flex justify-between items-center bg-[#150a04] p-2 rounded-xl border border-[#3d200f]">
           <div class="space-y-0.5">
             <span class="text-stone-400 text-[10px] block">Controle de Expediente:</span>
             <span class="text-[9px] font-mono font-bold" [class]="currentTenant().isOpen ? 'text-emerald-400' : 'text-rose-400'">
-              {{ currentTenant().isOpen ? 'ABERTA (ACEITANDO PEDIDOS)' : 'FECHADA (BALCÃO PAUSADO)' }}
+              {{ currentTenant().isOpen ? 'ABERTA' : 'FECHADA' }}
             </span>
           </div>
           <button
             type="button"
             (click)="toggleStoreOnlineStatus()"
+            [disabled]="isUpdatingStoreStatus()"
             [class]="currentTenant().isOpen ? 'bg-rose-950 text-rose-300 border-rose-700/80 hover:bg-rose-900' : 'bg-emerald-950 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900'"
-            class="px-2.5 py-1.5 rounded-lg border text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all shadow-md active:scale-95">
+            class="px-2.5 py-1.5 rounded-lg border text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
             <mat-icon class="text-xs">{{ currentTenant().isOpen ? 'door_front' : 'storefront' }}</mat-icon>
-            <span>{{ currentTenant().isOpen ? 'Fechar Loja' : 'Abrir Loja' }}</span>
+            <span>{{ isUpdatingStoreStatus() ? 'Atualizando…' : currentTenant().isOpen ? 'Fechar Loja' : 'Abrir Loja' }}</span>
           </button>
         </div>
         <div class="flex justify-between items-center">
-          <span class="text-stone-400">Licença:</span>
+            <span class="text-stone-400">Plano:</span>
           <span class="font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50 text-[10px] font-mono uppercase">
-            {{ currentTenant().plan }} Ativa
+            {{ currentTenant().plan }}
           </span>
         </div>
         <div class="pt-1.5 border-t border-[#3d200f] space-y-1">
@@ -80,10 +86,10 @@ import { OsPreferencesService } from '../../services/os-preferences.service';
             [value]="currentOperationalProfile()"
             (change)="setOperationalProfile($event)"
             class="w-full bg-[#2a160b] text-amber-300 text-[10px] font-mono font-bold border border-[#4d2813] rounded-lg px-2 py-1 outline-none cursor-pointer">
-            <option value="restaurant">Restaurante (Mesas, KDS, Reservas)</option>
-            <option value="retail_electro">Varejo &amp; Eletro (EAN-13, Série)</option>
-            <option value="pharmacy">Farmácia &amp; Saúde (Lote, Receita)</option>
-            <option value="automotive_services">Automotivo &amp; O.S. (Placa, Agenda)</option>
+            <option value="restaurant">Restaurante</option>
+            <option value="retail_electro">Varejo &amp; Eletro</option>
+            <option value="pharmacy">Farmácia &amp; Saúde</option>
+            <option value="automotive_services">Automotivo &amp; O.S.</option>
           </select>
         </div>
         <div class="flex justify-between items-center pt-1 border-t border-[#3d200f]">
@@ -104,7 +110,7 @@ import { OsPreferencesService } from '../../services/os-preferences.service';
             <mat-icon class="text-xs text-emerald-400">point_of_sale</mat-icon><span>Abrir Terminal PDV (Tela Cheia)</span>
           </button>
           <button (click)="openStoreManager.emit()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold py-2 rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-transform active:scale-95">
-            <mat-icon class="text-xs">brush</mat-icon><span>Personalizar Vitrine da Loja</span>
+            <mat-icon class="text-xs">storefront</mat-icon><span>Minha Loja (ainda não disponível)</span>
           </button>
         </div>
       </div>
@@ -114,6 +120,7 @@ import { OsPreferencesService } from '../../services/os-preferences.service';
 export class OsStatusWidgetComponent {
   readonly ecosystem = inject(EcosystemService);
   readonly prefsService = inject(OsPreferencesService);
+  readonly isUpdatingStoreStatus = signal(false);
 
   returnToHq = output<void>();
   openPos = output<void>();
@@ -132,16 +139,22 @@ export class OsStatusWidgetComponent {
   readonly currentWallpaper = computed(() => this.prefsService.prefs().wallpaper);
   readonly currentOperationalProfile = computed(() => this.prefsService.prefs().operationalProfile);
 
-  toggleStoreOnlineStatus() {
+  async toggleStoreOnlineStatus() {
+    if (this.isUpdatingStoreStatus()) return;
     const current = this.currentTenant();
     const newIsOpen = !current.isOpen;
-    this.ecosystem.updateTenant(current.id, { isOpen: newIsOpen });
-    this.ecosystem.notify(
-      newIsOpen
-        ? `Loja ${current.name} está ONLINE. Pedidos no Marketplace ativados!`
-        : `Loja ${current.name} em OPERAÇÃO LOCAL (OFFLINE). Pedidos online pausados.`,
-      newIsOpen ? 'success' : 'warning'
-    );
+    this.isUpdatingStoreStatus.set(true);
+    try {
+      await this.ecosystem.updateTenant(current.id, { isOpen: newIsOpen });
+      this.ecosystem.notify(
+        `Loja ${current.name} marcada como ${newIsOpen ? 'aberta' : 'fechada'}${this.ecosystem.isSimulationMode() ? ' na simulação' : ''}.`,
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível atualizar o expediente da loja.', 'error');
+    } finally {
+      this.isUpdatingStoreStatus.set(false);
+    }
   }
 
   setOperationalProfile(event: Event) {

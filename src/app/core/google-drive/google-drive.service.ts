@@ -117,14 +117,12 @@ export class GoogleDriveService {
   public async connectGoogleDrive(): Promise<boolean> {
     this.isConnecting.set(true);
     this.error.set(null);
+    this.isConnected.set(false);
+    this.cachedAccessToken = null;
 
     try {
       if (!this.firebase.auth) {
-        // Fallback demo connection if firebase auth is not initialized
-        this.isConnected.set(true);
-        this.isConnecting.set(false);
-        await this.fetchFiles();
-        return true;
+        throw new Error('Firebase Authentication is unavailable.');
       }
 
       const provider = new GoogleAuthProvider();
@@ -135,23 +133,21 @@ export class GoogleDriveService {
       const result = await signInWithPopup(this.firebase.auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
 
-      if (credential?.accessToken) {
-        this.cachedAccessToken = credential.accessToken;
-        this.isConnected.set(true);
-        await this.fetchFiles();
-        return true;
-      } else {
-        // Connected through Firebase user but without new oauth credential
-        this.isConnected.set(true);
-        await this.fetchFiles();
-        return true;
+      if (!credential?.accessToken) {
+        throw new Error('Google Drive did not return an access token.');
       }
-    } catch (err: unknown) {
-      console.warn('Google Drive OAuth login notice:', err);
-      // In development or local preview, enable connection state with demo cloud files
-      this.isConnected.set(true);
+
+      this.cachedAccessToken = credential.accessToken;
       await this.fetchFiles();
+      if (this.error()) throw new Error('Google Drive files could not be loaded.');
+      this.isConnected.set(true);
       return true;
+    } catch {
+      this.cachedAccessToken = null;
+      this.isConnected.set(false);
+      this.error.set('Não foi possível conectar ao Google Drive. Arquivos de demonstração continuam disponíveis.');
+      this.files.set(this.demoStoreFiles);
+      return false;
     } finally {
       this.isConnecting.set(false);
     }
@@ -160,6 +156,7 @@ export class GoogleDriveService {
   public disconnectGoogleDrive(): void {
     this.cachedAccessToken = null;
     this.isConnected.set(false);
+    this.error.set(null);
     this.files.set(this.demoStoreFiles);
   }
 
@@ -210,12 +207,14 @@ export class GoogleDriveService {
         iconLink: typeof item['iconLink'] === 'string' ? item['iconLink'] : undefined
       }));
 
-      // Merge user's Google Drive files with store demo files
-      const combined = [...driveList, ...this.demoStoreFiles.filter(d => !driveList.some(f => f.id === d.id))];
-      this.files.set(combined);
-      return combined;
-    } catch (err: unknown) {
-      console.warn('Error fetching Drive files, falling back to cached files:', err);
+      this.files.set(driveList);
+      return driveList;
+    } catch {
+      this.error.set('Não foi possível carregar os arquivos do Google Drive.');
+      if (this.cachedAccessToken) {
+        this.cachedAccessToken = null;
+        this.isConnected.set(false);
+      }
       this.files.set(this.demoStoreFiles);
       return this.demoStoreFiles;
     } finally {
@@ -225,6 +224,7 @@ export class GoogleDriveService {
 
   public async uploadFile(file: File, folderId = 'root'): Promise<GoogleDriveFile> {
     this.isLoadingFiles.set(true);
+    this.error.set(null);
 
     try {
       if (!this.cachedAccessToken) {
@@ -281,6 +281,9 @@ export class GoogleDriveService {
 
       this.files.update(current => [uploadedFile, ...current]);
       return uploadedFile;
+    } catch (err) {
+      this.error.set('Não foi possível enviar o arquivo ao Google Drive.');
+      throw err;
     } finally {
       this.isLoadingFiles.set(false);
     }

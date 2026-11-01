@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { NotesService } from '../../services/notes.service';
+import { MemoNote } from '../../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,30 +18,30 @@ import { NotesService } from '../../services/notes.service';
             <mat-icon class="text-xl">description</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Notas & Memos Operacionais</h2>
-            <p class="text-[10px] text-stone-400">Recados de turno, telefones úteis e avisos de caixa.</p>
+            <h2 class="text-sm font-serif font-black text-white">Notas • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Notas de exemplo em memória; não são compartilhadas nem salvas no servidor.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="addNote()"
+          (click)="addDemoNote()"
           class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1">
           <mat-icon class="text-sm">add</mat-icon>
-          <span>Nova Nota</span>
+          <span>Adicionar exemplo</span>
         </button>
       </div>
 
       <!-- GRID DE NOTAS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-        @for (note of notesService.notes(); track note.id) {
+        @for (note of demoNotes(); track note.id) {
           <div class="bg-[#24140a] border border-amber-600/30 rounded-2xl p-4 flex flex-col justify-between space-y-3 shadow-md relative group">
             <div class="space-y-1">
               <div class="flex justify-between items-start">
                 <strong class="text-xs text-amber-300 font-bold block">{{ note.title }}</strong>
                 <button
                   type="button"
-                  (click)="notesService.deleteNote(note.id)"
+                  (click)="deleteDemoNote(note.id)"
                   class="text-stone-500 hover:text-rose-400 cursor-pointer transition-colors">
                   <mat-icon class="text-sm">delete</mat-icon>
                 </button>
@@ -60,13 +60,21 @@ import { NotesService } from '../../services/notes.service';
   `
 })
 export class EAppNotesWindow {
-  readonly notesService = inject(NotesService);
+  readonly demoNotes = signal<MemoNote[]>([]);
 
-  addNote() {
-    this.notesService.addNote({
-      title: 'Nota de Turno #' + (this.notesService.notes().length + 1),
-      content: 'Aviso de turno: conferir estoque de embalagens e bobina térmica do caixa.',
-      tenantId: 'current'
-    });
+  addDemoNote() {
+    const number = this.demoNotes().length + 1;
+    const now = new Date().toISOString();
+    this.demoNotes.update((notes) => [...notes, {
+      id: `demo-note-${number}`,
+      title: `Nota de demonstração ${number}`,
+      content: 'Exemplo local. Não contém recado operacional real.',
+      createdAt: now,
+      updatedAt: now
+    }]);
+  }
+
+  deleteDemoNote(id: string) {
+    this.demoNotes.update((notes) => notes.filter((note) => note.id !== id));
   }
 }

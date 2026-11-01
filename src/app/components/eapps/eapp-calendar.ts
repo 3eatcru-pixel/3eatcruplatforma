@@ -17,13 +17,13 @@ import { MatIconModule } from '@angular/material/icon';
             <mat-icon class="text-xl">calendar_month</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Calendário & Agenda Operacional</h2>
-            <p class="text-[10px] text-stone-400">Compromissos, entregas programadas e eventos do estabelecimento.</p>
+            <h2 class="text-sm font-serif font-black text-white">Calendário • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Eventos de exemplo; não consulta reservas, entregas ou agenda da unidade.</p>
           </div>
         </div>
 
         <span class="text-xs text-amber-400 font-bold bg-[#261207] px-2.5 py-1 rounded-xl border border-[#482814]">
-          Hoje: {{ todayDate() }}
+          Eventos demonstrativos
         </span>
       </div>
 
@@ -53,10 +53,6 @@ import { MatIconModule } from '@angular/material/icon';
   `
 })
 export class EAppCalendarWindow {
-  todayDate() {
-    return new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  }
-
   readonly events = [
     { id: '1', title: 'Entrega Programada de Carnes e Queijos', day: 'SEG', date: '02', time: '08:30', location: 'Estoque Central', tag: 'Fornecedor' },
     { id: '2', title: 'Treinamento de Brigada e Novo Cardápio', day: 'TER', date: '03', time: '15:00', location: 'Salão Principal', tag: 'Equipe' },

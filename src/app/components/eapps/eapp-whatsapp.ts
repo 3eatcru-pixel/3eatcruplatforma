@@ -1,7 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { CommunicationsService } from '../../services/communications.service';
 
 interface WhatsAppChat {
   id: string;
@@ -27,10 +26,10 @@ interface WhatsAppChat {
             <div class="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white">
               <mat-icon class="text-base">chat</mat-icon>
             </div>
-            <strong class="text-xs text-white">WhatsApp Business</strong>
+            <strong class="text-xs text-white">WhatsApp • Protótipo local</strong>
           </div>
           <span class="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-700/50">
-            Online
+            DEMO
           </span>
         </div>
 
@@ -61,7 +60,7 @@ interface WhatsAppChat {
               <strong class="text-xs text-white block">{{ chat.name }}</strong>
               <span class="text-[10px] text-stone-400">{{ chat.phone }}</span>
             </div>
-            <span class="text-[10px] text-stone-400">Canal de Pedidos & Suporte</span>
+              <span class="text-[10px] text-stone-400">Conversa demonstrativa; envio externo indisponível</span>
           </div>
 
           <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-3">
@@ -85,11 +84,12 @@ interface WhatsAppChat {
               [value]="replyText()"
               (input)="replyText.set($any($event.target).value)"
               (keyup.enter)="sendReply()"
-              placeholder="Digite uma mensagem ou resposta rápida..."
+              placeholder="Digite para adicionar uma mensagem local..."
               class="flex-1 bg-[#2a3942] border-none text-white text-xs p-2.5 rounded-xl outline-none" />
             <button
               type="button"
               (click)="sendReply()"
+              title="Adicionar mensagem local; não envia pelo WhatsApp"
               class="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl cursor-pointer">
               <mat-icon class="text-sm">send</mat-icon>
             </button>
@@ -101,15 +101,13 @@ interface WhatsAppChat {
   `
 })
 export class EAppWhatsappWindow {
-  readonly comms = inject(CommunicationsService);
-
   readonly selectedChatId = signal<string>('c1');
   readonly replyText = signal<string>('');
 
   readonly chats = signal<WhatsAppChat[]>([
-    { id: 'c1', name: 'Marina Albuquerque', phone: '(11) 98765-4321', lastMessage: 'Olá! Meu pedido #9048 já saiu para entrega?', time: '12:45', unread: 1 },
-    { id: 'c2', name: 'Carlos Eduardo', phone: '(11) 99123-8844', lastMessage: 'Gostaria de reservar uma mesa para 4 pessoas hoje.', time: '11:20', unread: 0 },
-    { id: 'c3', name: 'Juliana Costa', phone: '(11) 97321-1199', lastMessage: 'Vocês têm opção sem glúten no cardápio?', time: '10:05', unread: 0 }
+    { id: 'c1', name: 'Contato de demonstração 1', phone: 'Número de exemplo', lastMessage: 'Olá! Meu pedido de exemplo já saiu para entrega?', time: '12:45', unread: 1 },
+    { id: 'c2', name: 'Contato de demonstração 2', phone: 'Número de exemplo', lastMessage: 'Gostaria de reservar uma mesa de exemplo.', time: '11:20', unread: 0 },
+    { id: 'c3', name: 'Contato de demonstração 3', phone: 'Número de exemplo', lastMessage: 'Vocês têm opção sem glúten no cardápio?', time: '10:05', unread: 0 }
   ]);
 
   readonly sentMessages = signal<{ id: string; text: string; time: string }[]>([]);

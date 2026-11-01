@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
-import { ServiceOrdersService } from '../../services/service-orders.service';
+import { ServiceOrder } from '../../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,17 +18,17 @@ import { ServiceOrdersService } from '../../services/service-orders.service';
             <mat-icon class="text-xl">handyman</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Ordens de Serviço (O.S.) & Manutenção</h2>
-            <p class="text-[10px] text-stone-400">Controle para segmento automotivo, reparos técnicos e assistência.</p>
+            <h2 class="text-sm font-serif font-black text-white">Ordens de Serviço • Protótipo local</h2>
+            <p class="text-[10px] text-stone-400">Exemplos em memória; não cria ordens reais nem está integrado ao desktop.</p>
           </div>
         </div>
 
         <button
           type="button"
-          (click)="createMockOrder()"
+          (click)="addDemoOrder()"
           class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1">
           <mat-icon class="text-sm">add</mat-icon>
-          <span>Nova O.S.</span>
+          <span>Adicionar exemplo</span>
         </button>
       </div>
 
@@ -45,7 +45,7 @@ import { ServiceOrdersService } from '../../services/service-orders.service';
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
-            @for (os of serviceOrders.serviceOrders(); track os.id) {
+            @for (os of demoOrders(); track os.id) {
               <tr class="hover:bg-[#200e05]/60 transition-colors">
                 <td class="p-3 font-bold text-amber-400">
                   #{{ os.id }}
@@ -75,17 +75,19 @@ import { ServiceOrdersService } from '../../services/service-orders.service';
   `
 })
 export class EAppServicesWindow {
-  readonly initialTab = input<string>('dashboard');
-  readonly serviceOrders = inject(ServiceOrdersService);
+  readonly demoOrders = signal<ServiceOrder[]>([]);
 
-  createMockOrder() {
-    this.serviceOrders.addServiceOrder({
-      customerName: 'Cliente Oficina #' + (this.serviceOrders.serviceOrders().length + 1),
-      equipment: 'Placa ABC-9988 - Revisão Freios',
-      description: 'Troca de pastilhas e alinhamento',
-      technician: 'Carlos Mecânico',
+  addDemoOrder() {
+    const number = this.demoOrders().length + 1;
+    this.demoOrders.update((orders) => [...orders, {
+      id: `demo-os-${number}`,
+      osNumber: `DEMO-${String(number).padStart(4, '0')}`,
+      customerName: `Cliente de demonstração ${number}`,
+      equipment: 'Equipamento de exemplo',
+      description: 'Ordem demonstrativa; não enviada ao servidor.',
+      technician: 'Técnico de demonstração',
       status: 'in_progress',
-      price: 280.00
-    });
+      price: 280
+    }]);
   }
 }

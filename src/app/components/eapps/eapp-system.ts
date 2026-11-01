@@ -18,8 +18,8 @@ import { SecurityService } from '../../services/security.service';
           <mat-icon class="text-xl">laptop_chromebook</mat-icon>
         </div>
         <div>
-          <h2 class="text-sm font-serif font-black text-white">Este Computador • Informações do Sistema</h2>
-          <p class="text-[10px] text-stone-400">Terminal Store OS Workstation e diagnóstico de runtime.</p>
+          <h2 class="text-sm font-serif font-black text-white">Este Computador • Informações gerais</h2>
+          <p class="text-[10px] text-stone-400">Resumo estático da aplicação; não coleta diagnóstico do dispositivo.</p>
         </div>
       </div>
 
@@ -33,22 +33,22 @@ import { SecurityService } from '../../services/security.service';
           <div class="grid grid-cols-2 gap-2 text-stone-300">
             <div class="bg-[#200e05] p-2 rounded-xl border border-[#381c0c]">
               <span class="text-stone-500 text-[10px] block">Sistema Operacional:</span>
-              <strong class="text-white">3EATCRU Store OS v7.0</strong>
+              <strong class="text-white">Aplicação web Store OS</strong>
             </div>
 
             <div class="bg-[#200e05] p-2 rounded-xl border border-[#381c0c]">
               <span class="text-stone-500 text-[10px] block">Arquitetura de Renderização:</span>
-              <strong class="text-white">Angular 21 Zoneless (SSR & PWA)</strong>
+              <strong class="text-white">Angular (hardware não inspecionado)</strong>
             </div>
 
             <div class="bg-[#200e05] p-2 rounded-xl border border-[#381c0c]">
               <span class="text-stone-500 text-[10px] block">Banco Local:</span>
-              <strong class="text-emerald-400">IndexedDB Outbox Resiliente</strong>
+              <strong class="text-emerald-400">Fila local do PDV</strong>
             </div>
 
             <div class="bg-[#200e05] p-2 rounded-xl border border-[#381c0c]">
               <span class="text-stone-500 text-[10px] block">Nuvem Remota:</span>
-              <strong class="text-emerald-400">Google Cloud Firestore</strong>
+              <strong class="text-stone-300">Conexão de backend não verificada</strong>
             </div>
           </div>
         </div>

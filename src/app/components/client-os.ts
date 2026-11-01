@@ -14,6 +14,9 @@ import { EAppWaiterSimWindow } from './eapps/eapp-waiter-sim';
 import { EAppDriverSimWindow } from './eapps/eapp-driver-sim';
 import { EAppConsumerSimWindow } from './eapps/eapp-consumer-sim';
 import { EAppStoreManagerWindow } from './eapps/eapp-store-manager';
+import { EAppInventoryWindow } from './eapps/eapp-inventory';
+import { EAppKdsWindow } from './eapps/eapp-kds';
+import { EAppFinanceWindow } from './eapps/eapp-finance';
 
 // OS Shell Components
 import { DesktopIconComponent } from './os/desktop-icon';
@@ -37,6 +40,9 @@ import { OsWindowShellComponent } from './os/os-window-shell';
     EAppDriverSimWindow,
     EAppConsumerSimWindow,
     EAppStoreManagerWindow,
+    EAppInventoryWindow,
+    EAppKdsWindow,
+    EAppFinanceWindow,
     DesktopIconComponent,
     TaskbarComponent,
     StartMenuComponent,
@@ -144,6 +150,9 @@ import { OsWindowShellComponent } from './os/os-window-shell';
                   @case ('driver-sim') { @defer (on timer(0ms)) { <app-eapp-driver-sim /> } }
                   @case ('consumer-sim') { @defer (on timer(0ms)) { <app-eapp-consumer-sim /> } }
                   @case ('store-manager') { @defer (on timer(0ms)) { <app-eapp-store-manager /> } }
+                  @case ('inventory') { @defer (on timer(0ms)) { <app-eapp-inventory /> } }
+                  @case ('kds') { @defer (on timer(0ms)) { <app-eapp-kds /> } }
+                  @case ('finance') { @defer (on timer(0ms)) { <app-eapp-finance /> } }
                   @default {
                     <section class="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-3 text-center text-stone-300">
                       <mat-icon class="text-amber-400">extension</mat-icon>

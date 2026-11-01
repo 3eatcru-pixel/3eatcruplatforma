@@ -10,10 +10,10 @@ A vitrine pública em /p/:id permite selecionar modalidades de pedido e, na moda
 
 - A rota não lê um número de mesa diretamente de um parâmetro QR confirmado nesta auditoria. Não anunciar links /loja/slug?mesa=4 nem associação automática de QR.
 - Não foi localizada uma interface operacional de totem físico.
-- As janelas KDS e Mesas do desktop são placeholders; não anunciar entrega direta do pedido a uma tela KDS conectada.
+- O KDS possui eApp integrado para consultar pedidos e avançar o preparo até `ready`; não há validação de estação física ou hardware de cozinha. Mesas continua placeholder no desktop.
 - A rota /waiter é uma interface web separada; ela não transforma o atalho KDS em eApp integrado.
 - A geração de pedido e a liquidação do pagamento são etapas distintas. Ver [Checkout e pagamentos](./04_CHECKOUT_PAGAMENTO_E_PIX.md).
 
 ## Validação
 
-Há arquivos de teste para pedidos e reservas, mas testes, build e homologação não foram executados nesta revisão. Não há percentual de aprovação atual.
+O build de produção passou e a suíte geral passou com 90/90 testes. Não houve homologação de QR físico ou totem nem teste ponta a ponta do pedido de mesa nesta revisão.

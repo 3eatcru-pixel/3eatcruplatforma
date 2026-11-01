@@ -13,6 +13,8 @@ Atualizado em 2026-11-01 por leitura estática. A implementação deste reposit�
 
 A API Express é montada em src/server/api.ts sob /api. O cliente e o servidor compartilham modelos em src/shared. As rotas que usam Firebase Admin SDK precisam aplicar autorização no servidor; as regras Firestore não restringem o Admin SDK.
 
+A página pública inicia a sincronização de dados depois da primeira renderização no navegador. Firebase Auth também é carregado após essa renderização para restaurar a sessão; o Firestore só é carregado sob demanda por telas que abrem assinaturas em tempo real. Não há consulta automática de conectividade ao abrir o app. A busca de credenciais do Firebase Admin não bloqueia o SSR. Dados reais nas rotas Express dependem de Application Default Credentials no ambiente do servidor; consulte [testes e recuperação](./INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para a configuração local.
+
 ## Regras de receita e entrega
 
 A loja administra seus motoristas próprios e decide quanto pagar a eles. A assinatura paga ao HQ pelo uso do Store OS e pela cota de dispositivos do plano; sua cobrança recorrente ainda não está automatizada. O acesso a entregadores da plataforma para lojas sem frota está em coming_soon, sem contratação ou cobrança implementadas. A comissão de referência de 8% fica separada e se aplica somente ao futuro processo de entregas da rede própria da plataforma.

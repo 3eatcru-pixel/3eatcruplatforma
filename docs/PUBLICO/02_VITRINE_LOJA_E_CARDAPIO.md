@@ -15,11 +15,11 @@ A vitrine Angular usa o identificador da rota para selecionar a loja. O catálog
 
 A interface possui seleção de modalidade e mesa. No checkout, deliveryFee é o valor fixo de entrega definido pela loja. Retirada não deve cobrar frete. O campo legado serviceFeePercent não é aplicado; a futura comissão de entregas da plataforma permanece em coming_soon.
 
-O motor do servidor valida pedido, loja, disponibilidade dos produtos e valores conforme as regras atuais. A existência de componentes em eApps não comprova que KDS ou estoque estejam integrados como janelas do Store OS.
+O motor do servidor valida pedido, loja, disponibilidade dos produtos e valores conforme as regras atuais. O KDS tem janela integrada para consultar pedidos e avançar o preparo; o Estoque tem janela para consultar e cadastrar produtos. Esses escopos não comprovam homologação operacional nem permitem ajuste auditável de saldo.
 
 ## Limites da vitrine
 
 - A rota pública confirmada é /p/:id; não documentar /loja/:slug como rota atual.
 - A proteção do catálogo precisa ser avaliada no endpoint público; o navegador não deve receber dados internos do ERP.
-- A janela do KDS continua placeholder no desktop, conforme [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
-- Testes, build e homologação não foram executados nesta revisão.
+- O KDS tem janela integrada no Store OS para consultar pedidos e avançar o preparo até `ready`; isso não comprova estação física, hardware de cozinha ou homologação operacional. Consulte [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
+- O build de produção e a suíte geral passaram nesta revisão (90/90 testes). Não houve teste ponta a ponta nem homologação específica do catálogo e checkout com dados reais.

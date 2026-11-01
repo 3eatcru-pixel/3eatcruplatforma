@@ -1,26 +1,8 @@
-import { Injectable, inject, PLATFORM_ID, signal } from '@angular/core';
+import { afterNextRender, Injectable, inject, PLATFORM_ID, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { initializeApp, FirebaseApp } from 'firebase/app';
-import {
-  getAuth,
-  onAuthStateChanged,
-  Auth,
-  User,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut
-} from 'firebase/auth';
-import {
-  getFirestore,
-  Firestore,
-  doc,
-  getDocFromServer,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Unsubscribe
-} from 'firebase/firestore';
+import type { FirebaseApp } from 'firebase/app';
+import type { Auth, User } from 'firebase/auth';
+import type { Firestore, Unsubscribe } from 'firebase/firestore';
 import firebaseConfig from '../../../../firebase-applet-config.json';
 import {
   OrderTransaction,
@@ -70,38 +52,116 @@ export class FirebaseService {
   public readonly currentUser = signal<User | null>(null);
   public readonly authLoading = signal<boolean>(true);
   public readonly lastError = signal<string | null>(null);
+  private authSdk: typeof import('firebase/auth') | null = null;
+  private firebaseInitPromise: Promise<void> | null = null;
+  private firestoreInitPromise: Promise<{
+    sdk: typeof import('firebase/firestore');
+    db: Firestore;
+  }> | null = null;
 
   constructor() {
     if (this.isBrowser) {
-      this.initFirebase();
+      afterNextRender(() => {
+        void this.initFirebase();
+      });
     } else {
       this.authLoading.set(false);
     }
   }
 
-  private initFirebase(): void {
-    try {
-      this.app = initializeApp(firebaseConfig);
-      this.db = getFirestore(this.app, firebaseConfig.firestoreDatabaseId);
-      this.auth = getAuth(this.app);
+  private initFirebase(): Promise<void> {
+    if (this.firebaseInitPromise) return this.firebaseInitPromise;
+    if (!this.isBrowser) {
+      this.authLoading.set(false);
+      return Promise.resolve();
+    }
 
+    this.firebaseInitPromise = Promise.all([
+      import('firebase/app'),
+      import('firebase/auth')
+    ]).then(([appSdk, authSdk]) => {
+      this.authSdk = authSdk;
+      this.app = appSdk.initializeApp(firebaseConfig);
+      this.auth = authSdk.getAuth(this.app);
       this.isInitialized.set(true);
-      this.testConnection();
 
-      onAuthStateChanged(this.auth, (user) => {
+      authSdk.onAuthStateChanged(this.auth, (user) => {
         this.currentUser.set(user);
         this.authLoading.set(false);
       });
-    } catch (err) {
+    }).catch((err: unknown) => {
       console.error('Firebase init failed:', err);
       this.authLoading.set(false);
-    }
+    });
+
+    return this.firebaseInitPromise;
+  }
+
+  private initFirestore(): Promise<{
+    sdk: typeof import('firebase/firestore');
+    db: Firestore;
+  }> {
+    if (this.firestoreInitPromise) return this.firestoreInitPromise;
+
+    this.firestoreInitPromise = this.initFirebase()
+      .then(async () => {
+        const app = this.app;
+        if (!app) throw new Error('Firebase app is unavailable.');
+        const sdk = await import('firebase/firestore');
+        this.db = sdk.getFirestore(app, firebaseConfig.firestoreDatabaseId);
+        return { sdk, db: this.db };
+      })
+      .catch((error: unknown) => {
+        this.firestoreInitPromise = null;
+        throw error;
+      });
+
+    return this.firestoreInitPromise;
+  }
+
+  private listenWhenFirestoreReady(
+    operationType: OperationType,
+    path: string,
+    createListener: (sdk: typeof import('firebase/firestore'), db: Firestore) => Unsubscribe
+  ): Unsubscribe | null {
+    if (!this.isBrowser) return null;
+
+    let cancelled = false;
+    let unsubscribe: Unsubscribe | null = null;
+
+    void this.initFirestore()
+      .then(({ sdk, db }) => {
+        if (cancelled) return;
+        try {
+          unsubscribe = createListener(sdk, db);
+        } catch (error: unknown) {
+          try {
+            this.handleFirestoreError(error, operationType, path);
+          } catch {
+            // The listener error has already been recorded and logged.
+          }
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        try {
+          this.handleFirestoreError(error, operationType, path);
+        } catch {
+          // The initialization error has already been recorded and logged.
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }
 
   public async testConnection(): Promise<void> {
-    if (!this.db) return;
+    if (!this.isBrowser) return;
     try {
-      await getDocFromServer(doc(this.db, 'public_regional', 'default'));
+      const { sdk, db } = await this.initFirestore();
+      await sdk.getDocFromServer(sdk.doc(db, 'public_regional', 'default'));
       this.isConnected.set(true);
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes('the client is offline')) {
@@ -141,10 +201,11 @@ export class FirebaseService {
   }
 
   public async loginWithGoogle(): Promise<User | null> {
+    await this.initFirebase();
     if (!this.auth) return null;
     try {
-      const provider = new GoogleAuthProvider();
-      const credential = await signInWithPopup(this.auth, provider);
+      const provider = new this.authSdk!.GoogleAuthProvider();
+      const credential = await this.authSdk!.signInWithPopup(this.auth, provider);
       this.currentUser.set(credential.user);
       return credential.user;
     } catch (err: unknown) {
@@ -154,9 +215,10 @@ export class FirebaseService {
   }
 
   public async logout(): Promise<void> {
+    await this.initFirebase();
     if (!this.auth) return;
     try {
-      await signOut(this.auth);
+      await this.authSdk!.signOut(this.auth);
       this.currentUser.set(null);
     } catch (err: unknown) {
       console.error('Logout error:', err);
@@ -172,15 +234,15 @@ export class FirebaseService {
     staffUid: string,
     onUpdate: (orders: OrderTransaction[]) => void
   ): Unsubscribe | null {
-    if (!this.db || !tenantId || !staffUid || !this.auth?.currentUser) return null;
+    if (!tenantId || !staffUid || !this.auth?.currentUser) return null;
     const path = 'orders';
-    try {
-      const q = query(
-        collection(this.db, path),
-        where('tenantId', '==', tenantId),
-        where('staffUids', 'array-contains', staffUid)
+    return this.listenWhenFirestoreReady(OperationType.LIST, path, (firestoreSdk, db) => {
+      const q = firestoreSdk.query(
+        firestoreSdk.collection(db, path),
+        firestoreSdk.where('tenantId', '==', tenantId),
+        firestoreSdk.where('staffUids', 'array-contains', staffUid)
       );
-      return onSnapshot(
+      return firestoreSdk.onSnapshot(
         q,
         (snapshot) => {
           onUpdate(snapshot.docs.map((d) => d.data() as OrderTransaction));
@@ -189,9 +251,7 @@ export class FirebaseService {
           this.handleFirestoreError(error, OperationType.LIST, path);
         }
       );
-    } catch (error: unknown) {
-      this.handleFirestoreError(error, OperationType.LIST, path);
-    }
+    });
   }
 
   /**
@@ -201,11 +261,14 @@ export class FirebaseService {
     customerUid: string,
     onUpdate: (orders: OrderTransaction[]) => void
   ): Unsubscribe | null {
-    if (!this.db || !customerUid || !this.auth?.currentUser) return null;
+    if (!customerUid || !this.auth?.currentUser) return null;
     const path = 'orders';
-    try {
-      const q = query(collection(this.db, path), where('customerId', '==', customerUid));
-      return onSnapshot(
+    return this.listenWhenFirestoreReady(OperationType.LIST, path, (firestoreSdk, db) => {
+      const q = firestoreSdk.query(
+        firestoreSdk.collection(db, path),
+        firestoreSdk.where('customerId', '==', customerUid)
+      );
+      return firestoreSdk.onSnapshot(
         q,
         (snapshot) => {
           onUpdate(snapshot.docs.map((d) => d.data() as OrderTransaction));
@@ -214,9 +277,7 @@ export class FirebaseService {
           this.handleFirestoreError(error, OperationType.LIST, path);
         }
       );
-    } catch (error: unknown) {
-      this.handleFirestoreError(error, OperationType.LIST, path);
-    }
+    });
   }
 
   /**
@@ -226,23 +287,26 @@ export class FirebaseService {
     options: { tenantId?: string; staffUid?: string; driverId?: string },
     onUpdate: (routes: DeliveryRoute[]) => void
   ): Unsubscribe | null {
-    if (!this.db || !this.auth?.currentUser) return null;
+    if (!this.auth?.currentUser || (!options.driverId && !(options.tenantId && options.staffUid))) return null;
     const path = 'delivery_routes';
-    try {
+    return this.listenWhenFirestoreReady(OperationType.LIST, path, (firestoreSdk, db) => {
       let q;
       if (options.driverId) {
-        q = query(collection(this.db, path), where('driverId', '==', options.driverId));
+        q = firestoreSdk.query(
+          firestoreSdk.collection(db, path),
+          firestoreSdk.where('driverId', '==', options.driverId)
+        );
       } else if (options.tenantId && options.staffUid) {
-        q = query(
-          collection(this.db, path),
-          where('tenantId', '==', options.tenantId),
-          where('staffUids', 'array-contains', options.staffUid)
+        q = firestoreSdk.query(
+          firestoreSdk.collection(db, path),
+          firestoreSdk.where('tenantId', '==', options.tenantId),
+          firestoreSdk.where('staffUids', 'array-contains', options.staffUid)
         );
       } else {
-        return null;
+        throw new Error('Delivery route listener requires a driver or tenant scope.');
       }
 
-      return onSnapshot(
+      return firestoreSdk.onSnapshot(
         q,
         (snapshot) => {
           onUpdate(snapshot.docs.map((d) => d.data() as DeliveryRoute));
@@ -251,9 +315,7 @@ export class FirebaseService {
           this.handleFirestoreError(error, OperationType.LIST, path);
         }
       );
-    } catch (error: unknown) {
-      this.handleFirestoreError(error, OperationType.LIST, path);
-    }
+    });
   }
 
   /**
@@ -264,15 +326,15 @@ export class FirebaseService {
     staffUid: string,
     onUpdate: (tables: Record<string, unknown>[]) => void
   ): Unsubscribe | null {
-    if (!this.db || !tenantId || !staffUid || !this.auth?.currentUser) return null;
+    if (!tenantId || !staffUid || !this.auth?.currentUser) return null;
     const path = 'tables';
-    try {
-      const q = query(
-        collection(this.db, path),
-        where('tenantId', '==', tenantId),
-        where('staffUids', 'array-contains', staffUid)
+    return this.listenWhenFirestoreReady(OperationType.LIST, path, (firestoreSdk, db) => {
+      const q = firestoreSdk.query(
+        firestoreSdk.collection(db, path),
+        firestoreSdk.where('tenantId', '==', tenantId),
+        firestoreSdk.where('staffUids', 'array-contains', staffUid)
       );
-      return onSnapshot(
+      return firestoreSdk.onSnapshot(
         q,
         (snapshot) => {
           onUpdate(snapshot.docs.map((d) => d.data()));
@@ -281,9 +343,7 @@ export class FirebaseService {
           this.handleFirestoreError(error, OperationType.LIST, path);
         }
       );
-    } catch (error: unknown) {
-      this.handleFirestoreError(error, OperationType.LIST, path);
-    }
+    });
   }
 
   /**
@@ -293,15 +353,15 @@ export class FirebaseService {
     tenantId: string,
     onUpdate: (items: PublicCatalogProduct[]) => void
   ): Unsubscribe | null {
-    if (!this.db || !tenantId) return null;
+    if (!tenantId) return null;
     const path = 'public_catalog';
-    try {
-      const q = query(
-        collection(this.db, path),
-        where('tenantId', '==', tenantId),
-        where('availableOnline', '==', true)
+    return this.listenWhenFirestoreReady(OperationType.LIST, path, (firestoreSdk, db) => {
+      const q = firestoreSdk.query(
+        firestoreSdk.collection(db, path),
+        firestoreSdk.where('tenantId', '==', tenantId),
+        firestoreSdk.where('availableOnline', '==', true)
       );
-      return onSnapshot(
+      return firestoreSdk.onSnapshot(
         q,
         (snapshot) => {
           onUpdate(snapshot.docs.map((d) => d.data() as PublicCatalogProduct));
@@ -310,8 +370,6 @@ export class FirebaseService {
           this.handleFirestoreError(error, OperationType.LIST, path);
         }
       );
-    } catch (error: unknown) {
-      this.handleFirestoreError(error, OperationType.LIST, path);
-    }
+    });
   }
 }

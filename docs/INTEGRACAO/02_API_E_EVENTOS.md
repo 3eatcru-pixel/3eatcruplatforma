@@ -63,7 +63,7 @@ Prefixos montados em src/server/api.ts:
   - Serviços Angular em `src/app/services/` usam `HttpClient` para disparar as requisições, interceptadas automaticamente por `auth.interceptor.ts`.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Existem suítes em `src/server/api.spec.ts` e `src/server/security_phase1.spec.ts`. Elas não foram executadas nesta revisão; o build também não foi executado. Portanto, esta revisão não registra resultado de aprovação automatizada.
+- Nesta revisão, `npm run test:ci` passou com 90/90 testes e o build de produção passou. A suíte inclui mocks e cenários de API/segurança, mas não valida todos os endpoints individualmente nem substitui integração ao vivo com Firebase ou provedores de pagamento. Consulte [testes e recuperação](./04_TESTES_E_RECUPERACAO.md) para os comandos, medições e limites da validação.
 
 ---
 

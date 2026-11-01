@@ -339,7 +339,7 @@ describe('Multisegment Business Scenarios (Store OS & Ecosystem Validation)', ()
   // =========================================================================
   // CENÁRIO 1: FOOD SERVICE & GASTRONOMIA (Restaurante, Pizzaria, Hamburgueria)
   // =========================================================================
-  it('Cenário 1: Food Service - Pedido via Comanda do Garçom com KDS e Gestão de Mesas', async () => {
+  it('Cenário 1: Food Service - Comanda do Garçom respeita a fronteira de status do Store OS', async () => {
     await withServer(async (baseUrl) => {
       const foodTenant: Partial<CompanyTenant> = {
         id: 'tenant-food-pizzaria',
@@ -429,7 +429,7 @@ describe('Multisegment Business Scenarios (Store OS & Ecosystem Validation)', ()
       const updatedChopp = getCol('products').get('prod-chopp-500') as unknown as ProductItem;
       expect(updatedChopp.stock).toBe(98);
 
-      // 2. Cozinha (KDS) assume o pedido: pending -> preparing
+      // O garçom registra e acompanha a comanda, mas não opera transições do KDS.
       const kdsStatusRes = await fetch(`${baseUrl}/orders/${createdOrder.id}/status`, {
         method: 'PATCH',
         headers: {
@@ -438,22 +438,9 @@ describe('Multisegment Business Scenarios (Store OS & Ecosystem Validation)', ()
         },
         body: JSON.stringify({ status: 'preparing' })
       });
-      expect(kdsStatusRes.status).toBe(200);
-      const prepOrder = (await kdsStatusRes.json()) as OrderTransaction;
-      expect(prepOrder.status).toBe('preparing');
-
-      // 3. Garçom finaliza a entrega na mesa: preparing -> completed
-      const completeRes = await fetch(`${baseUrl}/orders/${createdOrder.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer token-restaurant-waiter'
-        },
-        body: JSON.stringify({ status: 'completed' })
-      });
-      expect(completeRes.status).toBe(200);
-      const finalOrder = (await completeRes.json()) as OrderTransaction;
-      expect(finalOrder.status).toBe('completed');
+      expect(kdsStatusRes.status).toBe(403);
+      expect((await kdsStatusRes.json() as { code: string }).code).toBe('FORBIDDEN_STAFF_TRANSITION');
+      expect(getCol('orders').get(createdOrder.id)?.['status']).toBe('pending');
     });
   });
 

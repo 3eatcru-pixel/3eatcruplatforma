@@ -69,7 +69,7 @@ Na unidade física da loja, os terminais de atendimento (PDVs e KDSs) são frequ
 
 ### Perspectiva 4: Validação
 
-Este documento descreve o código encontrado. A suíte de testes não foi executada nesta revisão, portanto não há resultado de homologação declarado.
+Este documento descreve o código encontrado. A suíte automatizada passou com 90/90 testes nesta revisão, mas usa mocks e não representa homologação do Store OS nem teste ponta a ponta específico do bloqueio por PIN.
 
 ---
 

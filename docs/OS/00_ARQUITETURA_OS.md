@@ -27,7 +27,7 @@ Uma API ou serviço disponível não significa que exista uma janela eApp corres
 
 ## Estado das interfaces
 
-Auditoria estática de 2026-11-01: o registro de atalhos possui 33 IDs; o desktop integra três simuladores móveis. O ID pos abre a rota protegida /pos. Os outros IDs exibem informação de interface ainda não integrada. Ver a matriz em 03_APLICATIVOS_E_MODULOS.md.
+Auditoria de 2026-11-01: o registro de atalhos possui 33 IDs; o desktop integra Minha Loja, KDS, Estoque, Financeiro e três simuladores. O ID pos abre a rota protegida /pos. Os demais IDs sem renderizador exibem informação de interface ainda não integrada. Ver a matriz em 03_APLICATIVOS_E_MODULOS.md.
 
 ## Segurança e persistência
 
@@ -38,4 +38,4 @@ Auditoria estática de 2026-11-01: o registro de atalhos possui 33 IDs; o deskto
 
 ## Validação
 
-Este mapa registra leitura estática do código. Build, testes e homologação operacional não foram executados nesta revisão.
+Nesta revisão, lint passou, a suíte passou com 90/90 testes e o build de produção passou. Os testes usam mocks e não substituem homologação operacional nem validação com Firebase real.

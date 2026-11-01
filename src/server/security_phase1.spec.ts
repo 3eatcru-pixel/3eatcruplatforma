@@ -127,6 +127,13 @@ const mockAdminDb = {
   async runTransaction<T>(
     updateFn: (tx: {
       get: (ref: { get: () => Promise<unknown> }) => Promise<unknown>;
+      create: (
+        ref: {
+          get: () => Promise<unknown>;
+          set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void>;
+        },
+        d: Record<string, unknown>
+      ) => void;
       set: (
         ref: { set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void> },
         d: Record<string, unknown>,
@@ -150,6 +157,19 @@ const mockAdminDb = {
       const tx = {
         async get(ref: { get: () => Promise<unknown> }) {
           return ref.get();
+        },
+        create(
+          ref: {
+            get: () => Promise<unknown>;
+            set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void>;
+          },
+          data: Record<string, unknown>
+        ) {
+          stagedWrites.push(async () => {
+            const snapshot = await ref.get() as { exists?: boolean };
+            if (snapshot.exists) throw new Error('Document already exists');
+            await ref.set(data);
+          });
         },
         set(
           ref: { set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void> },
@@ -283,7 +303,7 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
 
     getCol('drivers').set('uid-driver-1', {
       id: 'uid-driver-1',
-      tenantId: 'marketplace',
+      tenantId: 'tenant-a',
       name: 'Motoboy Rafael',
       phone: '(11) 99999-1111',
       vehicleType: 'moto',
@@ -291,7 +311,7 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
       rating: 5.0,
       activeDeliveriesCount: 0,
       completedTodayCount: 0,
-      driverType: 'platform',
+      driverType: 'private',
       complianceVerified: true
     });
 
@@ -613,7 +633,7 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
   });
 
   describe('6. Omnichannel Unificado: PDV + Garçom/Mesa + Marketplace + Rota Atribuída no Mesmo Motor Comercial', () => {
-    it('opera venda de balcão, comanda de garçom e pedido delivery com rota atribuída ao entregador sem duplicação financeira', async () => {
+    it('opera canais omnichannel e impede liquidação sem pagamento confirmado ou papel autorizado', async () => {
       await withServer(async (baseUrl) => {
         // Canal 1: PDV Balcão em dinheiro confirmado pelo operador (liquidação imediata)
         const posRes = await fetch(`${baseUrl}/api/orders`, {
@@ -654,11 +674,13 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         expect(waiterRes.status).toBe(201);
         const tableOrder = (await waiterRes.json()) as { id: string };
 
-        await fetch(`${baseUrl}/api/orders/${tableOrder.id}/status`, {
+        const tableSettlementRes = await fetch(`${baseUrl}/api/orders/${tableOrder.id}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-op-a' },
           body: JSON.stringify({ status: 'completed' })
         });
+        expect(tableSettlementRes.status).toBe(409);
+        expect((await tableSettlementRes.json() as { code: string }).code).toBe('PAYMENT_NOT_CONFIRMED');
 
         // Canal 3: Consumidor no Marketplace Online
         const mktRes = await fetch(`${baseUrl}/api/orders`, {
@@ -717,15 +739,23 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         );
         expect(acceptRouteRes.status).toBe(200);
 
-        // Entregador atribuído avança delivered -> completed
-        for (const driverStatus of ['delivered', 'completed']) {
-          const dRes = await fetch(`${baseUrl}/api/orders/${mktOrder.id}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-driver-1' },
-            body: JSON.stringify({ status: driverStatus })
-          });
-          expect(dRes.status).toBe(200);
-        }
+        // Entregador atribuído confirma entrega; conclusão financeira continua fora do papel dele.
+        const deliveredRes = await fetch(`${baseUrl}/api/orders/${mktOrder.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-driver-1' },
+          body: JSON.stringify({ status: 'delivered' })
+        });
+        expect(deliveredRes.status).toBe(200);
+
+        const driverSettlementRes = await fetch(`${baseUrl}/api/orders/${mktOrder.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok-driver-1' },
+          body: JSON.stringify({ status: 'completed' })
+        });
+        expect(driverSettlementRes.status).toBe(403);
+        expect((await driverSettlementRes.json() as { code: string }).code).toBe('FORBIDDEN_DRIVER_TRANSITION');
+        expect(getCol('orders').get(mktOrder.id)?.['status']).toBe('delivered');
+        expect(getCol('financials').has(`fin-sale-${mktOrder.id}`)).toBe(false);
 
         expect(getCol('products').get('prod-burger-a')!['stock']).toBe(6);
 
@@ -734,11 +764,9 @@ describe('AUDITORIA NÚCLEO 3EATCRU (v6) — Segurança, Multi-Tenant, Pagamento
         });
         expect(finListRes.status).toBe(200);
         const financials = (await finListRes.json()) as { id: string; amount: number }[];
-        expect(financials).toHaveLength(3);
+        expect(financials).toHaveLength(1);
         const ids = financials.map((f) => f.id).sort();
-        expect(ids).toEqual(
-          [`fin-sale-${posOrder.id}`, `fin-sale-${tableOrder.id}`, `fin-sale-${mktOrder.id}`].sort()
-        );
+        expect(ids).toEqual([`fin-sale-${posOrder.id}`]);
       });
     });
   });

@@ -14,4 +14,4 @@ O servidor expõe rotas públicas e autenticadas em /api/reservations. O roteado
 
 ## Estado da validação
 
-Os arquivos de teste de reservas existem, mas testes, build e homologação não foram executados nesta revisão. Não declarar percentual de aprovação atual.
+O build de produção passou e a suíte geral passou com 90/90 testes. Não houve teste ponta a ponta específico de perfil e reservas nem homologação com Firebase real.

@@ -45,4 +45,4 @@ A rota protegida /pos carrega src/app/components/pos-terminal.ts. O desktop /os 
 
 ## Estado de homologação
 
-O código do PDV e suas dependências locais foram corrigidos nesta revisão. Build, testes automatizados e homologação com hardware/adquirentes não foram executados nesta etapa; este documento não os declara aprovados.
+O build de produção e a suíte geral passaram nesta revisão (90/90 testes). Não houve homologação do PDV com hardware, balança fiscal ou adquirentes reais.

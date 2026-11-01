@@ -458,6 +458,7 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
     it('should execute real structural system audit and produce detailed report', async () => {
       expect(ecosystem.systemAuditVerified()).toBe(false);
       expect(ecosystem.lastSystemAuditReport()).toBeNull();
+      ecosystem.security.setExecutionMode('real');
 
       const report = await ecosystem.runFullSystemAudit();
       expect(report).toBeDefined();
@@ -512,6 +513,7 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
     });
 
     it('should execute structural audit on backend with safe fallback', async () => {
+      ecosystem.security.setExecutionMode('real');
       const report = await ecosystem.runStructuralAuditOnBackend();
       expect(report).toBeDefined();
       expect(ecosystem.systemAuditVerified()).toBe(true);

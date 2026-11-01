@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -20,7 +20,7 @@ import { OrderTransaction } from '../../models/ecosystem.model';
           </div>
           <div>
             <h2 class="text-sm font-serif font-black text-white">KDS • Tela da Cozinha</h2>
-            <p class="text-[10px] text-stone-400">Protótipo de fila; esta janela ainda não está conectada ao Store OS.</p>
+            <p class="text-[10px] text-stone-400">Pedidos da unidade em tempo real; somente proprietário e operador alteram o preparo.</p>
           </div>
         </div>
 
@@ -54,16 +54,31 @@ import { OrderTransaction } from '../../models/ecosystem.model';
             class="px-2.5 py-1 rounded-xl cursor-pointer">
             Pronto
           </button>
+          <button
+            type="button"
+            (click)="refreshOrders()"
+            [disabled]="isLoading()"
+            aria-label="Atualizar pedidos"
+            class="px-2.5 py-1 rounded-xl border border-[#593017] text-stone-300 disabled:opacity-50">
+            <mat-icon class="!text-sm !h-4 !w-4">refresh</mat-icon>
+          </button>
         </div>
       </div>
 
       <!-- TÍQUETES KDS -->
       <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-        @if (filteredOrders().length === 0) {
+        @if (isLoading()) {
+          <div class="h-full flex items-center justify-center text-sm text-stone-400">Carregando pedidos da unidade…</div>
+        } @else if (loadError()) {
+          <div class="h-full flex flex-col items-center justify-center gap-3 text-center text-rose-300">
+            <p>{{ loadError() }}</p>
+            <button type="button" (click)="refreshOrders()" class="font-bold underline">Tentar novamente</button>
+          </div>
+        } @else if (filteredOrders().length === 0) {
           <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-stone-600">
             <mat-icon class="text-5xl text-stone-700">check_circle_outline</mat-icon>
             <p class="text-sm font-bold text-stone-400">Nenhum pedido ativo</p>
-            <p class="text-xs text-stone-600">A fila está vazia ou ainda não foi carregada.</p>
+            <p class="text-xs text-stone-600">A fila desta unidade está vazia para o filtro selecionado.</p>
           </div>
         } @else {
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -117,7 +132,9 @@ import { OrderTransaction } from '../../models/ecosystem.model';
                   </span>
 
                   <div class="flex items-center gap-1">
-                    @if (order.status === 'pending') {
+                    @if (!canManageOrders()) {
+                      <span class="text-[10px] text-stone-500">Consulta; status alterado por gerente/operador</span>
+                    } @else if (order.status === 'pending') {
                       <button
                         type="button"
                         (click)="advanceStatus(order, 'preparing')"
@@ -152,14 +169,29 @@ export class EAppKdsWindow {
   readonly ecosystem = inject(EcosystemService);
 
   readonly selectedStatus = signal<'all' | 'pending' | 'preparing' | 'ready'>('all');
+  readonly isLoading = signal<boolean>(false);
+  readonly loadError = signal<string | null>(null);
   private readonly updatingOrderIds = signal<ReadonlySet<string>>(new Set());
+  private fetchGeneration = 0;
+
+  constructor() {
+    effect(() => {
+      void this.loadOrders(this.ecosystem.resolveOperationalTenantId());
+    });
+  }
 
   readonly activeOrders = computed(() => {
-    const tenantId = this.ecosystem.currentTenantId();
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!tenantId) return [];
     return this.ecosystem.orders().filter((order) =>
-      (!tenantId || order.tenantId === tenantId) &&
+      order.tenantId === tenantId &&
       (order.status === 'pending' || order.status === 'preparing' || order.status === 'ready')
     );
+  });
+
+  readonly canManageOrders = computed(() => {
+    const role = this.ecosystem.currentSession()?.role;
+    return role === 'tenant_owner' || role === 'operator';
   });
 
   readonly filteredOrders = computed(() => {
@@ -172,6 +204,31 @@ export class EAppKdsWindow {
     return this.updatingOrderIds().has(orderId);
   }
 
+  async refreshOrders() {
+    await this.loadOrders(this.ecosystem.resolveOperationalTenantId());
+  }
+
+  private async loadOrders(tenantId: string) {
+    const generation = ++this.fetchGeneration;
+    this.loadError.set(null);
+    if (!tenantId) {
+      this.isLoading.set(false);
+      this.loadError.set('Selecione uma unidade para carregar os pedidos.');
+      return;
+    }
+
+    this.isLoading.set(true);
+    try {
+      await this.ecosystem.ordersService.fetchOrders(tenantId);
+    } catch {
+      if (generation === this.fetchGeneration) {
+        this.loadError.set('Não foi possível carregar os pedidos desta unidade.');
+      }
+    } finally {
+      if (generation === this.fetchGeneration) this.isLoading.set(false);
+    }
+  }
+
   formatOrderTime(createdAt: string): string {
     const date = new Date(createdAt);
     return Number.isNaN(date.getTime())
@@ -180,6 +237,10 @@ export class EAppKdsWindow {
   }
 
   async advanceStatus(order: OrderTransaction, nextStatus: 'preparing' | 'ready') {
+    if (!this.canManageOrders() || order.tenantId !== this.ecosystem.resolveOperationalTenantId()) {
+      this.ecosystem.notify('Somente proprietário ou operador da unidade pode alterar o preparo.', 'warning');
+      return;
+    }
     if (this.isUpdating(order.id)) return;
     this.updatingOrderIds.update((ids) => new Set(ids).add(order.id));
     try {

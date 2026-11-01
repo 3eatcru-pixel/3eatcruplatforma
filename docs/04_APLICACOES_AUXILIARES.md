@@ -36,6 +36,7 @@
 - **Fronteira de Segurança**:
   - O motorista `private` consulta rotas disponíveis somente da loja à qual está vinculado; o aceite exige correspondência exata entre a loja do motorista e a rota.
   - O entregador visualiza **apenas os pedidos atribuídos ao seu ID** (`order.driverId === user.id`).
+  - Pode atualizar a entrega até `delivered`; não pode marcar o pedido como `completed` nem gerar liquidação financeira.
   - Não possui acesso a configurações da loja nem dados de outros entregadores.
 
 ---

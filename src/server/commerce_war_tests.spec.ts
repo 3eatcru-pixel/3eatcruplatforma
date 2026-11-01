@@ -512,6 +512,29 @@ describe('3eatcru — Suite de Testes de Guerra Comercial (Omnichannel & Offline
       });
       expect(createRes.status).toBe(201);
       const orderId = String(createRes.body['id']);
+      const paymentTransactionId = `approved-payment-${orderId}`;
+      getCol('payment_transactions').set(paymentTransactionId, {
+        id: paymentTransactionId,
+        orderId,
+        tenantId: 'tenant-alpha',
+        amount: 136.0,
+        feeDeducted: 0,
+        netAmount: 136.0,
+        method: 'credit_card',
+        status: 'approved',
+        gateway: 'test-fixture',
+        authorizationCode: 'test-approved',
+        environment: 'sandbox',
+        mode: 'simulation',
+        createdByUid: 'uid-alpha-op',
+        createdAt: new Date().toISOString()
+      });
+      const createdOrder = getCol('orders').get(orderId)!;
+      getCol('orders').set(orderId, {
+        ...createdOrder,
+        paymentStatus: 'approved',
+        paymentTransactionId
+      });
 
       const [settleA, settleB] = await Promise.all([
         apiJson(baseUrl, `/api/orders/${orderId}/status`, 'PATCH', {
@@ -583,7 +606,7 @@ describe('3eatcru — Suite de Testes de Guerra Comercial (Omnichannel & Offline
     });
   });
 
-  it('Guerra 5: Cancelamento simultâneo restaura o estoque exatamente 1 vez e gera apenas 1 estorno financeiro', async () => {
+  it('Guerra 5: Cancelamento concorrente de pedido não pago restaura o estoque exatamente 1 vez', async () => {
     getCol('products').set('prod-wine', {
       id: 'prod-wine',
       tenantId: 'tenant-alpha',
@@ -603,11 +626,9 @@ describe('3eatcru — Suite de Testes de Guerra Comercial (Omnichannel & Offline
       const sale = await apiJson(baseUrl, '/api/orders', 'POST', {
         token: 'token-alpha-op',
         body: {
-          type: 'pos-counter',
-          channel: 'POS',
-          status: 'completed',
-          paymentMethod: 'cash',
-          cashConfirmedByOperator: true,
+          type: 'delivery',
+          channel: 'Online Marketplace',
+          paymentMethod: 'pix',
           items: [{ productId: 'prod-wine', quantity: 2 }]
         }
       });
@@ -634,8 +655,9 @@ describe('3eatcru — Suite de Testes de Guerra Comercial (Omnichannel & Offline
       expect(rejected.body['code']).toBe('ORDER_ALREADY_CANCELLED');
 
       expect(getCol('products').get('prod-wine')?.['stock']).toBe(5);
-      expect(getCol('financials').has(`fin-rev-${orderId}`)).toBe(true);
-      expect(getCol('financials').size).toBe(2);
+      expect(getCol('financials').has(`fin-sale-${orderId}`)).toBe(false);
+      expect(getCol('financials').has(`fin-rev-${orderId}`)).toBe(false);
+      expect(getCol('financials').size).toBe(0);
     });
   });
 
@@ -763,6 +785,14 @@ describe('3eatcru — Suite de Testes de Guerra Comercial (Omnichannel & Offline
   });
 
   it('Guerra 8: Proteção de Propriedade Estrita do Entregador (apenas entregador atribuído via rota pode atuar no pedido)', async () => {
+    getCol('drivers').set('uid-driver-1', {
+      id: 'uid-driver-1',
+      tenantId: 'tenant-alpha',
+      name: 'Entregador Carlos',
+      driverType: 'private',
+      status: 'available'
+    });
+
     getCol('products').set('prod-del-1', {
       id: 'prod-del-1',
       tenantId: 'tenant-alpha',

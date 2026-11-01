@@ -1,6 +1,6 @@
 # Segurança, testes e maturidade — estado verificado
 
-Atualizado em 2026-11-01 por leitura estática do repositório. Esta página não declara build, testes, implantação ou homologação executados nesta revisão.
+Atualizado em 2026-11-01 por leitura estática e validação local. Nesta revisão, lint passou, a suíte passou com 90/90 testes e o build de produção passou. Os testes usam mocks; implantação e homologação real continuam pendentes.
 
 ## Controles encontrados
 
@@ -18,7 +18,7 @@ As regras Firestore impedem gravação direta do cliente em audit_logs. O backen
 
 ## Inventário de testes
 
-Existem arquivos de teste em src/app e src/server. A contagem de arquivos não informa quantos testes passam nem quando passaram. Nesta revisão, nenhum teste foi executado; não há resultado atual de aprovação.
+Existem arquivos de teste em src/app e src/server. Nesta revisão, `npm run test:ci` passou com 90/90 testes; essa contagem não comprova cobertura de todas as rotas nem integração real com Firebase, PSP ou hardware.
 
 Comandos disponíveis no package.json:
 
@@ -30,7 +30,7 @@ Use [Testes e recuperação](./INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para o inv
 
 ## Critérios antes de declarar produção
 
-1. Executar e registrar lint, testes e build de produção em CI ou ambiente controlado.
+1. Automatizar lint, testes e build de produção como gate de CI; a execução local desta revisão passou, mas não substitui um pipeline contínuo.
 2. Validar regras Firestore no emulador e verificar autorização nas rotas que usam Admin SDK.
 3. Homologar fluxos de pagamento, tenant, operador, consumidor e entregador com dados de teste.
 4. Registrar configuração de implantação, segredos, backup e procedimento de recuperação.

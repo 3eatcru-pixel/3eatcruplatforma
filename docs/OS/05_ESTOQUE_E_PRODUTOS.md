@@ -2,7 +2,7 @@
 
 ## Estado encontrado
 
-O domínio de produtos tem serviço Angular e API. Não existe janela de estoque integrada ao desktop do Store OS nesta revisão.
+O domínio de produtos tem serviço Angular e API. O eApp Estoque agora está conectado ao desktop para consulta e cadastro de produtos da unidade; ajuste de saldo e movimentos auditáveis continuam indisponíveis.
 
 | Responsabilidade | Implementação | Estado |
 |---|---|---|
@@ -11,7 +11,7 @@ O domínio de produtos tem serviço Angular e API. Não existe janela de estoque
 | Catálogo público | GET /api/products/public e signal publicCatalog | Projeção sanitizada em estado separado do estoque interno; a vitrine filtra pelo tenant ativo sem fallback para produtos de outras lojas. |
 | Produtos de demonstração | src/app/models/mock-data.ts e InventoryService | Fixtures e alterações simuladas são marcadas como locais; a troca para modo real ou outro tenant limpa o estado. O serviço inicia vazio no modo real; falha de API não deve expor fixtures como estoque da loja. |
 | Promoções e fornecedores | InventoryService.fetchPromotions/fetchSuppliers | Ainda retornam listas vazias; não documentar como fluxo operacional. |
-| Tela de gestão de estoque | ID inventory no registro do desktop | Placeholder; interface não integrada. `eapp-inventory.ts` não é importado nem renderizado por `client-os.ts`; seu formulário de cadastro chama o serviço de produtos, mas não oferece ajuste de saldo sem movimento auditável. |
+| Tela de gestão de estoque | `client-os.ts` renderiza `eapp-inventory.ts` para o ID inventory | Consulta o tenant ativo e permite cadastrar produtos. Não oferece ajuste de saldo, trilha de movimentação ou fornecedores. |
 | Inventário cego | `src/app/components/eapps/eapp-stock-audit.ts` | Protótipo com contagens fixas e estado local; concluir a demonstração não salva contagem nem altera o estoque. Não está integrado ao desktop. |
 
 ## Fora do estado atual
@@ -20,4 +20,4 @@ Importação de NF-e, perdas/avarias, inventário cego persistente, impressão d
 
 ## Validação
 
-Este documento foi alinhado por leitura estática do serviço, rota e shell. Testes e homologação não foram executados nesta revisão.
+Nesta revisão, lint passou, a suíte geral passou com 90/90 testes e o build de produção passou. Não houve teste de movimentação de estoque — esse fluxo ainda não existe — nem homologação com Firestore real.

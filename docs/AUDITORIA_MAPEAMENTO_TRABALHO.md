@@ -1,6 +1,6 @@
 # Auditoria de mapeamento — HQ e Store OS
 
-Atualizado em 2026-11-01 por leitura estática do repositório. Este arquivo resume o estado encontrado; não declara build, testes ou homologação executados. O mapa detalhado está em MODULE_STATUS.md e docs/OS/03_APLICATIVOS_E_MODULOS.md.
+Atualizado em 2026-11-01 por leitura estática e validação local. `npm run lint` passou, `npm run test:ci` passou com 90/90 testes e o build de produção passou; os resultados usam mocks e não declaram homologação. O mapa detalhado está em MODULE_STATUS.md e docs/OS/03_APLICATIVOS_E_MODULOS.md.
 
 ## HQ Central
 
@@ -14,8 +14,9 @@ Atualizado em 2026-11-01 por leitura estática do repositório. Este arquivo res
 |---|---|---|
 | Desktop | src/app/components/client-os.ts | Shell com janelas; IDs sem renderizador mostram estado placeholder. |
 | PDV | src/app/components/pos-terminal.ts e src/app/components/eapps/pos/ | Rota standalone /pos; encaminhada pelo atalho do desktop. |
-| Produtos e pedidos | Serviços Angular e routers do servidor | APIs presentes; janelas de estoque, KDS e histórico não integradas. |
-| Financeiro e mesas | Serviços Angular e routers do servidor | APIs presentes; janelas financeiras e de mesas não integradas. |
+| Produtos e pedidos | Serviços Angular e routers do servidor | eApps de Estoque e KDS conectados: consulta/cadastro de produtos e avanço de preparo até `ready`; ajuste de estoque auditável e histórico de pedidos ainda não integrados. |
+| Financeiro | FinancialsService, financials.router.ts e eApp Financeiro | Consulta somente leitura da unidade ativa, restrita a proprietário/operador; sem DRE, conciliação ou criação de lançamentos pela janela. |
+| Mesas | TablesService, tables.router.ts e `eapp-tables.ts` | API e protótipo presentes, mas sem janela integrada no desktop. |
 | Garçom e entregador | src/app/components/waiter-app.ts e driver-app.ts | Rotas standalone /waiter e /driver. |
 
 ## Integração HQ–OS

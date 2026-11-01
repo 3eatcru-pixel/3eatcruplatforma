@@ -13,14 +13,17 @@ Fontes de referência no código:
 
 ## Estado verificado em 2026-11-01
 
-O registro contém 33 IDs. No desktop, Minha Loja e três simuladores possuem janela embutida; o PDV operacional fica em rota standalone. Os demais IDs mostram um estado explícito de interface ainda não integrada; eles não devem ser descritos como telas implementadas.
+O registro contém 33 IDs. No desktop, Minha Loja, KDS, Estoque, Financeiro e três simuladores possuem janela embutida; o PDV operacional fica em rota standalone. Os demais IDs mostram um estado explícito de interface ainda não integrada; eles não devem ser descritos como telas implementadas.
 
 | IDs | Estado no Store OS | Implementação encontrada |
 |---|---|---|
 | pos | 🟡 Rota standalone | /pos carrega src/app/components/pos-terminal.ts; a janela do desktop encaminha para essa rota. Subcomponentes em src/app/components/eapps/pos/. |
 | waiter-sim, driver-sim, consumer-sim | 🔵 Simuladores | Molduras de demonstração em src/app/components/eapps/eapp-*-sim.ts, reutilizando as telas de garçom, entregador e marketplace. |
 | store-manager | 🟡 eApp integrado | Minha Loja abre pelo desktop e permite editar a vitrine, taxa, pedido mínimo e chave PIX da conta da loja. O servidor limita a chave a 77 caracteres, mas não verifica formato ou titularidade. |
-| tables, kds, inventory, finance, suppliers, reconciliation, stock-audit, whatsapp, ifood, instagram, tasks, calendar, agenda, services, rh, drivers, history, reports, crm, docs, google-drive, calculator, notes, admin-hub, appstore, browser, settings, system | ⚪ Janela placeholder | IDs estão no registro, mas não têm eApp conectado. client-os.ts mostra o estado de interface ausente. A disponibilidade de API/serviço é avaliada separadamente. |
+| kds | 🟡 eApp integrado — escopo operacional | Carrega pedidos da unidade; proprietário/operador pode avançar `pending` → `preparing` → `ready`; garçom tem consulta sem alteração. Cancelamento e conclusão financeira continuam em fluxos autorizados separados. |
+| inventory | 🟡 eApp integrado — escopo parcial | Abre no desktop, carrega produtos do tenant selecionado e permite cadastro pelo `InventoryService`. Não oferece ajuste de saldo nem histórico de movimentação. |
+| finance | 🟡 eApp integrado — consulta | Lê lançamentos da unidade; vendas/entradas e despesas liquidadas compõem o resumo. Pendências aparecem sem entrar no saldo. Não realiza DRE, conciliação ou lançamentos. |
+| tables, suppliers, reconciliation, stock-audit, whatsapp, ifood, instagram, tasks, calendar, agenda, services, rh, drivers, history, reports, crm, docs, google-drive, calculator, notes, admin-hub, appstore, browser, settings, system | ⚪ Janela placeholder | IDs estão no registro, mas não têm eApp conectado. client-os.ts mostra o estado de interface ausente. A disponibilidade de API/serviço é avaliada separadamente. |
 
 As telas /waiter, /driver, /hq e as vitrines públicas são rotas próprias, não janelas do Store OS. A existência dessas rotas não altera o estado dos IDs homônimos no desktop.
 
@@ -30,12 +33,10 @@ Os arquivos abaixo existem no repositório, mas não estão importados nem rende
 
 | Arquivo | Limite verificado |
 |---|---|
-| `eapp-kds.ts` | Protótipo de fila que altera pedidos apenas até `ready`; não finaliza pedidos nem liquida pagamentos. No modo simulado, a notificação identifica a alteração como local. |
 | `eapp-tables.ts` | Protótipo de mesas; recusa liberar reserva, conta solicitada ou mesa com valor em aberto. |
 | `eapp-ifood.ts` | Demonstração com pedidos estáticos e estado local; não possui API, webhook ou despacho conectado. |
 | `eapp-services.ts` | Demonstração de O.S. em signal local; não envia ordens de exemplo à API. |
 | `eapp-crm.ts` | Altera apenas o signal local `customers`; não carrega nem grava clientes e pontos na API de CRM. |
-| `eapp-inventory.ts` | Componente fora do desktop; o cadastro chama o serviço de produtos, mas não há ajuste de saldo sem movimento auditável. |
 | `eapp-stock-audit.ts` | Contagem demonstrativa em memória; concluir não grava contagem nem aplica ajuste. |
 | `eapp-google-drive.ts` | Lista arquivos de exemplo; o botão de backup fica desabilitado e não chama o serviço de Drive. |
 | `GoogleDriveService` e seletor compartilhado | OAuth só marca conexão ativa após obter token e carregar arquivos. Sem token, a lista e uploads são locais/demonstrativos; não estão conectados ao desktop do lojista. |
@@ -54,7 +55,6 @@ Os arquivos abaixo existem no repositório, mas não estão importados nem rende
 | `eapp-tasks.ts` | Checklist demonstrativo; marcações não persistem nem são atribuídas a operadores. |
 | `eapp-calendar.ts` | Eventos estáticos de exemplo; não consulta agenda nem reservas. |
 | `eapp-system.ts` | Resumo estático da aplicação, sem diagnóstico do dispositivo ou verificação de conexão. |
-| `eapp-finance.ts` | Resumo visual dos lançamentos carregados do tenant ativo; não é janela integrada de DRE nem de conciliação. |
 | `eapp-order-history.ts` | Lista apenas pedidos carregados do tenant ativo; não consulta histórico completo nem está integrada ao desktop. |
 | `eapp-calculator.ts` | Calculadora local sem APIs ou persistência; erros aritméticos são exibidos como `Erro`. O ID `calculator` ainda abre placeholder no desktop. |
 
@@ -62,10 +62,10 @@ Os arquivos abaixo existem no repositório, mas não estão importados nem rende
 
 | Domínio | Serviços/rotas encontrados | Situação da interface desktop |
 |---|---|---|
-| Pedidos | OrdersService, orders.router.ts | Sem janela de histórico/KDS integrada. |
-| Produtos e estoque | InventoryService, products.router.ts | Sem janela de estoque. CRUD real; promoções e fornecedores ainda sem persistência. |
+| Pedidos | OrdersService, orders.router.ts | eApp KDS integrado para consulta e avanço de preparo até `ready`; não conclui pedidos nem liquida pagamentos. Histórico de pedidos continua sem janela. |
+| Produtos e estoque | InventoryService, products.router.ts | eApp integrado para consulta e cadastro de produtos; ajuste de saldo e trilha de movimentos ainda não disponíveis. Promoções e fornecedores ainda sem persistência. |
 | Catálogo público | InventoryService.publicCatalog e /api/products/public | Signal separado do catálogo interno e filtrado pelo tenant da vitrine. |
-| Financeiro | FinancialsService, financials.router.ts | Sem janela financeira. Operações de caixa iniciadas no PDV usam o serviço financeiro. |
+| Financeiro | FinancialsService, financials.router.ts | eApp de consulta somente leitura integrado; não é DRE nem conciliação. Operações de caixa continuam iniciadas no PDV. |
 | Mesas e reservas | TablesService, AppointmentsService, tables.router.ts, reservations.router.ts | Sem janela de mesas/reservas; o App Garçom é uma rota separada. Ele registra pedidos e consulta seus status, sem confirmação integrada de uma estação KDS. No modo simulado, mesas, reservas e pedidos ficam em memória local. |
 | Logística e CRM | LogisticsService, CrmService e routers correspondentes | Sem eApp desktop conectado. O App Entregador carrega fixtures locais quando está no modo simulado. |
 

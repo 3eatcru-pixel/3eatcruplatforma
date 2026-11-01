@@ -12,6 +12,7 @@ O checkout da vitrine cria o pedido e chama POST /api/payments/process para PIX 
 - **Cartão:** transação real está bloqueada com `TENANT_CARD_ACCOUNT_NOT_CONFIGURED` quando há apenas uma chave global Stripe. O valor não deve ser cobrado na conta central do HQ. Cartão Mercado Pago continua não implementado; em sandbox, há somente simulação.
 - **Dinheiro:** o checkout público registra pagamento pendente para recebimento na entrega/retirada; operador da loja registra a confirmação presencial. Vouchers permanecem restritos ao fluxo operacional disponível.
 - **Liquidação por loja:** recebimento por cartão exige uma conta de adquirência conectada a cada tenant, ainda não integrada. PIX e dinheiro ficam sob responsabilidade da loja; o HQ não recebe nem repassa valores de pedidos.
+- **Conclusão financeira:** a API só aceita `status: completed` quando há uma transação aprovada que corresponda ao pedido, tenant e valor. O entregador pode atualizar o andamento até `delivered`, mas não conclui a liquidação financeira. Cancelar pedido já pago exige fluxo de estorno, ainda não implementado; a API retorna `409 REFUND_REQUIRED`.
 
 O campo serviceFeePercent legado não entra no checkout. A entrega usa o valor fixo deliveryFee configurado pela loja. A comissão futura de 8% da rede própria da plataforma permanece em coming_soon e não é cobrada neste fluxo.
 
@@ -23,4 +24,4 @@ Antes de produção, validar as chaves Pix das lojas, automatizar confirmação 
 
 ## Validação
 
-Nesta revisão, build e testes não foram executados. Não declarar como aprovados os cenários descritos em arquivos de teste sem registrar a execução atual.
+Nesta revisão, o build de produção passou e `npm run test:ci` passou com 90/90 testes. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks ou conciliação financeira real.

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { InventoryService } from '../../services/inventory.service';
@@ -19,12 +19,20 @@ import { EcosystemService } from '../../services/ecosystem.service';
             <mat-icon class="text-xl">inventory_2</mat-icon>
           </div>
           <div>
-            <h2 class="text-sm font-serif font-black text-white">Estoque • Protótipo não integrado</h2>
-            <p class="text-[10px] text-stone-400">Cadastro básico de produtos; não registra movimentos auditáveis nem dados fiscais.</p>
+            <h2 class="text-sm font-serif font-black text-white">Estoque • Produtos da unidade</h2>
+            <p class="text-[10px] text-stone-400">Consulta e cadastro no catálogo da loja. Ajustes de saldo e movimentos auditáveis ainda não estão disponíveis.</p>
           </div>
         </div>
 
         <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="refreshProducts()"
+            [disabled]="isLoading()"
+            aria-label="Atualizar produtos"
+            class="px-3 py-1.5 border border-[#593017] text-stone-300 hover:text-white text-xs rounded-xl disabled:opacity-50">
+            <mat-icon class="text-sm">refresh</mat-icon>
+          </button>
           <button
             type="button"
             (click)="showNewModal.set(true)"
@@ -64,31 +72,44 @@ import { EcosystemService } from '../../services/ecosystem.service';
             </tr>
           </thead>
           <tbody class="divide-y divide-[#2a1307]">
-            @for (p of filteredProducts(); track p.id) {
-              <tr class="hover:bg-[#200e05]/60 transition-colors">
-                <td class="p-3">
-                  <div class="font-bold text-white">{{ p.name }}</div>
-                  <div class="text-[10px] text-stone-500">SKU: {{ p.sku }} • EAN: {{ p.barcode || 'N/A' }}</div>
-                </td>
-                <td class="p-3 text-stone-300">
-                  <span class="px-2 py-0.5 rounded-lg bg-[#261207] text-[10px] border border-[#381c0c]">
-                    {{ p.category }}
-                  </span>
-                </td>
-                <td class="p-3 text-right">
-                  <span
-                    [class]="(p.stock || 0) <= 5 ? 'text-rose-400 font-black' : 'text-stone-300'"
-                    class="font-mono">
-                    {{ p.stock }} un
-                  </span>
-                </td>
-                <td class="p-3 text-right font-black text-amber-400">
-                  R$ {{ p.price.toFixed(2) }}
-                </td>
-                <td class="p-3 text-right">
-                  <span class="text-[10px] text-stone-500">Movimento auditável indisponível</span>
+            @if (isLoading()) {
+              <tr><td colspan="5" class="p-8 text-center text-stone-400">Carregando produtos…</td></tr>
+            } @else if (loadError()) {
+              <tr>
+                <td colspan="5" class="p-8 text-center text-rose-300">
+                  <p>{{ loadError() }}</p>
+                  <button type="button" (click)="refreshProducts()" class="mt-2 font-bold underline">Tentar novamente</button>
                 </td>
               </tr>
+            } @else if (filteredProducts().length === 0) {
+              <tr><td colspan="5" class="p-8 text-center text-stone-500">Nenhum produto encontrado para esta unidade.</td></tr>
+            } @else {
+              @for (p of filteredProducts(); track p.id) {
+                <tr class="hover:bg-[#200e05]/60 transition-colors">
+                  <td class="p-3">
+                    <div class="font-bold text-white">{{ p.name }}</div>
+                    <div class="text-[10px] text-stone-500">SKU: {{ p.sku }} • EAN: {{ p.barcode || 'N/A' }}</div>
+                  </td>
+                  <td class="p-3 text-stone-300">
+                    <span class="px-2 py-0.5 rounded-lg bg-[#261207] text-[10px] border border-[#381c0c]">
+                      {{ p.category }}
+                    </span>
+                  </td>
+                  <td class="p-3 text-right">
+                    <span
+                      [class]="(p.stock || 0) <= 5 ? 'text-rose-400 font-black' : 'text-stone-300'"
+                      class="font-mono">
+                      {{ p.stock }} un
+                    </span>
+                  </td>
+                  <td class="p-3 text-right font-black text-amber-400">
+                    R$ {{ p.price.toFixed(2) }}
+                  </td>
+                  <td class="p-3 text-right">
+                    <span class="text-[10px] text-stone-500">Movimento auditável indisponível</span>
+                  </td>
+                </tr>
+              }
             }
           </tbody>
         </table>
@@ -186,6 +207,9 @@ export class EAppInventoryWindow {
   readonly search = signal<string>('');
   readonly showNewModal = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
+  readonly isLoading = signal<boolean>(false);
+  readonly loadError = signal<string | null>(null);
+  private fetchGeneration = 0;
 
   readonly newProdName = signal<string>('');
   readonly newProdPrice = signal<number>(10);
@@ -203,6 +227,38 @@ export class EAppInventoryWindow {
       (p.barcode && p.barcode.includes(q))
     );
   });
+
+  constructor() {
+    effect(() => {
+      const tenantId = this.ecosystem.resolveOperationalTenantId();
+      void this.loadProducts(tenantId);
+    });
+  }
+
+  async refreshProducts() {
+    await this.loadProducts(this.ecosystem.resolveOperationalTenantId());
+  }
+
+  private async loadProducts(tenantId: string) {
+    const generation = ++this.fetchGeneration;
+    this.loadError.set(null);
+    if (!tenantId) {
+      this.isLoading.set(false);
+      this.loadError.set('Selecione uma unidade para consultar o estoque.');
+      return;
+    }
+
+    this.isLoading.set(true);
+    try {
+      await this.inventoryService.fetchProducts(tenantId);
+    } catch {
+      if (generation === this.fetchGeneration) {
+        this.loadError.set('Não foi possível carregar os produtos desta unidade.');
+      }
+    } finally {
+      if (generation === this.fetchGeneration) this.isLoading.set(false);
+    }
+  }
 
   async createProduct() {
     if (this.isSaving()) return;

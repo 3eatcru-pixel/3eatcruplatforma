@@ -2,7 +2,7 @@
 
 Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS / Omnichannel**. Caminhos e capacidades descritos aqui devem existir no repositório; presença de serviço/API não significa que exista uma tela integrada ao Store OS.
 
-**ESTADO DA AUDITORIA (2026-11-01)**: leitura estática em correção. Um bloqueio de compilação por imports de janelas ausentes foi registrado anteriormente; não foi revalidado nesta atualização documental. O PDV está implementado como rota standalone /pos; os demais estados de interface estão discriminados abaixo. Build, testes e homologação não foram executados nesta revisão.
+**ESTADO DA AUDITORIA (2026-11-01)**: build de produção passou, lint passou e `npm run test:ci` passou com 90/90 testes. O bundle inicial mede 600,66 kB brutos (126,50 kB estimados em transferência), sem aviso de limite; avisos CommonJS de Leaflet e gRPC continuam. Não houve homologação com Firebase real nem validação de produção. O erro anterior de compilação por import de janela ausente não se reproduziu. O PDV segue como rota standalone `/pos`; KDS, Estoque e Financeiro agora abrem no desktop com escopos definidos abaixo. Consulte [testes e recuperação](./docs/INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para os limites da validação.
 
 ## Legenda Oficial de Classificação
 
@@ -68,10 +68,13 @@ O registro em `src/app/components/os/os-apps-registry.ts` contém atalhos, mas o
 
 | ID / grupo | Estado da interface | Evidência no repositório |
 |---|---|---|
-| `pos` | 🟡 **BETA — rota standalone** | `/pos` carrega `src/app/components/pos-terminal.ts`; a janela do OS oferece navegação para essa rota. Os subcomponentes estão em `src/app/components/eapps/pos/`. A rota depende de build e homologação operacional ainda não registradas nesta auditoria. |
+| `pos` | 🟡 **BETA — rota standalone** | `/pos` carrega `src/app/components/pos-terminal.ts`; a janela do OS oferece navegação para essa rota. Os subcomponentes estão em `src/app/components/eapps/pos/`. O build de produção passou; homologação operacional continua pendente. |
+| `kds` | 🟡 **BETA — escopo operacional** | Janela integrada ao desktop; carrega pedidos da unidade e permite a proprietário/operador avançar de `pending` para `preparing` e `ready`. Garçom consulta sem alterar status. O servidor valida tenant, papel e transições. |
 | `waiter-sim`, `driver-sim`, `consumer-sim` | 🔵 **MOCK — simuladores integrados** | `src/app/components/eapps/eapp-waiter-sim.ts`, `eapp-driver-sim.ts` e `eapp-consumer-sim.ts`; são molduras de demonstração para telas móveis/web. |
 | `store-manager` | 🟡 **BETA** | eApp Minha Loja integrado ao desktop. Edita perfil da vitrine, taxa de entrega, pedido mínimo e chave PIX do tenant; o cadastro de chave não valida titularidade. |
-| `tables`, `kds`, `inventory`, `finance`, `suppliers`, `reconciliation`, `stock-audit`, `whatsapp`, `ifood`, `instagram`, `tasks`, `calendar`, `agenda`, `services`, `rh`, `drivers`, `history`, `reports`, `crm`, `docs`, `google-drive`, `calculator`, `notes`, `admin-hub`, `appstore`, `browser`, `settings`, `system` | ⚪ **PLACEHOLDER no desktop** | Os IDs constam no registro, mas não têm janela standalone integrada. `client-os.ts` exibe estado explícito de interface ausente. Serviços, APIs e rotas móveis existentes continuam avaliados nas seções próprias; não são evidência de eApp. |
+| `inventory` | 🟡 **BETA — escopo parcial** | Janela integrada ao desktop; lista e cadastra produtos da unidade por `InventoryService` e `/api/products`. Ajuste de saldo, histórico de movimentos e fornecedores não estão disponíveis. |
+| `finance` | 🟡 **BETA — consulta somente leitura** | Janela integrada ao desktop; consulta lançamentos da unidade e soma vendas/entradas e saídas liquidadas. Não cria lançamentos, não produz DRE e não concilia adquirentes. |
+| `tables`, `suppliers`, `reconciliation`, `stock-audit`, `whatsapp`, `ifood`, `instagram`, `tasks`, `calendar`, `agenda`, `services`, `rh`, `drivers`, `history`, `reports`, `crm`, `docs`, `google-drive`, `calculator`, `notes`, `admin-hub`, `appstore`, `browser`, `settings`, `system` | ⚪ **PLACEHOLDER no desktop** | Os IDs constam no registro, mas não têm janela standalone integrada. `client-os.ts` exibe estado explícito de interface ausente. Serviços, APIs e rotas móveis existentes continuam avaliados nas seções próprias; não são evidência de eApp. |
 | `/waiter`, `/driver`, `/hq`, vitrine pública | Aplicações/rotas separadas | Componentes próprios em `src/app/components/`; não são janelas do Store OS. |
 
 ### Correção do modo de estoque

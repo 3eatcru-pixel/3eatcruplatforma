@@ -29,7 +29,7 @@ As rotas de configuração regional persistem dados usados pela interface de mar
 
 ## Validação desta auditoria
 
-Foi feita inspeção de código e documentação. Os testes automatizados e o build não foram executados neste ciclo.
+Nesta revisão, `npm run test:ci` passou com 90/90 testes e `npm run build -- --stats-json` compilou para produção. O bundle inicial ficou em 600,66 kB brutos (126,50 kB estimados em transferência), sem aviso de limite inicial. Firebase Auth carrega depois da primeira renderização e Firestore apenas quando uma assinatura em tempo real é solicitada; avisos CommonJS de Leaflet e gRPC continuam. Os testes incluem mocks e não substituem a validação da varredura contra um Firestore de homologação.
 
 | Capacidade | Estado atual |
 |---|---|

@@ -15,10 +15,10 @@ O registro de atalhos do Store OS não comprova que uma janela esteja implementa
 
 | Domínio | Interface encontrada | Estado |
 |---|---|---|
-| PDV | Rota standalone `/pos`; atalho no desktop encaminha para ela | Implementado no código, build/homologação pendentes nesta revisão |
-| Pedidos, KDS e mesas | API/serviços; App Garçom separado em `/waiter` | Sem janelas KDS ou mapa de mesas integrados |
-| Produtos e estoque | API e `InventoryService` | Sem janela de estoque; dados demo só no modo simulado |
-| Financeiro | API e `FinancialsService`; sangria/suprimento no PDV | Sem janela financeira/DRE integrada |
+| PDV | Rota standalone `/pos`; atalho no desktop encaminha para ela | Build de produção passou nesta revisão; homologação operacional pendente |
+| Pedidos, KDS e mesas | API/serviços; App Garçom separado em `/waiter` | KDS integrado para consulta e avanço de preparo até `ready`; mapa de mesas permanece sem janela |
+| Produtos e estoque | API e `InventoryService` | eApp integrado para consulta e cadastro; dados demo só no modo simulado. Ajuste de saldo e trilha de movimentos ainda não disponíveis |
+| Financeiro | API e `FinancialsService`; sangria/suprimento no PDV | eApp de consulta somente leitura integrado para proprietário/operador; sem DRE, conciliação ou criação de lançamentos pela janela |
 | CRM, WhatsApp e iFood | Domínios parciais e/ou APIs | Sem eApps desktop integrados nesta auditoria |
 
 No modo simulado, os serviços de pedidos, mesas, reservas, financeiro, logística e estoque mantêm dados na memória local. Esses dados não são persistidos nem enviados à fila offline; a troca do modo ou do tenant ativo limpa o estado. Mesas e rotas de demonstração também dão suporte às rotas móveis `/waiter` e `/driver`.

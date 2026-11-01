@@ -42,7 +42,9 @@ O índice canônico é [docs/INDEX.md](./docs/INDEX.md). O arquivo [docs/00_INDI
 
 ## Comandos disponíveis
 
-- npm start: servidor de desenvolvimento na porta 3000.
+- Requer Node.js 24.12+ para atender aos requisitos do Firebase Client SDK, do Firebase Admin SDK e do Angular CLI presentes no lockfile.
+- `npm start` / `npm run dev`: servidor de desenvolvimento na porta 3000. Confere o `package-lock.json` e as dependências locais; roda `npm ci` somente se faltarem ou divergirem. A primeira inicialização sem `node_modules` pode levar alguns minutos; os starts seguintes reutilizam a instalação.
+- `npm ci`: instalação manual e reproduzível a partir do lockfile, útil para build, testes e lint antes de iniciar a aplicação.
 - npm run lint: lint configurado no projeto.
 - npm run test:ci: testes configurados para execução sem watch.
 - npm run build: build Angular com configuração de produção.

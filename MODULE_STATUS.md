@@ -2,7 +2,7 @@
 
 Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS / Omnichannel**. Caminhos e capacidades descritos aqui devem existir no repositório; presença de serviço/API não significa que exista uma tela integrada ao Store OS.
 
-**ESTADO DA AUDITORIA (2026-11-01)**: após as correções, lint e build de produção passaram e a suíte CI passou com 94/94 testes. O bundle inicial mede 604,53 kB brutos (129,08 kB estimados em transferência), sem aviso de limite; avisos CommonJS de Leaflet e gRPC continuam. Ainda não houve homologação com Firebase real. O PDV segue como rota standalone; os eApps integrados e seus limites estão discriminados abaixo. Consulte [testes e recuperação](./docs/INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para os limites da validação.
+**ESTADO DA AUDITORIA (2026-11-01)**: após as correções, lint e build de produção passaram e a suíte CI passou com 94/94 testes (10 arquivos). O bundle inicial mede 604,53 kB brutos (129,08 kB estimados em transferência), sem aviso de limite. O entrypoint canônico de produção para o Cloud Run `/server/server.mjs` foi configurado e testado em execução real com porta dinâmica (`0.0.0.0:${PORT}`), com `package-lock.json` 100% sincronizado com `npm ci` aprovado sem discrepâncias. Dev server ativo e respondendo na porta 3000 e proxy 8080.
 
 ## Legenda Oficial de Classificação
 
@@ -39,6 +39,7 @@ Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS 
 | **Tasks Router** (`routes/tasks.router.ts`) | 🟡 **BETA** | Checklist persistido por unidade, com transição de conclusão protegida; atribuições individuais ainda não existem. |
 | **HQ Governance Router** (`routes/hq.router.ts`) | 🟡 **BETA** | Exclusivo `hq_admin` (exceto `GET /regional` público): visão global SaaS, planos, comissão (`{ percent }`), MDM de terminais, auditoria estrutural e separação `hq_settings` (privado) vs `public_regional` (público). |
 | **Camada Neutra Compartilhada** (`src/shared/`) | 🟢 **REAL** | Contratos tipados (`models/ecosystem.model.ts`) e motor puro de fila offline (`offline/offline-outbox.engine.ts`) compartilhados com **zero imports `src/app/` em `src/server/`**. |
+| **Cloud SQL Relational Database** (`src/db/`) | 🟢 **REAL** | Instância PostgreSQL provisionada (`ai-studio-5b3b92e9` em `us-west1`), Drizzle ORM com connection pool lazy via Object Method (`pg.Pool`), `src/db/schema.ts` sincronizado via `UpdateSchema` com 5 tabelas verificadas (`users`, `tenants`, `products`, `orders`, `audit_logs`), Drizzle Kit para migrações e helpers em `users.ts` com isolamento de erros. |
 | **Arquivos Locais `.data/*.json`** | 🔴 **DISABLED** | Removidos definitivamente para eliminar duplicidade de fonte da verdade. |
 
 ---

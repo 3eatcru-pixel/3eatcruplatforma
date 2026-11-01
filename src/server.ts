@@ -96,4 +96,5 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
   });
 }
 
+export { app };
 export const reqHandler = createNodeRequestHandler(app);

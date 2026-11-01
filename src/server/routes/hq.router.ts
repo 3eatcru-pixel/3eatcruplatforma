@@ -365,9 +365,8 @@ hqRouter.post('/devices', requireHqAdmin, async (req: Request, res: Response) =>
 
   const deviceRef = adminDb.collection('devices').doc();
   const id = deviceRef.id;
-  let createdDevice: POSDevice | null = null;
   try {
-    await adminDb.runTransaction(async (transaction) => {
+    const createdDevice = await adminDb.runTransaction<POSDevice>(async (transaction) => {
       let tenantName = 'HQ Central (Infraestrutura)';
       let tenant: CompanyTenant | null = null;
       if (tenantId !== 'hq') {
@@ -420,11 +419,9 @@ hqRouter.post('/devices', requireHqAdmin, async (req: Request, res: Response) =>
         status: 'unverified',
         ...(typeof body['location'] === 'string' && body['location'].trim() ? { location: body['location'].trim().slice(0, 120) } : {})
       };
-      createdDevice = newDevice;
       transaction.create(deviceRef, newDevice);
+      return newDevice;
     });
-
-    if (!createdDevice) throw new Error('Device registration transaction completed without a device.');
     await logHqAudit(
       'Dispositivo Registrado',
       `Dispositivo [${createdDevice.deviceName}] (${createdDevice.serialNumber}) registrado no inventário de ${createdDevice.tenantName}; conexão física não verificada.`,

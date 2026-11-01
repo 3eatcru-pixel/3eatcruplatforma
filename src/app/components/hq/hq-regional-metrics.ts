@@ -53,7 +53,7 @@ import { CompanyTenant } from '../../models/ecosystem.model';
 export class HqRegionalMetricsComponent {
   tenants = input.required<CompanyTenant[]>();
   readonly maxDeliveryRadiusKm = computed<number | null>(() => {
-    const radii = this.tenants().map((tenant) => tenant.deliveryRadiusKm).filter((radius) => Number.isFinite(radius) && radius >= 0);
+    const radii = this.tenants().map((tenant) => tenant.deliveryRadiusKm).filter((radius): radius is number => typeof radius === 'number' && Number.isFinite(radius) && radius >= 0);
     return radii.length ? Math.max(...radii) : null;
   });
   readonly maxDeliveryRadiusDisplay = computed(() => {
@@ -61,7 +61,7 @@ export class HqRegionalMetricsComponent {
     return radius === null ? '—' : `${radius} km`;
   });
   readonly averageDeliveryFee = computed<number | null>(() => {
-    const fees = this.tenants().map((tenant) => tenant.deliveryFee).filter((fee) => Number.isFinite(fee) && fee >= 0);
+    const fees = this.tenants().map((tenant) => tenant.deliveryFee).filter((fee): fee is number => typeof fee === 'number' && Number.isFinite(fee) && fee >= 0);
     return fees.length ? fees.reduce((sum, fee) => sum + fee, 0) / fees.length : null;
   });
   readonly averageDeliveryFeeDisplay = computed(() => {

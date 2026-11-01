@@ -16,11 +16,11 @@ No pilar HQ, o middleware aceita uma claim `hq_admin` com email verificado. Tamb
 
 ## Atribuição de papéis
 
-`POST /api/auth/assign-role` requer autenticação. O HQ pode atribuir os papéis aceitos pelo endpoint (`hq_admin`, `tenant_owner`, `operator`, `waiter`, `driver` e `consumer`). `guest` não é atribuível por essa rota. Gestores de loja só podem atribuir `operator`, `waiter` ou `driver` dentro do próprio tenant.
+`POST /api/auth/assign-role` requer autenticação. O HQ pode atribuir `hq_admin`, `operator`, `waiter`, `driver` e `consumer`; `guest` não é atribuível. A atribuição de `tenant_owner` por esse endpoint retorna `OWNER_LINK_REQUIRED`, pois não mantém o responsável e a equipe do tenant sincronizados. Use `POST /api/tenants/:id/owner`, exclusivo do HQ, para vincular uma conta existente com e-mail confirmado. Gestores de loja só podem atribuir `operator`, `waiter` ou `driver` dentro do próprio tenant.
 
-A rota atualiza custom claims e documentos de usuário; ao atribuir `hq_admin`, também grava `/admins/{uid}`. Ao atribuir outro papel, remove esse documento de administrador. Um cliente precisa obter um ID Token novo para refletir as claims atualizadas; este middleware chama `verifyIdToken` sem checagem de revogação. A operação tenta gravar um evento em `audit_logs`, mas essa persistência é best effort.
+A rota atualiza custom claims e documentos de usuário; ao atribuir `hq_admin`, também grava `/admins/{uid}`. Ao atribuir outro papel, remove esse documento de administrador. O vínculo de proprietário verifica a conta por e-mail no Firebase Auth, exige e-mail confirmado, recusa administradores do HQ e contas vinculadas a outro tenant, e atualiza `ownerUid`, `staffUids`, `/users/{uid}` e as claims. `GET /api/tenants/:id/owner` permite ao HQ consultar o e-mail atual da conta vinculada. Um cliente precisa obter um ID Token novo para refletir as claims atualizadas; o middleware chama `verifyIdToken` sem checagem de revogação. O evento de vínculo é gravado em `audit_logs` como best effort.
 
-Não foi localizada uma tela dedicada para administrar usuários e papéis internos do HQ.
+Na ficha de governança do tenant há um formulário para vincular o responsável existente. Não há tela dedicada para administrar usuários e papéis internos do HQ nem fluxo de transferência de proprietário.
 
 ## Firestore e trilha de auditoria
 

@@ -16,10 +16,12 @@ O relatório inclui a quantidade de registros inspecionados, apontamentos e cons
 ## Avisos e manutenção
 
 - POST /api/hq/system/broadcast salva texto no documento global do HQ. O conteúdo fica disponível no endpoint público GET /api/hq/public-status, junto com a flag de manutenção.
+- POST /api/hq/system/platform-delivery-commission salva `coming_soon` e registra auditoria. A rota não permite ativar a comissão antes da implantação da rede e da inteligência operacional.
 - O Store OS lê essa configuração durante sincronização. O aviso aparece após o próximo sync; não há entrega push imediata.
 - A flag de manutenção apresenta o overlay no shell do Store OS após sincronização. Ela não bloqueia endpoints de API ou checkout.
 - A rota POST /api/hq/communications/messages exige hq_admin e salva mensagem interna. Não foi localizado conector de WhatsApp, SMS ou outro canal externo.
 - POST /api/auth/assign-role registra a atribuição de papel em audit_logs como best effort. A coleção não é imutável e a claim atualizada depende de um ID Token novo no cliente.
+- POST /api/tenants/:id/owner registra o vínculo do responsável em audit_logs como best effort. Se a atualização das claims falhar, a rota tenta restaurar as claims e reverter a reserva Firestore, retornando um código específico se alguma reversão falhar.
 
 ## Configuração regional
 

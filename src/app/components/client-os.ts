@@ -13,6 +13,7 @@ import { OS_APPS_REGISTRY } from './os/os-apps-registry';
 import { EAppWaiterSimWindow } from './eapps/eapp-waiter-sim';
 import { EAppDriverSimWindow } from './eapps/eapp-driver-sim';
 import { EAppConsumerSimWindow } from './eapps/eapp-consumer-sim';
+import { EAppStoreManagerWindow } from './eapps/eapp-store-manager';
 
 // OS Shell Components
 import { DesktopIconComponent } from './os/desktop-icon';
@@ -35,6 +36,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
     EAppWaiterSimWindow,
     EAppDriverSimWindow,
     EAppConsumerSimWindow,
+    EAppStoreManagerWindow,
     DesktopIconComponent,
     TaskbarComponent,
     StartMenuComponent,
@@ -141,6 +143,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
                   @case ('waiter-sim') { @defer (on timer(0ms)) { <app-eapp-waiter-sim /> } }
                   @case ('driver-sim') { @defer (on timer(0ms)) { <app-eapp-driver-sim /> } }
                   @case ('consumer-sim') { @defer (on timer(0ms)) { <app-eapp-consumer-sim /> } }
+                  @case ('store-manager') { @defer (on timer(0ms)) { <app-eapp-store-manager /> } }
                   @default {
                     <section class="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-3 text-center text-stone-300">
                       <mat-icon class="text-amber-400">extension</mat-icon>

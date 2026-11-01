@@ -1,6 +1,8 @@
+> Registro histórico: quantidades de testes e status mencionados nas entradas abaixo são resultados de momentos anteriores. Não comprovam o estado atual; use MODULE_STATUS.md e registre novas execuções com data.
+
 # Diretrizes de Engenharia e Registro de Bugs (3EATCRU OS)
 
-Este documento atende às **Regras Fundamentais do Agente** e serve como registro vivo de arquitetura, prevenção de regressões, histórico de bugs resolvidos e fluxo de trabalho com `bun run`.
+Este documento serve como histórico de arquitetura e bugs resolvidos. Use os scripts npm definidos em package.json para lint, testes e build; resultados antigos neste arquivo não comprovam o estado atual.
 
 ---
 
@@ -87,14 +89,8 @@ Este documento atende às **Regras Fundamentais do Agente** e serve como registr
 ---
 
 ## 3. Checklist de Validação para Próximas Entregas
-- [x] O componente foi quebrado em partes pequenas e com responsabilidade única?
-- [x] Foi executado `npm run lint` com zero erros?
-- [x] Foi executado `npm run test:ci` com 80/80 testes aprovados (9 suítes)?
-- [x] Foi verificado `! grep -rn "app/" src/server/` com zero ocorrências?
-- [x] A compilação geral e resposta `200 OK` na porta `3000` foram confirmadas?
-- [x] A documentação oficial dos **7 Pilares** (`/docs/PILAR_1_*.md` a `/docs/PILAR_7_*.md`) e da raiz foi atualizada?
-
-
-
-
-
+- [ ] Executar lint e registrar o resultado atual.
+- [ ] Executar testes e registrar o resultado e a contagem atuais.
+- [ ] Verificar a fronteira de imports entre src/server/ e src/app/.
+- [ ] Executar build de produção e health check no ambiente de validação.
+- [ ] Conferir documentação contra o código e atualizar o índice canônico.

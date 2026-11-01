@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { EcosystemService } from '../../services/ecosystem.service';
+import type { HqTenantMetricsResponse } from '../../services/hq.service';
 import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
 
 @Component({
@@ -45,15 +46,24 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
           <!-- KEY BUSINESS METRICS OF THIS TENANT -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
-              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Pedidos e GMV por tenant</span>
-              <div class="text-lg font-serif font-black text-stone-600 mt-0.5">Não carregados</div>
-              <span class="text-[9px] text-stone-500 font-medium">Esta ficha não consulta pedidos.</span>
+              <span class="text-[9px] font-mono font-bold text-stone-500 uppercase block">Pedidos elegíveis (histórico)</span>
+              @if (tenantMetricsStatus() === 'loading') {
+                <div class="text-lg font-serif font-black text-stone-500 mt-0.5">Carregando...</div>
+                <span class="text-[9px] text-stone-500 font-medium">Consultando os pedidos desta loja.</span>
+              } @else if (tenantMetricsStatus() === 'loaded') {
+                <div class="text-lg font-serif font-black text-stone-900 mt-0.5">{{ tenantMetrics()?.eligibleOrderCount ?? 0 }}</div>
+                <span class="text-[9px] text-stone-600 font-medium">Volume registrado: {{ formatCurrency(tenantMetrics()?.eligibleOrderVolume ?? 0) }}</span>
+              } @else {
+                <div class="text-lg font-serif font-black text-stone-600 mt-0.5">Indisponível</div>
+                <span class="text-[9px] text-stone-500 font-medium">{{ tenantMetricsStatus() === 'error' ? 'Não foi possível carregar o resumo.' : 'Resumo disponível no modo real.' }}</span>
+              }
+              <span class="text-[9px] text-stone-500 font-medium block mt-1">Pedidos reais elegíveis; inclui todo o histórico.</span>
             </div>
 
-            <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-sm">
-              <span class="text-[9px] font-mono font-bold text-emerald-800 uppercase block">Taxa de serviço no checkout</span>
-              <div class="text-lg font-serif font-black text-emerald-900 mt-0.5">Não calculada</div>
-              <span class="text-[9px] text-emerald-700 font-bold">Consulte a estimativa global de pedidos.</span>
+            <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 shadow-sm">
+              <span class="text-[9px] font-mono font-bold text-amber-800 uppercase block">Comissão da plataforma</span>
+              <div class="text-lg font-serif font-black text-amber-900 mt-0.5">{{ platformCommissionStatus() === 'coming_soon' ? 'Em breve' : 'Rede ativa' }}</div>
+              <span class="text-[9px] text-amber-700 font-bold">{{ platformCommissionStatus() === 'coming_soon' ? 'Não aplicada aos pedidos ou motoristas desta loja.' : 'Só considera entregas elegíveis feitas pela rede da plataforma.' }}</span>
             </div>
 
             <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] shadow-sm">
@@ -87,6 +97,54 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
             </div>
           </div>
 
+          <section class="bg-white p-4 rounded-2xl border border-[#e8dfce] space-y-3 text-xs" aria-labelledby="tenantOwnerHeading">
+            <div>
+              <h3 id="tenantOwnerHeading" class="font-serif font-black text-xs uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                <mat-icon class="text-sm">person_check</mat-icon> Responsável da Loja
+              </h3>
+              @if (ownerLinkedUid() || t.ownerUid) {
+                <p class="mt-1 text-stone-700">Conta vinculada: <code class="font-mono text-[10px]">{{ ownerLinkedUid() || t.ownerUid }}</code></p>
+                @if (ownerEmail()) {
+                  <p class="text-stone-600">E-mail: {{ ownerEmail() }}{{ ownerEmailVerified() === false ? ' • não confirmado' : '' }}</p>
+                } @else if (ownerLookupMessage()) {
+                  <p class="text-amber-800">{{ ownerLookupMessage() }}</p>
+                } @else if (isLoadingOwner()) {
+                  <p class="text-stone-500">Consultando conta...</p>
+                }
+              } @else {
+                <p class="mt-1 text-stone-600">Nenhuma conta responsável está vinculada a este tenant.</p>
+              }
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+              <div>
+                <label for="tenantOwnerEmail" class="block font-bold text-stone-800 mb-1">E-mail da conta já cadastrada</label>
+                <input
+                  id="tenantOwnerEmail"
+                  type="email"
+                  autocomplete="email"
+                  [value]="ownerEmail()"
+                  (input)="ownerEmail.set($any($event.target).value)"
+                  placeholder="responsavel@empresa.com.br"
+                  class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:border-amber-600">
+              </div>
+              <button
+                type="button"
+                (click)="linkOwner(t.id)"
+                [disabled]="isLinkingOwner() || !ownerEmail().trim()"
+                class="bg-amber-900 hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5">
+                <mat-icon class="text-sm">link</mat-icon>
+                <span>{{ isLinkingOwner() ? 'Vinculando...' : 'Vincular responsável' }}</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-stone-500">A conta precisa existir e ter o e-mail confirmado. O vínculo não cria usuário nem substitui outro responsável; a pessoa deverá entrar novamente para receber as permissões atualizadas.</p>
+            @if (ownerLinkError()) {
+              <p role="alert" class="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900">{{ ownerLinkError() }}</p>
+            }
+            @if (ownerLinkSuccess()) {
+              <p role="status" class="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">{{ ownerLinkSuccess() }}</p>
+            }
+          </section>
+
           <!-- SAAS PLATFORM GOVERNANCE CONTROLS -->
           <div class="bg-[#f2e8d5] p-5 rounded-2xl border border-[#e0d2bb] space-y-4">
             <h3 class="font-serif font-black text-xs uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
@@ -109,24 +167,7 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
               </div>
 
               <div>
-                <label for="govServiceFee" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Taxa de serviço no checkout de delivery (%)</label>
-                <div class="relative">
-                  <input
-                    id="govServiceFee"
-                    type="number"
-                    min="0"
-                    max="50"
-                    step="0.5"
-                    [value]="currentServiceFeePercent()"
-                    (input)="currentServiceFeePercent.set(+$any($event.target).value)"
-                    class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
-                  <span class="absolute right-3 top-2 font-bold text-stone-500">%</span>
-                </div>
-                <p class="mt-1 text-[9px] text-stone-600">Aplicada ao subtotal no checkout do tenant; é independente da comissão das entregas da rede 3EAT.</p>
-              </div>
-
-              <div>
-                <label for="govDeviceLimit" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Cota de registros (não aplicada)</label>
+                <label for="govDeviceLimit" class="block font-bold text-stone-800 mb-1 uppercase text-[10px]">Cota de registros</label>
                 <input
                   id="govDeviceLimit"
                   type="number"
@@ -135,6 +176,7 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
                   [value]="currentDeviceLimit()"
                   (input)="currentDeviceLimit.set(+$any($event.target).value)"
                   class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 font-bold focus:outline-none focus:border-amber-600">
+                <p class="mt-1 text-[9px] text-stone-600">O servidor bloqueia novos registros ao atingir a cota. O número representa registros no inventário, não conexões físicas.</p>
               </div>
 
               <div>
@@ -260,25 +302,49 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
 export class HqTenantGovernanceModalComponent {
   readonly ecosystem = inject(EcosystemService);
   private readonly router = inject(Router);
+  readonly platformCommissionStatus = computed(() => this.ecosystem.hqOverview()?.platformDeliveryCommissionStatus ?? 'coming_soon');
 
   tenant = input<CompanyTenant | null>(null);
   dismiss = output<void>();
 
   readonly currentPlan = signal<'Starter' | 'Professional' | 'Enterprise'>('Professional');
-  readonly currentServiceFeePercent = signal<number>(8);
   readonly currentDeviceLimit = signal<number>(5);
   readonly currentDeliveryRadius = signal<number>(10);
   readonly currentStatus = signal<'active' | 'suspended' | 'trial'>('active');
   readonly currentStoreOpen = signal<boolean>(false);
   readonly isSaving = signal(false);
   readonly saveError = signal<string | null>(null);
+  readonly ownerEmail = signal('');
+  readonly ownerEmailVerified = signal<boolean | null>(null);
+  readonly ownerLinkedUid = signal<string | null>(null);
+  readonly isLoadingOwner = signal(false);
+  readonly ownerLookupMessage = signal<string | null>(null);
+  readonly isLinkingOwner = signal(false);
+  readonly ownerLinkError = signal<string | null>(null);
+  readonly ownerLinkSuccess = signal<string | null>(null);
+  readonly tenantMetrics = signal<HqTenantMetricsResponse | null>(null);
+  readonly tenantMetricsStatus = signal<'idle' | 'loading' | 'loaded' | 'error' | 'unavailable'>('idle');
 
   constructor() {
+    let observedTenantId: string | null = null;
     effect(() => {
       const t = this.tenant();
+      if ((t?.id ?? null) !== observedTenantId) {
+        observedTenantId = t?.id ?? null;
+        this.tenantMetrics.set(null);
+        this.tenantMetricsStatus.set(t ? 'loading' : 'idle');
+        this.ownerEmail.set('');
+        this.ownerEmailVerified.set(null);
+        this.ownerLinkedUid.set(null);
+        this.isLoadingOwner.set(false);
+        this.ownerLookupMessage.set(null);
+        this.ownerLinkError.set(null);
+        this.ownerLinkSuccess.set(null);
+        if (t) void this.loadTenantMetrics(t.id);
+        if (t?.ownerUid) void this.loadOwner(t.id);
+      }
       if (t) {
         this.currentPlan.set(t.plan);
-        this.currentServiceFeePercent.set(t.serviceFeePercent ?? 8);
         this.currentDeviceLimit.set(t.devicesLimit ?? 5);
         this.currentDeliveryRadius.set(t.deliveryRadiusKm ?? 10);
         this.currentStatus.set(t.status || 'active');
@@ -293,23 +359,80 @@ export class HqTenantGovernanceModalComponent {
     return this.ecosystem.devices().filter((d: POSDevice) => d.tenantId === t.id);
   });
 
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  }
+
+  private async loadTenantMetrics(tenantId: string) {
+    try {
+      const metrics = await this.ecosystem.hqService.getTenantMetrics(tenantId);
+      if (this.tenant()?.id !== tenantId) return;
+      if (!metrics) {
+        this.tenantMetricsStatus.set('unavailable');
+        return;
+      }
+      this.tenantMetrics.set(metrics);
+      this.tenantMetricsStatus.set('loaded');
+    } catch {
+      if (this.tenant()?.id === tenantId) this.tenantMetricsStatus.set('error');
+    }
+  }
+
   openPublicStorefront(tenantId: string) {
     this.ecosystem.currentTenantId.set(tenantId);
     this.router.navigate(['/p', tenantId]);
     this.dismiss.emit();
   }
 
+  private async loadOwner(tenantId: string) {
+    this.isLoadingOwner.set(true);
+    try {
+      const result = await this.ecosystem.getTenantOwner(tenantId);
+      if (this.tenant()?.id !== tenantId) return;
+      if (result.ownerUid) this.ownerLinkedUid.set(result.ownerUid);
+      if (result.ownerEmail) this.ownerEmail.set(result.ownerEmail);
+      this.ownerEmailVerified.set(result.emailVerified);
+      if (result.ownerUid && !result.ownerEmail) {
+        this.ownerLookupMessage.set('A conta vinculada não foi localizada ou não possui e-mail disponível.');
+      }
+    } catch {
+      if (this.tenant()?.id === tenantId) this.ownerLookupMessage.set('Não foi possível consultar o e-mail da conta vinculada.');
+    } finally {
+      if (this.tenant()?.id === tenantId) this.isLoadingOwner.set(false);
+    }
+  }
+
+  async linkOwner(tenantId: string) {
+    const email = this.ownerEmail().trim();
+    if (!email || this.isLinkingOwner()) return;
+
+    this.isLinkingOwner.set(true);
+    this.ownerLinkError.set(null);
+    this.ownerLinkSuccess.set(null);
+    try {
+      const result = await this.ecosystem.linkTenantOwner(tenantId, email);
+      this.ownerEmail.set(result.ownerEmail);
+      this.ownerEmailVerified.set(true);
+      this.ownerLinkedUid.set(result.ownerUid);
+      this.ownerLinkSuccess.set(`Responsável vinculado: ${result.ownerEmail}. A pessoa deve entrar novamente para atualizar as permissões.`);
+      this.ecosystem.notify('Responsável da loja vinculado com sucesso.', 'success');
+    } catch (error) {
+      const response = error as { error?: { error?: string } };
+      this.ownerLinkError.set(response.error?.error || 'Não foi possível vincular a conta. Confira o e-mail e tente novamente.');
+    } finally {
+      this.isLinkingOwner.set(false);
+    }
+  }
+
   async saveGovernance() {
     const t = this.tenant();
     if (!t || this.isSaving()) return;
 
-    const serviceFeePercent = this.currentServiceFeePercent();
     const devicesLimit = this.currentDeviceLimit();
     const deliveryRadiusKm = this.currentDeliveryRadius();
-    if (!Number.isFinite(serviceFeePercent) || serviceFeePercent < 0 || serviceFeePercent > 50 ||
-        !Number.isInteger(devicesLimit) || devicesLimit < 1 || devicesLimit > 999 ||
+    if (!Number.isInteger(devicesLimit) || devicesLimit < 1 || devicesLimit > 999 ||
         !Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm < 1 || deliveryRadiusKm > 50) {
-      this.saveError.set('Informe taxa entre 0% e 50%, cota inteira de 1 a 999 e raio de 1 a 50 km.');
+      this.saveError.set('Informe uma cota inteira de 1 a 999 e um raio entre 1 e 50 km.');
       return;
     }
 
@@ -318,7 +441,6 @@ export class HqTenantGovernanceModalComponent {
     try {
       await this.ecosystem.updateTenant(t.id, {
         plan: this.currentPlan(),
-        serviceFeePercent,
         devicesLimit,
         deliveryRadiusKm,
         status: this.currentStatus(),

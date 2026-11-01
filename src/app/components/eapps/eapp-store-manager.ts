@@ -94,6 +94,21 @@ import { EcosystemService } from '../../services/ecosystem.service';
           </div>
         </div>
 
+        <div class="bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 space-y-2">
+          <h3 class="text-xs font-bold text-white uppercase">Recebimento PIX da Loja</h3>
+          <label for="store-pix-key" class="text-[11px] text-stone-400 block font-bold">Chave PIX da conta da loja:</label>
+          <input
+            id="store-pix-key"
+            type="text"
+            maxlength="77"
+            autocomplete="off"
+            [value]="pixKey()"
+            (input)="pixKey.set($any($event.target).value)"
+            placeholder="CPF/CNPJ, e-mail, telefone ou chave aleatória"
+            class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
+          <p class="text-[10px] text-stone-400">O PIX do marketplace usa esta chave (até 77 caracteres) para direcionar o pagamento à conta da loja. O sistema não valida titularidade; a confirmação é manual. Cartão ficará disponível quando houver conexão de pagamento própria por loja.</p>
+        </div>
+
       </div>
 
     </div>
@@ -109,6 +124,7 @@ export class EAppStoreManagerWindow {
   readonly deliveryFee = signal<number>(this.tenant.deliveryFee ?? 7.50);
   readonly minOrder = signal<number>(this.tenant.minOrderValue ?? 20.00);
   readonly description = signal<string>(this.tenant.aboutText || 'Especialidades culinárias artesanais e delivery rápido.');
+  readonly pixKey = signal<string>(this.tenant.pixKey ?? '');
 
   appUrl() {
     return window.location.origin;
@@ -120,9 +136,10 @@ export class EAppStoreManagerWindow {
     const name = this.storeName().trim();
     const deliveryFee = this.deliveryFee();
     const minOrderValue = this.minOrder();
+    const pixKey = this.pixKey().trim();
     if (!name || !Number.isFinite(deliveryFee) || deliveryFee < 0 ||
-        !Number.isFinite(minOrderValue) || minOrderValue < 0) {
-      this.ecosystem.notify('Informe nome, taxa e pedido mínimo válidos.', 'warning');
+        !Number.isFinite(minOrderValue) || minOrderValue < 0 || pixKey.length > 77) {
+      this.ecosystem.notify('Informe nome, taxa, pedido mínimo e chave PIX válidos.', 'warning');
       return;
     }
 
@@ -132,7 +149,8 @@ export class EAppStoreManagerWindow {
         name,
         deliveryFee,
         minOrderValue,
-        aboutText: this.description().trim()
+        aboutText: this.description().trim(),
+        pixKey
       });
       this.ecosystem.notify(
         this.ecosystem.isSimulationMode()

@@ -83,6 +83,43 @@ export class TenantsService {
     return data;
   }
 
+  async linkOwner(id: string, email: string): Promise<{ tenantId: string; ownerUid: string; ownerEmail: string; role: 'tenant_owner' }> {
+    if (this.isSimulation()) {
+      throw new Error('A vinculação de responsável exige o modo real e uma conta verificada no servidor.');
+    }
+
+    const data = await firstValueFrom(this.http.post<{
+      tenantId: string;
+      ownerUid: string;
+      ownerEmail: string;
+      role: 'tenant_owner';
+    }>(`/api/tenants/${encodeURIComponent(id)}/owner`, { email }));
+
+    this.tenants.update(cur => cur.map(tenant => tenant.id === id
+      ? { ...tenant, ownerUid: data.ownerUid, staffUids: [...new Set([...(tenant.staffUids || []), data.ownerUid])] }
+      : tenant));
+    return data;
+  }
+
+  async getOwner(id: string): Promise<{ tenantId: string; ownerUid: string | null; ownerEmail: string | null; emailVerified: boolean | null }> {
+    if (this.isSimulation()) {
+      const tenant = this.tenants().find(candidate => candidate.id === id);
+      return {
+        tenantId: id,
+        ownerUid: tenant?.ownerUid || null,
+        ownerEmail: null,
+        emailVerified: null
+      };
+    }
+
+    return firstValueFrom(this.http.get<{
+      tenantId: string;
+      ownerUid: string | null;
+      ownerEmail: string | null;
+      emailVerified: boolean | null;
+    }>(`/api/tenants/${encodeURIComponent(id)}/owner`));
+  }
+
   async createTenant(tenant: Partial<CompanyTenant>): Promise<CompanyTenant> {
     if (this.isSimulation()) {
       const plan = tenant.plan || 'Starter';

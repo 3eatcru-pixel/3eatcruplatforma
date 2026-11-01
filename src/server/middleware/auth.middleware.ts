@@ -327,6 +327,7 @@ export function toPublicStorefront(tenant: CompanyTenant): PublicStorefront {
     supportsDelivery: tenant.supportsDelivery ?? true,
     supportsTakeout: tenant.supportsTakeout ?? true,
     supportsReservation: tenant.supportsReservation ?? false,
+    pixAvailable: Boolean(tenant.pixKey?.trim() && tenant.pixKey.trim().length <= 77),
     isOpen: tenant.isOpen ?? (tenant.status === 'active'),
     estimatedDeliveryMinutes: tenant.estimatedDeliveryMinutes || '25-45 min',
     deliveryFee: tenant.deliveryFee ?? 5.0,

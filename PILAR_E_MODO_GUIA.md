@@ -1,64 +1,33 @@
-# 🏛️ 3EATCRU — GUIA DEFINITIVO DE AMBIENTES & MATRIZ REAL VS SIMULAÇÃO
+# Guia do produto e critérios de maturidade — 3EATCRU
 
-Este documento estabelece as **diretrizes inquebráveis** de separação arquitetural e modos de execução da plataforma 3EATCRU. Nenhuma implementação, modificação ou resposta de IA pode violar ou misturar estes conceitos.
+Este guia registra as fronteiras atuais do produto e os critérios para descrever uma função como pronta. A implementação e o estado detalhado ficam no [mapa de maturidade](./MODULE_STATUS.md) e no [índice documental](./docs/INDEX.md).
 
----
+## Stack efetivamente implementada
 
-## ⚡ SEÇÃO 1: MATRIZ DE EXECUÇÃO — MODO REAL vs MODO SIMULAÇÃO
+O checkout atual usa Angular 21 com SSR, Express 5, Firebase Authentication, Firebase Admin SDK e Cloud Firestore. A documentação não deve descrever Next.js/React como stack implementada neste projeto.
 
-| Critério | 🟢 MODO REAL (PRODUÇÃO & LIVE) | 🧪 MODO SIMULAÇÃO (SANDBOX & DEMO) |
+## Ambientes do produto
+
+| Ambiente | Rotas | Limite |
 |---|---|---|
-| **Base de Dados** | **Google Cloud Firestore Live** | Memória volátil + `sessionStorage` temporário |
-| **Autenticação** | **Firebase Auth** (JWT real validado no servidor) | Sessão mock injetada (`simulated-token`) |
-| **Pagamentos** | Gateways Live (Stripe sk_live_ / MP APP_USR-) | Simuladores TEF e PIX Sandbox |
-| **DRE Financeiro** | Lançamentos reais (`isSimulated: false`) | Lançamentos de teste (`isSimulated: true`) |
-| **Indicação Visual**| **Badge verde [🟢 MODO REAL]** | **Badge âmbar [🧪 MODO SIMULAÇÃO]** |
+| HQ Central | /hq | Administra tenants, responsáveis, catálogo de planos e configurações. A cobrança recorrente da assinatura ainda não está integrada. |
+| Store OS | /os, /pos | O desktop existe; o PDV é uma rota standalone. Consulte o mapa antes de descrever outros IDs como eApps integrados. |
+| Público | /home, /p/:id | Marketplace regional, vitrines e pedidos. |
+| Interfaces auxiliares | /waiter, /driver | Rotas web separadas. Não declarar APK, PWA instalado ou recursos nativos sem evidência de build e integração. |
 
----
+## Regra de entregas e receita
 
-## 🏛️ SEÇÃO 2: HIERARQUIA DE PRODUTO (OS 3 AMBIENTES)
+1. A loja é responsável pelos seus motoristas, pela operação e pelo valor que decide pagar a cada um.
+2. O lojista contrata no HQ a assinatura para usar o Store OS e a cota de dispositivos do plano. O catálogo e a validação de cota existem; a cobrança recorrente ainda não está integrada.
+3. A oferta deverá atender também lojas sem frota própria com entregadores da plataforma quando estiver pronta. As regras para incluir esse acesso no plano, preços e cobrança ainda não estão implementados; o serviço fica em coming_soon.
+4. A comissão de referência de 8% é futura e aplica-se apenas às entregas executadas pela rede própria da plataforma. É separada da assinatura e dos pagamentos de pedidos.
+5. A receita dos pedidos do marketplace pertence à loja. O PIX usa a chave da loja; cartão real só poderá ser habilitado depois de conectar uma conta de pagamento por tenant. O HQ não recebe nem repassa esse dinheiro.
 
-A plataforma 3EATCRU é organizada em **3 Ambientes Principais**, suportados por **Módulos Auxiliares** e uma **Infraestrutura Transacional**.
+## Real, simulado e homologado
 
-```text
- ┌─────────────────────────────────────────────────────────────────────────────────┐
- │                      AMBIENTE 1: HQ CENTRAL (GABINETE SAAS)                     │
- │ Rota: /hq | Role: hq_admin                                                      │
- │ • Governança SaaS Multi-Tenant        • Taxa de Split de 8% da Franqueadora     │
- │ • Planos Pro / Enterprise             • Gestão de Frota MDM & Auditoria Master  │
- └──────────────────────────────────────┬──────────────────────────────────────────┘
-                                        │
-             ┌──────────────────────────┴──────────────────────────┐
-             │                                                     │
- ┌───────────▼─────────────────────────┐               ┌───────────▼─────────────────────────┐
- │ AMBIENTE 2: STORE OS LOJISTA        │               │ AMBIENTE 3: PÚBLICO & MARKETPLACE   │
- │ Rota: /os, /pos | Role: tenant_staff│               │ Rota: /home, /p/:id | Role: consumer│
- │ • PDV Balcão & Frente de Caixa      │               │ • Marketplace Regional de Lojas     │
- │ • KDS Cozinha & Mapa de Mesas       │               │ • Vitrine Individual & QR Mesa      │
- │ • Estoque NFe & DRE Financeiro      │               │ • Checkout Delivery & Takeout       │
- └───────────┬─────────────────────────┘               └─────────────────────────────────────┘
-             │
- ┌───────────▼─────────────────────────────────────────────────────────────────────┐
- │ MÓDULOS AUXILIARES ESPECIALIZADOS (PWAs Web Mobile)                             │
- │ • App do Garçom (/waiter) — Operação de Salão & Comandas nos 3 Tempos           │
- │ • App do Entregador (/driver) — Logística, Aceite de Rotas & Baixa de Entregas  │
- └─────────────────────────────────────────────────────────────────────────────────┘
-```
+- **Fluxo integrado:** há caminho de código ligado a serviços e/ou API; isso não prova que todos os cenários estejam homologados.
+- **Simulação:** estado ou resultado demonstrativo não representa persistência ou liquidação financeira real.
+- **Placeholder:** o identificador aparece na interface, mas não há janela funcional conectada.
+- **Homologação:** só declarar após registrar a execução dos testes e a validação operacional correspondentes.
 
-### Tabela Comparativa Estrita
-
-| Ambiente | Rota Primária | Público-Alvo | O QUE FAZ (Responsabilidades) | ❌ O QUE NÃO FAZ (Fronteiras) |
-|---|---|---|---|---|
-| **HQ Central** | `/hq` | Franqueador | Governa o ecossistema SaaS global. | **NÃO É UMA LOJA!** Não vende produtos nem opera mesas. |
-| **Store OS** | `/os`, `/pos` | Lojista | Operação desktop de **UMA unidade**. | **NÃO É O HQ CENTRAL!** Não altera taxas globais. |
-| **Público** | `/home`, `/p/:id` | Consumidor | Compra regional e cardápio digital. | **NÃO É PAINEL DO LOJISTA!** Não vê lucros nem estoque. |
-| **Auxiliares** | `/waiter`, `/driver` | Staff Móvel | Atendimento de mesa e logística. | **LIMITAÇÃO DE ESCOPO!** Sem acesso a financials. |
-
----
-
-## 🎯 RESUMO DE OURO
-
-1. **Governança SaaS, auditoria e split?** 👉 **HQ Central (`/hq`)**.
-2. **Caixa, cozinha, mesas e DRE da loja?** 👉 **Store OS (`/os`)** ou **PDV (`/pos`)**.
-3. **Comprar, pedir delivery ou ver cardápio?** 👉 **Marketplace (`/home`)** ou **Vitrine (`/p/:id`)**.
-4. **Staff em campo (salão/rua)?** 👉 **Apps Auxiliares (`/waiter`, `/driver`)**.
+Build, testes e homologação precisam ser reportados com data e resultado da execução. Verifique o estado por módulo em [MODULE_STATUS.md](./MODULE_STATUS.md).

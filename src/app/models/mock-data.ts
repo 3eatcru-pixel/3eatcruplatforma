@@ -24,7 +24,6 @@ export const MOCK_TENANTS: CompanyTenant[] = [
       complement: 'Salão Térreo e Balcão'
     },
     deliveryRadiusKm: 8,
-    serviceFeePercent: 10,
     openingHours: 'Terça a Domingo, das 11:30 às 23:45',
     fichaCode: '#001',
     lat: -23.5578,
@@ -76,7 +75,6 @@ export const MOCK_TENANTS: CompanyTenant[] = [
       complement: 'Esquina c/ Alameda Santos'
     },
     deliveryRadiusKm: 12,
-    serviceFeePercent: 8,
     openingHours: 'Todos os dias, das 06:00 às 22:30',
     fichaCode: '#002',
     lat: -23.5684,

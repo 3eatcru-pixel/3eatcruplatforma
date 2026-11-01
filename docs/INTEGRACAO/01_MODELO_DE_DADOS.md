@@ -67,10 +67,7 @@ O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calc
   - O Marketplace consulta lojas públicas onde `status === 'active'`.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Testes Automatizados:**
-  - `src/server/api.spec.ts`: Validação de contratos de schemas da API Express.
-  - `src/server/security_phase1.spec.ts`: Validação de integridade referencial e sanitização de catálogo.
-- **Resultado:** 100% aprovado.
+- Existem suítes em `src/server/api.spec.ts` e `src/server/security_phase1.spec.ts`. Elas não foram executadas nesta revisão; não há resultado de aprovação atualizado neste documento.
 
 ---
 
@@ -78,13 +75,13 @@ O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calc
 
 | Entidade / Coleção | Classificação | Arquivo de Tipagem | Validação em Banco |
 |---|---|---|---|
-| `/tenants` (Empresas) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:4` | `firestore.rules:208` |
-| `/products` (Catálogo ERP) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:40` | `firestore.rules:219` |
-| `/public_catalog` (Marketplace) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:50` | `firestore.rules:231` |
-| `/orders` (Pedidos Omnichannel) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:18` | `firestore.rules:238` |
-| `/payment_transactions` (Pagamentos) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:160` | `firestore.rules:256` |
-| `/tables` (Mesas do Salão) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:55` | `firestore.rules:266` |
-| `/financials` (Livro-Caixa e DRE) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:65` | `firestore.rules:273` |
-| `/delivery_routes` (Logística) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:120` | `firestore.rules:280` |
-| `/devices` (Terminais MDM) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:80` | `firestore.rules:338` |
-| `/audit_logs` (Livro de Auditoria) | 🟢 **Implementado e comprovado** | `src/shared/models/ecosystem.model.ts:100` | `firestore.rules:332` |
+| `/tenants` (Empresas) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:4` | `firestore.rules:208` |
+| `/products` (Catálogo ERP) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:40` | `firestore.rules:219` |
+| `/public_catalog` (Marketplace) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:50` | `firestore.rules:231` |
+| `/orders` (Pedidos Omnichannel) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:18` | `firestore.rules:238` |
+| `/payment_transactions` (Pagamentos) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:160` | `firestore.rules:256` |
+| `/tables` (Mesas do Salão) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:55` | `firestore.rules:266` |
+| `/financials` (Livro-Caixa e DRE) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:65` | `firestore.rules:273` |
+| `/delivery_routes` (Logística) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:120` | `firestore.rules:280` |
+| `/devices` (Terminais MDM) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:80` | `firestore.rules:338` |
+| `/audit_logs` (Livro de Auditoria) | Implementado (não retestado nesta revisão) | `src/shared/models/ecosystem.model.ts:100` | `firestore.rules:332` |

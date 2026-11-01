@@ -21,7 +21,7 @@ O **Ambiente Público** reúne todas as interfaces voltadas para o consumidor fi
 3. **Carrinho & Checkout Autorritativo**:
    - Montagem de carrinho de compras multi-itens com observações por item.
    - Envio do pedido diretamente ao motor comercial backend (`POST /api/orders/channels/...`).
-   - Processamento de pagamento via PIX (EMV QR Code com CRC-16) ou Cartão.
+   - Checkout envia o pedido para a loja e processa PIX direto para a chave cadastrada pela loja ou dinheiro no recebimento. Cartão real está em breve até cada loja conectar sua própria conta de pagamento.
 
 ---
 

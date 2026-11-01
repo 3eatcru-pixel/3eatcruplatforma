@@ -1,102 +1,25 @@
-# 🛍️ Público & Marketplace — 02: Vitrine Pública da Loja, Cardápio e Sanitização de Dados
+# Público — 02: Vitrine da loja e cardápio
 
-## 📌 1. Visão Geral da Vitrine Digital (`/loja/:slug`)
+Atualizado em 2026-11-01 por leitura estática. A rota de vitrine implementada é /p/:id, conforme src/app/app.routes.ts. A rota antiga /loja/:slug não está declarada no roteador atual.
 
-A **Vitrine Pública do Estabelecimento (`customer-storefront.ts`)** é a página oficial de autoatendimento da loja na internet. Ela permite ao consumidor navegar pelos produtos e pratos, consultar horários, selecionar modalidades de pedido e fechar a compra com transparência total de preços e taxas.
+## Catálogo público
 
-```text
-               CATÁLOGO MASTER NO FIRESTORE (Coleção Privada /products)
-               - ID, Nome, Categoria, Preço de Venda (R$ 45,00)
-               - 🔒 Preço de Custo (R$ 18,20)       <-- DADO CONFIDENCIAL DO LOJISTA
-               - 🔒 Fornecedor (ID fornecedor X)    <-- DADO CONFIDENCIAL DO LOJISTA
-               - 🔒 Estoque Real (342 unidades)     <-- DADO CONFIDENCIAL DO LOJISTA
-                                       │
-                                       ▼
-                   MIDDLEWARE SANITIZADOR (toPublicProduct)
-                   - Remove campos sigilosos
-                   - Filtra apenas availableOnline == true
-                                       │
-                                       ▼
-               CATÁLOGO HIGIENIZADO NA VITRINE PÚBLICA (/api/products/public)
-               - Nome, Imagem, Descrição, Preço de Venda (R$ 45,00)
-               - Disponibilidade em estoque (Disponível / Esgotado)
-```
+A vitrine Angular usa o identificador da rota para selecionar a loja. O catálogo público é consultado por tenant e deve permanecer separado dos dados internos de custo, fornecedor e estoque do ERP.
 
----
+- Interface: src/app/components/customer-storefront.ts.
+- Catálogo público: GET /api/products/public.
+- Pedido: rotas de /api/orders e regras do Commerce Engine.
+- Pagamento: POST /api/payments/process; consulte Checkout e pagamentos para os limites de confirmação.
 
-## 🔬 2. Análise Sob as Quatro Perspectivas
+## Modalidades e valores
 
-### Perspectiva 1: O que deveria fazer (Responsabilidade Funcional)
-- Exibir os produtos organizados por categorias gastronômicas ou comerciais (Pratos Principais, Bebidas, Sobremesas, Combos).
-- Suportar três modalidades operacionais de compra:
-  1. **Delivery:** Entrega no endereço informado, aplicando taxa de frete (`deliveryFee`) e validando pedido mínimo (`minOrderValue`).
-  2. **Retirada no Balcão (Takeout):** Cliente busca na loja. **Não pode cobrar frete (`deliveryFee === 0`)**.
-  3. **Comer no Local / Mesa:** Cliente faz pedido presencial com número de mesa associado.
-- Exibir aviso destacado caso a loja esteja fechada (`isOpen === false`), bloqueando adições ao carrinho com aviso sonoro e visual.
-- Garantir que nenhum cliente consiga visualizar preços de atacado ou margens de lucro dos pratos.
+A interface possui seleção de modalidade e mesa. No checkout, deliveryFee é o valor fixo de entrega definido pela loja. Retirada não deve cobrar frete. O campo legado serviceFeePercent não é aplicado; a futura comissão de entregas da plataforma permanece em coming_soon.
 
-### Perspectiva 2: Como foi implementado (Realidade do Código)
-- **Componente Angular:** `src/app/components/customer-storefront.ts`.
-  - Formulário reativo para coleta de dados de entrega e modalidade de pedido:
-    ```typescript
-    checkoutForm = this.fb.group({
-      customerName: ['', [Validators.required, Validators.minLength(3)]],
-      customerPhone: ['', [Validators.required]],
-      orderType: ['delivery', [Validators.required]],
-      deliveryAddress: [''],
-      paymentMethod: ['pix', [Validators.required]],
-      observations: ['']
-    });
-    ```
-  - Banner dinâmico de loja fechada: Linhas 76-91 em `customer-storefront.ts`, informando que o estabelecimento está operando em modo presencial local.
-- **Higienização de Dados no Backend (`src/server/middleware/auth.middleware.ts:133`):**
-  - Função `toPublicProduct(p: ProductItem)`:
-    ```typescript
-    export function toPublicProduct(p: ProductItem): PublicCatalogProduct {
-      return {
-        id: p.id,
-        tenantId: p.tenantId,
-        name: p.name,
-        category: p.category,
-        price: p.price,
-        unit: p.unit || 'un',
-        inStock: p.stock > 0,
-        imageUrl: p.imageUrl,
-        barcode: p.barcode
-      };
-    }
-    ```
-    Os campos `costPrice`, `wholesalePrice`, `supplierId` e a contagem exata de estoque são rigorosamente expurgados do objeto antes do envio ao navegador.
-- **Roteamento Backend:**
-  - `GET /api/products/public?tenantId=:id`: Retorna exclusivamente o catálogo sanitizado.
+O motor do servidor valida pedido, loja, disponibilidade dos produtos e valores conforme as regras atuais. A existência de componentes em eApps não comprova que KDS ou estoque estejam integrados como janelas do Store OS.
 
-### Perspectiva 3: Como se conecta (Topologia de Integração)
-- **Entrada:** Requisição pública ao carregar `/loja/:slug`.
-- **Cálculo da Taxa de Entrega:**
-  - Se o usuário seleciona `'takeout'`, o frontend zera a taxa de frete:
-    ```typescript
-    finalDeliveryFee = computed(() => this.selectedOrderType() === 'delivery' ? this.activeStore().deliveryFee : 0);
-    ```
-  - No backend, a transação `executeCommercialOrder` valida se `orderType === 'takeout'` possui `deliveryFee === 0`. Tentativa de cobrança forjada de frete é corrigida pelo motor de vendas.
+## Limites da vitrine
 
-### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Suíte de Segurança (`src/server/security_phase1.spec.ts`):**
-  - **Cenário de Sanitização:** Verificação de que requisições públicas a `/api/products/public` não contêm os campos `costPrice` ou `wholesalePrice`.
-  - **Cenário de Loja Fechada:** Tentativa de envio de pedido para loja com `isOpen: false` é rejeitada pelo backend com HTTP 422 `STORE_CLOSED`.
-  - **Cenário de Retirada sem Frete:** Validação de que pedidos de retirada (`takeout`) preservam `tax === 0` e `deliveryFee === 0`.
-- **Resultado:** 100% aprovado.
-
----
-
-## 📊 3. Matriz de Classificação de Maturidade
-
-| Recurso da Vitrine Pública | Classificação | Arquivo de Evidência | Observações |
-|---|---|---|---|
-| Sanitização de Custo e Margem (`toPublicProduct`) | 🟢 **Implementado e comprovado** | `src/server/middleware/auth.middleware.ts:133` | Impede vazamento de dados de custo e fornecedores. |
-| Modalidade Retirada no Balcão Sem Frete | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:208` | Zera taxa de frete no cálculo oficial do pedido. |
-| Modalidade Delivery com Taxa e Raio | 🟢 **Implementado e comprovado** | `src/app/components/customer-storefront.ts:153` | Aplica taxa parametrizada da loja. |
-| Bloqueio Automático em Lojas Fechadas | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:221` | Responde com HTTP 422 `STORE_CLOSED`. |
-| Carrinho Reativo com Observações por Item | 🟢 **Implementado e comprovado** | `src/app/components/customer-storefront.ts:380` | Permite adicionar notas (ex: "Sem cebola, bem passado"). |
-| Banner de Comunicados da Loja | 🟢 **Implementado e comprovado** | `src/app/components/customer-storefront.ts:94` | Lojista edita no Store OS e reflete na vitrine pública. |
-| Botão de Contato Direto via WhatsApp | 🟢 **Implementado e comprovado** | `src/app/components/customer-storefront.ts:187` | Gera link `api.whatsapp.com/send` com telefone da loja. |
-| Variações Complexas de Prato (Combos e Adicionais) | 🟡 **Implementado parcialmente** | `src/app/components/customer-storefront.ts` | Observações e notas suportadas; configurador de adicionais múltiplos em desenvolvimento. |
+- A rota pública confirmada é /p/:id; não documentar /loja/:slug como rota atual.
+- A proteção do catálogo precisa ser avaliada no endpoint público; o navegador não deve receber dados internos do ERP.
+- A janela do KDS continua placeholder no desktop, conforme [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
+- Testes, build e homologação não foram executados nesta revisão.

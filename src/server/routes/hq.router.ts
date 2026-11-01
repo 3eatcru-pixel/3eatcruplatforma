@@ -16,8 +16,19 @@ import {
 import { adminDb } from '../firebase-admin';
 import { Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { isValidCnpj } from '../utils/cnpj';
+import { DEFAULT_DEVICE_LIMITS } from '../utils/plan-limits';
 
 export const hqRouter = Router();
+
+class DeviceRegistrationError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
 
 interface GlobalHqSettings {
   maintenanceMode: boolean;
@@ -62,7 +73,7 @@ const DEFAULT_SAAS_PLANS: LicensePlan[] = [
     id: 'Starter',
     name: 'Starter (Iniciante)',
     priceMonthly: 149.0,
-    maxDevices: 2,
+    maxDevices: DEFAULT_DEVICE_LIMITS.Starter,
     includedModules: ['PDV Caixa'],
     description: 'Ideal para pequenos comércios.'
   },
@@ -70,7 +81,7 @@ const DEFAULT_SAAS_PLANS: LicensePlan[] = [
     id: 'Professional',
     name: 'Professional (Avançado)',
     priceMonthly: 299.0,
-    maxDevices: 5,
+    maxDevices: DEFAULT_DEVICE_LIMITS.Professional,
     includedModules: ['Full ERP'],
     description: 'Perfeito para restaurantes.'
   },
@@ -78,7 +89,7 @@ const DEFAULT_SAAS_PLANS: LicensePlan[] = [
     id: 'Enterprise',
     name: 'Enterprise (Corporativo)',
     priceMonthly: 599.0,
-    maxDevices: 20,
+    maxDevices: DEFAULT_DEVICE_LIMITS.Enterprise,
     includedModules: ['MDM Supremo'],
     description: 'Para redes de lojas.'
   }
@@ -181,6 +192,32 @@ hqRouter.get('/overview', requireHqAdmin, async (_req: Request, res: Response) =
   }
 });
 
+// GET /api/hq/tenants/:id/metrics - Historical eligible order metrics for one tenant
+hqRouter.get('/tenants/:id/metrics', requireHqAdmin, async (req: Request, res: Response) => {
+  const tenantId = getParamId(req);
+  try {
+    const tenantSnap = await adminDb.collection('tenants').doc(tenantId).get();
+    if (!tenantSnap.exists) {
+      res.status(404).json({ error: 'Tenant não encontrado.', code: 'TENANT_NOT_FOUND' });
+      return;
+    }
+
+    const ordersSnap = await adminDb.collection('orders').where('tenantId', '==', tenantId).get();
+    const eligibleOrders = ordersSnap.docs
+      .map((document) => document.data() as OrderTransaction)
+      .filter(isRealEligibleOrder);
+
+    res.json({
+      tenantId,
+      eligibleOrderCount: eligibleOrders.length,
+      eligibleOrderVolume: sumOrderTotals(eligibleOrders),
+      capturedAt: new Date().toISOString()
+    });
+  } catch {
+    res.status(500).json({ error: 'Não foi possível carregar o resumo de pedidos desta loja.' });
+  }
+});
+
 // GET /api/hq/public-status - Store OS broadcast and maintenance flag only
 hqRouter.get('/public-status', async (_req: Request, res: Response) => {
   try {
@@ -269,6 +306,37 @@ hqRouter.post('/system/commission', requireHqAdmin, async (req: Request, res: Re
   }
 });
 
+// POST /api/hq/system/platform-delivery-commission - Keep future commission disabled until readiness work is complete
+hqRouter.post('/system/platform-delivery-commission', requireHqAdmin, async (req: Request, res: Response) => {
+  if (req.body?.status !== 'coming_soon') {
+    res.status(req.body?.status === 'active' ? 409 : 400).json({
+      error: req.body?.status === 'active'
+        ? 'A ativação depende da rede própria de entregadores e da inteligência operacional; ainda não está disponível.'
+        : 'O status permitido nesta configuração é coming_soon.',
+      code: req.body?.status === 'active' ? 'COMMISSION_ACTIVATION_UNAVAILABLE' : 'INVALID_COMMISSION_STATUS'
+    });
+    return;
+  }
+
+  try {
+    const current = await getHqSettings();
+    const updated: GlobalHqSettings = {
+      ...current,
+      platformDeliveryCommissionStatus: 'coming_soon',
+      updatedAt: new Date().toISOString()
+    };
+    await adminDb.collection('hq_settings').doc('global').set(updated, { merge: true });
+    await logHqAudit(
+      'Comissão da Rede de Entregadores',
+      'Status mantido como Em breve; cálculos de comissão da plataforma permanecem desativados.',
+      'info'
+    );
+    res.json({ platformDeliveryCommissionStatus: 'coming_soon' });
+  } catch {
+    res.status(500).json({ error: 'Falha ao manter a comissão da plataforma em breve.' });
+  }
+});
+
 // GET /api/hq/devices
 hqRouter.get('/devices', requireHqAdmin, async (req: Request, res: Response) => {
   const tenantId = req.query['tenantId'] as string | undefined;
@@ -297,42 +365,77 @@ hqRouter.post('/devices', requireHqAdmin, async (req: Request, res: Response) =>
 
   const deviceRef = adminDb.collection('devices').doc();
   const id = deviceRef.id;
+  let createdDevice: POSDevice | null = null;
   try {
-    let tenantName = 'HQ Central (Infraestrutura)';
-    if (tenantId !== 'hq') {
-      const tenantDoc = await adminDb.collection('tenants').doc(tenantId).get();
-      if (!tenantDoc.exists) {
-        res.status(404).json({ error: 'Tenant de destino não encontrado.', code: 'TENANT_NOT_FOUND' });
-        return;
+    await adminDb.runTransaction(async (transaction) => {
+      let tenantName = 'HQ Central (Infraestrutura)';
+      let tenant: CompanyTenant | null = null;
+      if (tenantId !== 'hq') {
+        const tenantSnap = await transaction.get(adminDb.collection('tenants').doc(tenantId));
+        if (!tenantSnap.exists) {
+          throw new DeviceRegistrationError(404, 'TENANT_NOT_FOUND', 'Tenant de destino não encontrado.');
+        }
+        tenant = tenantSnap.data() as CompanyTenant;
+        tenantName = tenant.name;
       }
-      tenantName = (tenantDoc.data() as CompanyTenant).name;
-    }
 
-    const duplicateSerial = await adminDb.collection('devices').where('serialNumber', '==', serialNumber).limit(1).get();
-    if (!duplicateSerial.empty) {
-      res.status(409).json({ error: 'Este serial já está registrado no inventário.', code: 'DEVICE_SERIAL_EXISTS' });
-      return;
-    }
+      const duplicateSerial = await transaction.get(
+        adminDb.collection('devices').where('serialNumber', '==', serialNumber)
+      );
+      if (!duplicateSerial.empty) {
+        throw new DeviceRegistrationError(409, 'DEVICE_SERIAL_EXISTS', 'Este serial já está registrado no inventário.');
+      }
 
-    const newDevice: POSDevice = {
-      id,
-      tenantId,
-      tenantName,
-      deviceName,
-      type: body['type'] === 'tablet' || body['type'] === 'mobile' || body['type'] === 'kiosk' ? body['type'] : 'terminal',
-      serialNumber,
-      status: 'unverified',
-      ...(typeof body['location'] === 'string' && body['location'].trim() ? { location: body['location'].trim().slice(0, 120) } : {})
-    };
+      if (tenant) {
+        const tenantDevices = await transaction.get(
+          adminDb.collection('devices').where('tenantId', '==', tenantId)
+        );
+        if (!Number.isInteger(tenant.devicesLimit) || tenant.devicesLimit < 1 || tenant.devicesLimit > 999) {
+          throw new DeviceRegistrationError(409, 'INVALID_TENANT_DEVICE_QUOTA', 'A cota de dispositivos desta loja está inválida. Corrija a cota na governança do tenant.');
+        }
+        if (tenantDevices.size >= tenant.devicesLimit) {
+          throw new DeviceRegistrationError(
+            409,
+            'DEVICE_QUOTA_REACHED',
+            `A loja já possui ${tenantDevices.size} registro(s) de dispositivo para uma cota de ${tenant.devicesLimit}. Aumente a cota na governança do tenant para continuar.`
+          );
+        }
 
-    await deviceRef.set(newDevice);
+        const inventoryVersion = typeof tenant.deviceInventoryVersion === 'number' && Number.isInteger(tenant.deviceInventoryVersion)
+          ? tenant.deviceInventoryVersion
+          : 0;
+        // Writing the tenant document serializes competing registrations for the same quota.
+        transaction.update(adminDb.collection('tenants').doc(tenantId), {
+          deviceInventoryVersion: inventoryVersion + 1
+        });
+      }
+
+      const newDevice: POSDevice = {
+        id,
+        tenantId,
+        tenantName,
+        deviceName,
+        type: body['type'] === 'tablet' || body['type'] === 'mobile' || body['type'] === 'kiosk' ? body['type'] : 'terminal',
+        serialNumber,
+        status: 'unverified',
+        ...(typeof body['location'] === 'string' && body['location'].trim() ? { location: body['location'].trim().slice(0, 120) } : {})
+      };
+      createdDevice = newDevice;
+      transaction.create(deviceRef, newDevice);
+    });
+
+    if (!createdDevice) throw new Error('Device registration transaction completed without a device.');
     await logHqAudit(
       'Dispositivo Registrado',
-      `Dispositivo [${newDevice.deviceName}] (${newDevice.serialNumber}) registrado no inventário de ${newDevice.tenantName}; conexão física não verificada.`,
+      `Dispositivo [${createdDevice.deviceName}] (${createdDevice.serialNumber}) registrado no inventário de ${createdDevice.tenantName}; conexão física não verificada.`,
       'info'
     );
-    res.status(201).json(newDevice);
-  } catch {
+    res.status(201).json(createdDevice);
+  } catch (error) {
+    if (error instanceof DeviceRegistrationError) {
+      res.status(error.status).json({ error: error.message, code: error.code });
+      return;
+    }
     res.status(500).json({ error: 'Failed to pair device.' });
   }
 });
@@ -431,7 +534,7 @@ hqRouter.post('/audit/run', requireHqAdmin, async (_req: Request, res: Response)
       }
       const tenantIdentifiers = new Set([documentId, t.id].filter((id): id is string => typeof id === 'string' && id.length > 0));
       const registeredDevices = devices.filter((device) => tenantIdentifiers.has(device.tenantId)).length;
-      if (!Number.isFinite(t.devicesLimit) || t.devicesLimit < 0) {
+      if (!Number.isInteger(t.devicesLimit) || t.devicesLimit < 1 || t.devicesLimit > 999) {
         issues.push(`Estabelecimento [${t.name || documentId}] com cota de dispositivos inválida.`);
       } else if (registeredDevices > t.devicesLimit) {
         issues.push(`Estabelecimento [${t.name || documentId}] excedeu a cota de registros de dispositivos (${registeredDevices}/${t.devicesLimit}).`);

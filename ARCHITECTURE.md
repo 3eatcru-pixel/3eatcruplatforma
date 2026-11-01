@@ -1,64 +1,44 @@
-# 🏛️ 3EATCRU — Arquitetura Consolidada da Plataforma (V8.0)
+# Arquitetura atual do 3EATCRU
 
-> 🚨 **DIRETRIZ MESTRE OBRIGATÓRIA — HIERARQUIA & LIMITES DE PRODUTO:**
-> Consulte o [**Guia Definitivo dos Pilares & Matriz Real vs Simulação (PILAR_E_MODO_GUIA.md)**](./PILAR_E_MODO_GUIA.md).
->
-> 1. **OS 3 GRANDES AMBIENTES DO PRODUTO**:
->    - **Ambiente 1 — HQ Central (`/hq`)**: Gabinete executivo da franqueadora SaaS. Governa todas as lojas, split de 8% e planos. NÃO é loja e NÃO opera PDV.
->    - **Ambiente 2 — Store OS Lojista (`/os`, `/pos`)**: Terminal de UMA unidade física (PDV Balcão, KDS, Mesas, Estoque NFe, DRE). NÃO é HQ e NÃO é Marketplace.
->    - **Ambiente 3 — Público & Marketplace (`/home`, `/p/:id`)**: Portal de compras e cardápios para clientes consumidores. NÃO é painel de lojista.
->
-> 2. **MÓDULOS AUXILIARES ESPECIALIZADOS (PWAs Web Mobile)**:
->    - **App do Garçom (`/waiter`)**: Operação de salão e comanda em 3 tempos.
->    - **App do Entregador (`/driver`)**: Logística de entrega e navegação GPS.
->    - **Autoatendimento QR Code (`/p/:id?table=X`)**: Comanda de mesa no smartphone do cliente.
->
-> 3. **INFRAESTRUTURA TRANSACIONAL COMPARTILHADA**:
->    - **Express 5 Backend (`/api/*`)**, Cloud Firestore Live (18 coleções Zero-Trust) e Outbox Offline.
+Este documento resume a implementação presente no repositório. O índice canônico da documentação é [docs/INDEX.md](./docs/INDEX.md); o estado dos módulos está em [MODULE_STATUS.md](./MODULE_STATUS.md).
 
----
+## Stack
 
-## 📚 Documentação Técnica por Módulo (`/docs/`)
+- Angular 21 com Angular SSR no frontend.
+- Express 5 para a API e o servidor SSR.
+- Firebase Authentication e Firebase Admin SDK.
+- Cloud Firestore para dados de negócio.
+- Modelos compartilhados no diretório src/shared.
 
-- 🏛️ [**00 — Arquitetura Geral do Ecossistema**](./docs/00_ARQUITETURA_GERAL.md)
-- 🏢 [**01 — HQ Central (Gabinete Executivo SaaS)**](./docs/01_HQ_CENTRAL.md)
-- 🏬 [**02 — Store OS Lojista (PDV, KDS & ERP)**](./docs/02_STORE_OS_LOJISTA.md)
-- 🛍️ [**03 — Público & Marketplace Regional**](./docs/03_PUBLICO_E_MARKETPLACE.md)
-- 📱 [**04 — Aplicações & Módulos Auxiliares (PWAs)**](./docs/04_APLICACOES_AUXILIARES.md)
-- 🛡️ [**05 — Segurança Zero-Trust, Testes & Maturidade**](./docs/05_SEGURANCA_TESTES_MATURIDADE.md)
-- 📜 [**06 — Histórico de Decisões Técnicas & Migrações**](./docs/06_HISTORICO_E_DECISOES.md)
+A implementação deste checkout é Angular/Express. Não há migração para Next.js/React concluída.
 
----
+## Ambientes do produto
 
-## 🗺️ Mapeamento Canônico das Rotas Reais
+| Ambiente | Rotas | Responsabilidade e estado |
+|---|---|---|
+| HQ Central | /hq | Governança de tenants, responsáveis, catálogo de planos e configurações. A cobrança recorrente da assinatura SaaS não está integrada. |
+| Store OS | /os, /pos | Desktop da loja e PDV standalone. O mapa de módulos identifica quais atalhos ainda são placeholders. |
+| Público | /home, /p/:id | Marketplace regional, vitrine e pedidos do consumidor. |
+| Rotas auxiliares | /waiter, /driver | Interfaces web para garçom e entregador; não comprovam aplicativos nativos ou PWA instalado. |
 
-| Ambiente / Módulo | Rota Real | Alias Implementado | Função Principal |
-|---|---|---|---|
-| **Público (Marketplace)** | `/home` | `/marketplace` | Descoberta geográfica de lojas e carrinho |
-| **Público (Vitrine da Loja)** | `/p/:id` | — | Cardápio individual e autoatendimento QR |
-| **Público (Login Consumidor)**| `/consumer/login` | — | Autenticação do cliente final |
-| **Store OS (Lojista)** | `/os` | — | Painel de controle do estabelecimento |
-| **Store OS (PDV Balcão)** | `/pos` | — | Frente de caixa e vendas presenciais |
-| **HQ Central (Franqueador)** | `/hq` | — | Gabinete executivo da rede SaaS |
-| **App Auxiliar Garçom** | `/waiter` | — | PWA para atendimento de mesa |
-| **App Auxiliar Entregador** | `/driver` | — | PWA para aceite de corridas e GPS |
+## Assinatura e dispositivos
 
----
+O lojista contrata no HQ a assinatura para usar o Store OS e a cota de dispositivos do plano. A oferta deverá atender também lojas sem frota própria com entregadores da plataforma quando estiver pronta. O catálogo e a validação de cotas estão implementados; cobrança recorrente e regras/preços para esse acesso à frota não estão.
 
-## ⚡ Matriz de Execução: Modo Real vs Modo Simulação
+## Fluxo do negócio de entregas
 
-```text
-               ┌────────────────────────────────────────────────────────┐
-               │           SELETOR DE MODO DE EXECUÇÃO                  │
-               └───────────────────────────┬────────────────────────────┘
-                                           │
-             ┌─────────────────────────────┴─────────────────────────────┐
-             │                                                           │
- ┌───────────▼──────────────────────────┐    ┌───────────────────────────▼───────────┐
- │ 🟢 MODO REAL (PRODUÇÃO & LIVE)       │    │ 🧪 MODO SIMULAÇÃO (SANDBOX DEMO)      │
- │ • Banco: Google Cloud Firestore Live │    │ • Banco: Memória Volátil / Session    │
- │ • Auth: Firebase Auth JWT Cripto     │    │ • Auth: Sessão Injetada ('sim-token') │
- │ • PSP: Stripe Live / Caixa Conferido │    │ • PSP: Simulador TEF Explicativo      │
- │ • DRE: isSimulated = false           │    │ • DRE: isSimulated = true             │
- └──────────────────────────────────────┘    └───────────────────────────────────────┘
-```
+A loja administra seus próprios motoristas e define a remuneração deles. A comissão futura de 8% da plataforma permanece em coming_soon, separada da assinatura SaaS e dos pagamentos dos pedidos. Só poderá incidir sobre entregas executadas pela futura rede própria da plataforma.
+
+## Pagamentos do marketplace
+
+O pagamento do pedido é destinado à conta da loja. O PIX pode ser direcionado à chave do tenant cadastrada no eApp Minha Loja, com confirmação manual. Cartão real fica bloqueado até existir credenciamento de pagamento por tenant; a chave Stripe global não deve receber pedidos das lojas.
+
+## Arquitetura da API e persistência
+
+As rotas Express são montadas em src/server/api.ts sob /api. O servidor usa Firebase Admin SDK; por isso, as regras de acesso do cliente em firestore.rules não substituem autorização e validação em cada rota.
+
+O estado de cada rota, módulo, janela e integração precisa ser lido nas fontes atuais de maturidade, sem inferir prontidão de produção pela presença de um componente ou serviço.
+
+## Prontidão
+
+Este resumo não declara build, testes, implantação ou homologação aprovados. Consulte [MODULE_STATUS.md](./MODULE_STATUS.md) e [a estratégia de testes e recuperação](./docs/INTEGRACAO/04_TESTES_E_RECUPERACAO.md).

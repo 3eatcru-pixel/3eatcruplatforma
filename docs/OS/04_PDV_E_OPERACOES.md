@@ -19,7 +19,7 @@ A rota protegida /pos carrega src/app/components/pos-terminal.ts. O desktop /os 
 |---|---|---|
 | Carregar produtos | InventoryService.fetchProducts → GET /api/products | Exige tenant ativo e resposta do servidor no modo real. A lista não começa com fixtures de demonstração. |
 | Venda em dinheiro | PosTerminalComponent.checkout → EcosystemService.addOrder → CommerceEngine | Envia cashConfirmedByOperator para confirmação do operador; liquidação e estoque são responsabilidade do servidor. |
-| Cartão e PIX | PaymentEngine → /api/payments/process; PIX usa /api/payments/:id/confirm | A autorização real depende de credenciais do adquirente. Em sandbox, aprovação não equivale a liquidação em produção. |
+| Cartão e PIX | PaymentEngine → /api/payments/process; PIX usa /api/payments/:id/confirm | PIX usa a chave cadastrada no tenant e depende de confirmação manual; cartão real fica bloqueado até integrar uma conta de pagamento por loja. Em sandbox, aprovação não equivale a liquidação em produção. |
 | Sangria e suprimento | FinancialsService.addRecord → POST /api/financials | O PDV aguarda a resposta e apresenta erro se o lançamento falhar. |
 | Leitor USB | Entrada de teclado no campo de busca e ação de bip | Não há integração direta com dispositivo além da entrada de teclado. |
 | Pesagem | PosScaleModal recebe produto e peso informado pelo operador | É entrada manual; não há conexão serial com balança física. |

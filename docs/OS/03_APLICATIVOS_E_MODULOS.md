@@ -13,25 +13,25 @@ Fontes de referência no código:
 
 ## Estado verificado em 2026-11-01
 
-O registro contém 33 IDs. No desktop, apenas o PDV possui uma rota operacional e três simuladores possuem janela embutida. Os demais IDs mostram um estado explícito de interface ainda não integrada; eles não devem ser descritos como telas implementadas.
+O registro contém 33 IDs. No desktop, Minha Loja e três simuladores possuem janela embutida; o PDV operacional fica em rota standalone. Os demais IDs mostram um estado explícito de interface ainda não integrada; eles não devem ser descritos como telas implementadas.
 
 | IDs | Estado no Store OS | Implementação encontrada |
 |---|---|---|
 | pos | 🟡 Rota standalone | /pos carrega src/app/components/pos-terminal.ts; a janela do desktop encaminha para essa rota. Subcomponentes em src/app/components/eapps/pos/. |
 | waiter-sim, driver-sim, consumer-sim | 🔵 Simuladores | Molduras de demonstração em src/app/components/eapps/eapp-*-sim.ts, reutilizando as telas de garçom, entregador e marketplace. |
-| tables, kds, inventory, finance, suppliers, reconciliation, stock-audit, store-manager, whatsapp, ifood, instagram, tasks, calendar, agenda, services, rh, drivers, history, reports, crm, docs, google-drive, calculator, notes, admin-hub, appstore, browser, settings, system | ⚪ Janela placeholder | IDs estão no registro, mas não têm eApp conectado. client-os.ts mostra o estado de interface ausente. A disponibilidade de API/serviço é avaliada separadamente. |
+| store-manager | 🟡 eApp integrado | Minha Loja abre pelo desktop e permite editar a vitrine, taxa, pedido mínimo e chave PIX da conta da loja. O servidor limita a chave a 77 caracteres, mas não verifica formato ou titularidade. |
+| tables, kds, inventory, finance, suppliers, reconciliation, stock-audit, whatsapp, ifood, instagram, tasks, calendar, agenda, services, rh, drivers, history, reports, crm, docs, google-drive, calculator, notes, admin-hub, appstore, browser, settings, system | ⚪ Janela placeholder | IDs estão no registro, mas não têm eApp conectado. client-os.ts mostra o estado de interface ausente. A disponibilidade de API/serviço é avaliada separadamente. |
 
 As telas /waiter, /driver, /hq e as vitrines públicas são rotas próprias, não janelas do Store OS. A existência dessas rotas não altera o estado dos IDs homônimos no desktop.
 
 ### Componentes de protótipo fora do desktop
 
-Estes arquivos existem no repositório, mas não estão importados nem renderizados por `client-os.ts`; os IDs continuam abrindo placeholder no Store OS.
+Os arquivos abaixo existem no repositório, mas não estão importados nem renderizados por `client-os.ts`; seus IDs continuam abrindo placeholder no Store OS.
 
 | Arquivo | Limite verificado |
 |---|---|
 | `eapp-kds.ts` | Protótipo de fila que altera pedidos apenas até `ready`; não finaliza pedidos nem liquida pagamentos. No modo simulado, a notificação identifica a alteração como local. |
 | `eapp-tables.ts` | Protótipo de mesas; recusa liberar reserva, conta solicitada ou mesa com valor em aberto. |
-| `eapp-store-manager.ts` | Formulário protótipo; o desktop não abre a janela. O componente chama a API de tenant no modo real e altera apenas estado local no modo simulado. |
 | `eapp-ifood.ts` | Demonstração com pedidos estáticos e estado local; não possui API, webhook ou despacho conectado. |
 | `eapp-services.ts` | Demonstração de O.S. em signal local; não envia ordens de exemplo à API. |
 | `eapp-crm.ts` | Altera apenas o signal local `customers`; não carrega nem grava clientes e pontos na API de CRM. |

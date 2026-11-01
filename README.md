@@ -1,53 +1,50 @@
-# 3EATCRU — Ecossistema Comercial Omnichannel, ERP, POS & HQ Central
+# 3EATCRU — Plataforma comercial multiempresa
 
-Plataforma Comercial SaaS Multi-Tenant para o Ecossistema Gastronômico e Varejo organizada em **3 Grandes Ambientes de Produto**, **Módulos Auxiliares Especializados (PWAs)** e **Infraestrutura Transacional Compartilhada**.
+Este repositório contém a implementação web do ecossistema 3EATCRU. O estado dos módulos e seus limites estão no [mapa de maturidade](./MODULE_STATUS.md).
 
----
+> **Estado em 2026-11-01:** auditoria documental e correções em andamento. Build, testes e homologação operacional não foram executados nesta revisão.
 
-## 🏛️ Os 3 Ambientes de Produto & Módulos Auxiliares
+## Arquitetura implementada
 
-1. **Ambiente 1 — HQ Central (`/hq`)**: Gabinete executivo do Dono da Plataforma (`hq_admin`), planos SaaS, comissão de 8%, gestão de lojas e frota MDM.
-2. **Ambiente 2 — Store OS Lojista (`/os`, `/pos`)**: Terminal de UMA unidade física (PDV Balcão, KDS, Mesas, Estoque NFe e DRE).
-3. **Ambiente 3 — Público & Marketplace (`/home`, `/p/:id`)**: Portal de compras do consumidor regional, vitrines individuais e checkout.
-4. **Módulos Auxiliares Especializados (PWAs)**:
-   - **App do Garçom (`/waiter`)**: Operação de salão e comanda volante.
-   - **App do Entregador (`/driver`)**: Logística de entregas e navegação GPS.
-   - **Autoatendimento QR Code (`/p/:id?table=X`)**: Comanda de mesa via smartphone.
+- Frontend Angular 21 com SSR.
+- API Express 5 integrada ao servidor SSR.
+- Firebase Authentication, Firebase Admin SDK e Cloud Firestore.
+- Modelos compartilhados em src/shared.
 
----
+A stack descrita acima é a que está implementada neste checkout. O repositório não está estruturado como Next.js/React.
 
-## 📚 Documentação Técnica por Módulo (`/docs/`)
+## Ambientes e rotas
 
-- 📖 [**📑 ÍNDICE GERAL DE DOCUMENTAÇÃO**](./docs/00_INDICE_DOCUMENTACAO.md) (Navegue pelos manuais técnicos reais)
-- 🏛️ [**01 — HQ Central (Governança SaaS)**](./docs/HQ/00_ARQUITETURA_HQ.md)
-- 🏬 [**02 — Store OS Lojista (Desktop ERP & POS)**](./docs/OS/00_ARQUITETURA_OS.md)
-- 🔗 [**03 — Integração & Contrato HQ <> OS**](./docs/INTEGRACAO/00_CONTRATO_HQ_OS.md)
-- 🛡️ [**04 — Segurança, Testes & Maturidade (90 Testes Passando)**](./docs/05_SEGURANCA_TESTES_MATURIDADE.md)
+- **HQ Central:** /hq. Governança de lojas, responsáveis, catálogo de planos e configurações da plataforma.
+- **Store OS Lojista:** /os. Desktop da unidade; o PDV operacional está na rota protegida /pos. A maioria dos atalhos do desktop ainda mostra interface não integrada.
+- **Público e Marketplace:** /home e /p/:id. Descoberta regional, vitrine e jornada de pedidos.
+- **Rotas web auxiliares:** /waiter e /driver. São interfaces web; este repositório não comprova APK, PWA instalado ou rastreamento nativo em segundo plano.
 
----
+A lista completa e o estado por módulo estão em [Aplicativos e módulos](./docs/OS/03_APLICATIVOS_E_MODULOS.md).
 
-## 🚀 Status do Projeto: **Multissegmento Ready**
+## Regras do modelo de negócio
 
-Atualmente a plataforma suporta e valida nativamente os seguintes verticais de negócio:
-- 🍕 **Food Service** (Mesas, KDS, Cardápio Digital)
-- 📦 **Varejo Geral** (Leitor de Código de Barras, Estoque EAN-13)
-- 💊 **Farmácia & Saúde** (Controle de Lotes e Validade)
-- 🛠️ **Serviços Automotivos** (Ordem de Serviço e Placa de Veículo)
+- A loja administra sua frota própria e decide quanto paga aos seus motoristas.
+- A assinatura contratada no HQ dá acesso ao Store OS e à cota de dispositivos do plano; a oferta deverá atender também lojas sem frota própria com entregadores da plataforma quando estiver pronta. O catálogo e o bloqueio de novas ativações por cota existem, mas cobrança recorrente e regras/preços do acesso à frota ainda não estão integrados.
+- Os pagamentos de pedidos do marketplace pertencem à loja e devem cair na conta de pagamento dela. O PIX usa a chave cadastrada no tenant e a confirmação é manual; cartão real está bloqueado até conectar uma conta de adquirência por loja. Não há recebimento central pelo HQ.
+- A comissão de referência de 8% permanece em coming_soon e se aplica somente ao futuro processo de entregas executadas pela rede própria da plataforma. É separada da assinatura e dos pagamentos de pedidos, e não incide sobre entregas feitas pelos motoristas da loja.
 
----
+## Documentação
 
-## 🛠️ Comandos de Desenvolvimento e Verificação
+O índice canônico é [docs/INDEX.md](./docs/INDEX.md). O arquivo [docs/00_INDICE_DOCUMENTACAO.md](./docs/00_INDICE_DOCUMENTACAO.md) foi mantido como atalho para o índice principal.
 
-```bash
-# Servidor unificado Angular 21 SSR + Express API na porta 3000
-npm start
+- [Arquitetura geral](./docs/00_ARQUITETURA_GERAL.md)
+- [HQ Central](./docs/HQ/00_ARQUITETURA_HQ.md)
+- [Store OS e mapa de módulos](./docs/OS/03_APLICATIVOS_E_MODULOS.md)
+- [Contrato HQ e Store OS](./docs/INTEGRACAO/00_CONTRATO_HQ_OS.md)
+- [Segurança, testes e maturidade](./docs/05_SEGURANCA_TESTES_MATURIDADE.md)
+- [Auditoria de mapeamento](./docs/AUDITORIA_MAPEAMENTO_TRABALHO.md)
 
-# Suíte completa de testes automatizados (90 testes aprovados em 10 arquivos)
-npm test -- --watch=false
+## Comandos disponíveis
 
-# Análise estática ESLint (0 erros)
-npm run lint
+- npm start: servidor de desenvolvimento na porta 3000.
+- npm run lint: lint configurado no projeto.
+- npm run test:ci: testes configurados para execução sem watch.
+- npm run build: build Angular com configuração de produção.
 
-# Verificação completa (lint + testes)
-npm run check
-```
+A existência de scripts ou arquivos de teste não representa aprovação atual. Consulte o status da última execução antes de considerar uma entrega homologada.

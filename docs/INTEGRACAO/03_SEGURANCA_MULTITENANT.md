@@ -86,14 +86,7 @@ O ecossistema combina validação de Firebase ID Tokens, middlewares de autoriza
 - **Prevenção de Evasão:** Tentativas de consultar `/api/financials`, `/api/orders` ou `/api/products` sem token ou com token de outro tenant resultam em interrupção imediata da requisição.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- **Testes Automatizados:**
-  - `src/server/security_phase1.spec.ts`:
-    - Validação de que entregador não consegue consultar pedidos de outros entregadores.
-    - Validação de bloqueio em rota com `TENANT_MISMATCH`.
-    - Validação de que usuários comuns não conseguem ler coleções administrativas.
-  - `src/server/commerce_war_tests.spec.ts` (Guerra 7 e Guerra 8):
-    - Comprovação de isolamento multiempresa e proteção contra sequestro de rotas.
-- **Resultado:** 100% aprovado.
+- As suítes `src/server/security_phase1.spec.ts` e `src/server/commerce_war_tests.spec.ts` cobrem os cenários descritos. Elas não foram executadas nesta revisão; o resultado anterior não foi revalidado.
 
 ---
 
@@ -101,10 +94,10 @@ O ecossistema combina validação de Firebase ID Tokens, middlewares de autoriza
 
 | Mecanismo de Segurança | Classificação | Arquivo de Evidência | Observações |
 |---|---|---|---|
-| Default-Deny Global em Firestore Rules | 🟢 **Implementado e comprovado** | `firestore.rules:8` | Bloqueia qualquer rota de documento não explicitamente permitida. |
-| Bloqueio de Escritas pelo Client SDK | 🟢 **Implementado e comprovado** | `firestore.rules:215` | Mutações mediadas unicamente pelo Express Admin SDK. |
-| Validação Criptográfica de Custom Claims | 🟢 **Implementado e comprovado** | `src/server/middleware/auth.middleware.ts:162` | Validação de assinatura digital dos tokens Firebase. |
-| Isolamento Estrito de Entregadores (`driverId`) | 🟢 **Implementado e comprovado** | `firestore.rules:59` e `logistics.router.ts:180` | Motoristas só acessam suas próprias corridas. |
-| Detecção e Bloqueio de `TENANT_MISMATCH` | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:105` | Rejeição imediata de cruzamento de dados entre empresas. |
-| Auditoria Imutável de Eventos Administrativos | 🟢 **Implementado e comprovado** | `src/server/routes/hq.router.ts:78` | Logs de auditoria gravados de forma indelével em `/audit_logs`. |
+| Default-Deny Global em Firestore Rules | Implementado (não retestado nesta revisão) | `firestore.rules:8` | Bloqueia documentos não explicitamente permitidos pelas regras. |
+| Bloqueio de Escritas pelo Client SDK | Implementado (não retestado nesta revisão) | `firestore.rules:215` | As rotas administrativas usam Express Admin SDK; as regras limitam o acesso do cliente. |
+| Validação Criptográfica de Custom Claims | Implementado (não retestado nesta revisão) | `src/server/middleware/auth.middleware.ts:162` | O middleware verifica o token Firebase. |
+| Isolamento Estrito de Entregadores (`driverId`) | Implementado (não retestado nesta revisão) | `firestore.rules:59` e `logistics.router.ts` | Escopo verificado pelas rotas e regras aplicáveis. |
+| Detecção e Bloqueio de `TENANT_MISMATCH` | Implementado (não retestado nesta revisão) | `src/server/core/commerce.engine.ts` | Rejeita operações fora do tenant autorizado. |
+| Registro de Eventos Administrativos | Best effort; não imutável | `src/server/routes/hq.router.ts` | A API grava logs em `/audit_logs`, mas não garante imutabilidade ou retenção. |
 | Rotação Periódica de Chaves de Serviço | 🟡 **Implementado parcialmente** | `src/server/firebase-admin.ts` | Credenciais gerenciadas via variáveis de ambiente seguras do Google Cloud Run. |

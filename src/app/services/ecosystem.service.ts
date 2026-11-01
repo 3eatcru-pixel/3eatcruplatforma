@@ -536,6 +536,14 @@ export class EcosystemService {
     return this.tenantsService.updateTenant(id, updates);
   }
 
+  async linkTenantOwner(id: string, email: string) {
+    return this.tenantsService.linkOwner(id, email);
+  }
+
+  async getTenantOwner(id: string) {
+    return this.tenantsService.getOwner(id);
+  }
+
   async addProduct(product: Partial<ProductItem>) {
     const tenantId = this.resolveOperationalTenantId(product.tenantId);
     await this.inventoryService.createProduct({ ...product, tenantId });
@@ -555,12 +563,27 @@ export class EcosystemService {
   }
 
   async addDevice(device: Partial<POSDevice>) {
+    if (this.isSimulationMode() && device.tenantId && device.tenantId !== 'hq') {
+      const tenant = this.tenants().find(candidate => candidate.id === device.tenantId);
+      if (!tenant) throw new Error('Tenant de destino não encontrado na simulação.');
+      const registeredDevices = this.devices().filter(candidate => candidate.tenantId === tenant.id).length;
+      if (!Number.isInteger(tenant.devicesLimit) || tenant.devicesLimit < 1 || tenant.devicesLimit > 999) {
+        throw new Error('A cota de dispositivos desta loja está inválida. Corrija a cota na governança do tenant.');
+      }
+      if (registeredDevices >= tenant.devicesLimit) {
+        throw new Error(`A loja já possui ${registeredDevices} registro(s) de dispositivo para uma cota de ${tenant.devicesLimit}. Aumente a cota na governança do tenant para continuar.`);
+      }
+    }
     await this.hqService.createDevice(device);
   }
 
   async setPlatformCommissionRate(rate: number) {
     await this.hqService.setCommissionRate(rate * 100);
     this.notify('Comissão global atualizada.', 'success');
+  }
+
+  async keepPlatformCommissionComingSoon() {
+    await this.hqService.keepPlatformCommissionComingSoon();
   }
 
   async setMaintenance(enabled: boolean) {

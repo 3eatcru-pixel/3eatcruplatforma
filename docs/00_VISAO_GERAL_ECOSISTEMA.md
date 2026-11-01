@@ -24,7 +24,7 @@ O ecossistema **3EATCRU** é uma plataforma comercial SaaS com interfaces web pa
                                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                           AMBIENTE 3: PÚBLICO, MARKETPLACE & AUXILIARES                        │
-│                 (/marketplace, /loja/:slug, /waiter, /driver, /profile)                        │
+│                 (/home, /p/:id, /waiter, /driver, /consumer/login)                        │
 │  Vitrine Consumidor • App Garçom (pedidos/mesas) • App Entregador (rotas e baixa)              │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -99,7 +99,7 @@ Cada funcionalidade, fluxo e contrato nesta documentação é classificado sob o
 │   ├── 03_AUTOATENDIMENTO_E_QR_MESA.md
 │   ├── 04_CHECKOUT_PAGAMENTO_E_PIX.md
 │   └── 05_PERFIL_CONSUMIDOR_E_RESERVAS.md
-├── APPS_MOBILE/                             <-- Aplicações Móveis Android & PWA Nativo
+├── APPS_MOBILE/                             <-- Documentação das rotas web auxiliares e do consumidor
 │   ├── 00_ARQUITETURA_MOBILE_ANDROID.md
 │   ├── 01_APP_MOTORISTA_ENTREGADOR.md
 │   ├── 02_APP_GARCOM_E_SALAO.md

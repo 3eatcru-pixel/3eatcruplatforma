@@ -439,7 +439,12 @@ export async function executeCommercialOrder(
       } satisfies CommercialEngineError;
     }
 
-    const deliveryFee = isDelivery ? (tenant.deliveryFee ?? 5.0) : 0;
+    const configuredDeliveryFee = tenant.deliveryFee;
+    const deliveryFee = isDelivery
+      ? typeof configuredDeliveryFee === 'number' && Number.isFinite(configuredDeliveryFee) && configuredDeliveryFee >= 0
+        ? configuredDeliveryFee
+        : 5.0
+      : 0;
     const rawTax = Math.max(0, Number(body['tax'] || 0));
     const tax = canOperatePos && !isNaN(rawTax) ? Math.min(rawTax, calculatedSubtotal * 0.2) : 0;
     const total = Number((calculatedSubtotal + deliveryFee + tax - discount).toFixed(2));

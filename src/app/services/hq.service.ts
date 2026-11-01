@@ -5,6 +5,13 @@ import { firstValueFrom } from 'rxjs';
 import { SecurityService } from './security.service';
 import type { HqOverviewResponse } from './hq-api.service';
 
+export interface HqTenantMetricsResponse {
+  tenantId: string;
+  eligibleOrderCount: number;
+  eligibleOrderVolume: number;
+  capturedAt: string;
+}
+
 const DEFAULT_PLANS: LicensePlan[] = [
   { id: 'Starter', name: 'Starter (Iniciante)', priceMonthly: 149.00, maxDevices: 2, includedModules: ['PDV Caixa'], description: 'Pequenos comércios.' },
   { id: 'Professional', name: 'Professional (Avançado)', priceMonthly: 299.00, maxDevices: 5, includedModules: ['PDV', 'KDS', 'Mesas'], description: 'Restaurantes e lojas.' },
@@ -61,6 +68,13 @@ export class HqService {
       this.totalActiveTenants.set(null);
       return null;
     }
+  }
+
+  async getTenantMetrics(tenantId: string): Promise<HqTenantMetricsResponse | null> {
+    if (this.isSimulation()) return null;
+    return firstValueFrom(
+      this.http.get<HqTenantMetricsResponse>(`/api/hq/tenants/${encodeURIComponent(tenantId)}/metrics`)
+    );
   }
 
   async updatePlanPrice(planId: string, price: number, maxDevices?: number): Promise<void> {
@@ -133,6 +147,25 @@ export class HqService {
     }
     await firstValueFrom(this.http.post('/api/hq/system/commission', { percent: rate }));
     this.hqCommissionRate.set(rate / 100);
+  }
+
+  async keepPlatformCommissionComingSoon(): Promise<void> {
+    if (!this.isSimulation()) {
+      await firstValueFrom(this.http.post<{ platformDeliveryCommissionStatus: 'coming_soon' }>(
+        '/api/hq/system/platform-delivery-commission',
+        { status: 'coming_soon' }
+      ));
+    }
+
+    this.overview.update((current) => current ? {
+      ...current,
+      platformDeliveryCommissionStatus: 'coming_soon',
+      platformDeliveryOrdersCount: null,
+      platformDeliveryGrossVolume: null,
+      estimatedCommissionRevenue: null,
+      defaultCommissionPercent: null
+    } : current);
+    this.hqEstimatedCommissionRevenue.set(null);
   }
 
   async fetchPublicStatus(): Promise<void> {

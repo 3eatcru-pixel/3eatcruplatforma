@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { Router, ActivatedRoute } from '@angular/router';
 import { EcosystemService } from '../services/ecosystem.service';
 import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appointment } from '../models/ecosystem.model';
+import { PaymentTransactionResult } from '../core/engines/payment.engine';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -158,7 +159,7 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                 </span>
                 <span class="bg-[#2b160b] text-amber-300 border border-[#482814] px-2.5 py-1 rounded-xl flex items-center gap-1">
                   <mat-icon class="text-xs text-amber-400">two_wheeler</mat-icon>
-                  <span>Taxa Delivery: {{ (activeStore().deliveryFee ?? 0) === 0 ? 'Grátis' : 'R$ ' + (activeStore().deliveryFee || 0).toFixed(2) }}</span>
+                  <span>Taxa Delivery: {{ deliveryFeeAmount() === 0 ? 'Grátis' : 'R$ ' + deliveryFeeAmount().toFixed(2) }}</span>
                 </span>
                 <span [class]="activeStore().deliveryFleetType === 'own' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' : 'bg-purple-950/80 text-purple-300 border-purple-700/60'" class="border px-2.5 py-1 rounded-xl flex items-center gap-1">
                   <mat-icon class="text-xs">store</mat-icon>
@@ -360,7 +361,7 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                       <span class="bg-[#ebdcc7] px-2.5 py-1 rounded font-bold text-stone-800">
                         {{ item.quantity }}x
                       </span>
-                      <button type="button" (click)="removeFromCart(item.product.id)" class="text-rose-600 font-bold text-xs p-1">
+                      <button type="button" (click)="removeFromCart(item.product.id)" [disabled]="isSubmittingOrder() || !!paymentTargetOrder()" class="text-rose-600 font-bold text-xs p-1 disabled:opacity-40">
                         <mat-icon class="text-sm">delete</mat-icon>
                       </button>
                     </div>
@@ -379,6 +380,7 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                     <button
                       type="button"
                       (click)="orderType.set('delivery')"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
                       [class]="orderType() === 'delivery' ? 'bg-amber-600 text-stone-950 font-black shadow' : 'text-stone-700 hover:text-stone-900 font-bold'"
                       class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer">
                       <mat-icon class="text-xs">delivery_dining</mat-icon>
@@ -388,6 +390,7 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                     <button
                       type="button"
                       (click)="orderType.set('dine-in')"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
                       [class]="orderType() === 'dine-in' ? 'bg-amber-600 text-stone-950 font-black shadow' : 'text-stone-700 hover:text-stone-900 font-bold'"
                       class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer">
                       <mat-icon class="text-xs">table_bar</mat-icon>
@@ -397,6 +400,7 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                     <button
                       type="button"
                       (click)="orderType.set('takeout')"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
                       [class]="orderType() === 'takeout' ? 'bg-amber-600 text-stone-950 font-black shadow' : 'text-stone-700 hover:text-stone-900 font-bold'"
                       class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer">
                       <mat-icon class="text-xs">shopping_bag</mat-icon>
@@ -413,6 +417,7 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                     <select
                       id="tableSelectInput"
                       [value]="selectedTableNumber()"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
                       (change)="selectedTableNumber.set(+$any($event.target).value)"
                       class="w-full bg-white border border-[#d6c7b0] rounded-lg px-2.5 py-1.5 text-stone-900 font-bold outline-none cursor-pointer">
                       @for (tbl of ecosystem.tables(); track tbl.id) {
@@ -426,13 +431,42 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                 } @else if (orderType() === 'delivery') {
                   <div>
                     <label for="addressInput" class="block font-bold text-stone-800 mb-1">Endereço de Entrega</label>
-                    <input id="addressInput" [value]="deliveryAddress()" (input)="deliveryAddress.set($any($event.target).value)" type="text" placeholder="Rua, número e complemento" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:border-amber-600">
+                    <input id="addressInput" [value]="deliveryAddress()" (input)="deliveryAddress.set($any($event.target).value)" [disabled]="isSubmittingOrder() || !!paymentTargetOrder()" type="text" placeholder="Rua, número e complemento" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:border-amber-600">
                   </div>
                 }
 
                 <div>
                   <label for="custNameInput" class="block font-bold text-stone-800 mb-1">Seu Nome Completo</label>
-                  <input id="custNameInput" [value]="customerName()" (input)="customerName.set($any($event.target).value)" type="text" placeholder="Ex: Carlos Eduardo" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:border-amber-600">
+                  <input id="custNameInput" [value]="customerName()" (input)="customerName.set($any($event.target).value)" [disabled]="isSubmittingOrder() || !!paymentTargetOrder()" type="text" placeholder="Ex: Carlos Eduardo" class="w-full bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:border-amber-600">
+                </div>
+
+                <div class="space-y-1.5">
+                  <span class="block font-bold text-stone-800 font-mono text-[10px] uppercase">Como deseja pagar?</span>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      (click)="selectedPaymentMethod.set('pix')"
+                      [disabled]="!activeStore().pixAvailable || isSubmittingOrder() || !!paymentTargetOrder()"
+                      [class]="selectedPaymentMethod() === 'pix' ? 'bg-emerald-700 text-white border-emerald-800' : 'bg-white text-stone-700 border-[#d6c7b0]'"
+                      class="rounded-xl border p-2 font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                      PIX da loja
+                    </button>
+                    <button
+                      type="button"
+                      (click)="selectedPaymentMethod.set('cash')"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
+                      [class]="selectedPaymentMethod() === 'cash' ? 'bg-amber-600 text-stone-950 border-amber-700' : 'bg-white text-stone-700 border-[#d6c7b0]'"
+                      class="rounded-xl border p-2 font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                      Dinheiro no recebimento
+                    </button>
+                  </div>
+                  @if (!activeStore().pixAvailable) {
+                    <p class="text-[10px] text-amber-800">PIX indisponível: a loja ainda não cadastrou uma chave própria.</p>
+                  }
+                  <p class="text-[10px] text-stone-500">Cartão fica em breve, até cada loja conectar sua própria conta de pagamento.</p>
+                  @if (paymentTargetOrder(); as retryOrder) {
+                    <p role="status" class="text-[10px] text-amber-900">Pedido {{ retryOrder.orderNumber }} já foi criado. A sacola está travada enquanto o pagamento é repetido com segurança.</p>
+                  }
                 </div>
 
                 <div class="bg-[#f5ebd9] border border-[#e6d8be] p-3 rounded-xl space-y-1 font-mono text-xs">
@@ -442,8 +476,8 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                   </div>
                   @if (orderType() === 'delivery') {
                     <div class="flex justify-between text-stone-600">
-                      <span>Taxa de Entrega / Serviço:</span>
-                      <span>R$ {{ serviceFeeAmount().toFixed(2) }}</span>
+                      <span>Taxa de entrega:</span>
+                      <span>{{ deliveryFeeAmount() === 0 ? 'Grátis' : 'R$ ' + deliveryFeeAmount().toFixed(2) }}</span>
                     </div>
                   }
                   <div class="flex justify-between font-bold text-stone-900 text-sm pt-1 border-t border-[#e6d8be]">
@@ -463,14 +497,42 @@ import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appoint
                 <button
                   type="button"
                   (click)="placeOnlineOrder()"
-                  class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold py-2.5 px-5 rounded-xl shadow-lg border border-amber-400/50 text-xs flex items-center gap-1">
-                  <mat-icon class="text-sm">check_circle</mat-icon>
-                  <span>Confirmar Pedido</span>
+                  [disabled]="isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
+                  class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold py-2.5 px-5 rounded-xl shadow-lg border border-amber-400/50 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <mat-icon class="text-sm">{{ isSubmittingOrder() ? 'hourglass_top' : 'check_circle' }}</mat-icon>
+                  <span>{{ isSubmittingOrder() ? 'Enviando…' : paymentTargetOrder() ? 'Repetir pagamento' : 'Enviar pedido e pagar' }}</span>
                 </button>
               }
             </div>
 
           </div>
+        </div>
+      }
+
+      @if (pendingPayment(); as payment) {
+        <div class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <section class="bg-[#faf7f0] border border-[#ded4c2] rounded-3xl max-w-md w-full p-6 text-stone-900 space-y-4 shadow-2xl">
+            <header class="flex items-center gap-3 border-b border-[#e8dfce] pb-3">
+              <mat-icon class="text-emerald-700">check_circle</mat-icon>
+              <div>
+                <h3 class="font-serif font-black text-lg">Pedido {{ payment.orderNumber }} recebido</h3>
+                <p class="text-xs text-stone-600">Pagamento direcionado à loja {{ activeStore().name }}.</p>
+              </div>
+            </header>
+            @if (payment.method === 'pix' && payment.result.qrCodePix) {
+              <div class="flex flex-col items-center gap-3">
+                <img [src]="payment.result.qrCodePix" alt="QR Code PIX da loja" class="w-56 h-56 rounded-xl border border-[#d6c7b0] bg-white p-2" />
+                <p class="text-center text-xs text-stone-700">Pague com o aplicativo do seu banco. A loja confirmará o recebimento.</p>
+                @if (payment.result.pixCopyPaste) {
+                  <textarea readonly [value]="payment.result.pixCopyPaste" aria-label="Código PIX copia e cola" class="w-full h-20 rounded-xl border border-[#d6c7b0] bg-white p-2 font-mono text-[10px] text-stone-700"></textarea>
+                  <button type="button" (click)="copyPixCode()" class="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Copiar código PIX</button>
+                }
+              </div>
+            } @else {
+              <p class="text-sm text-stone-700">Pague em dinheiro ao receber o delivery ou retirar o pedido. A loja registrará a confirmação.</p>
+            }
+            <button type="button" (click)="pendingPayment.set(null)" class="w-full rounded-xl bg-[#ebdcc7] px-4 py-2.5 text-xs font-bold text-stone-800">Fechar</button>
+          </section>
         </div>
       }
 
@@ -678,6 +740,11 @@ export class CustomerStorefrontComponent {
   readonly deliveryAddress = this.ecosystem.deliveryAddress;
 
   readonly lastPlacedOrder = signal<OrderTransaction | null>(null);
+  readonly selectedPaymentMethod = signal<'pix' | 'cash'>('cash');
+  readonly isSubmittingOrder = signal(false);
+  readonly paymentTargetOrder = signal<OrderTransaction | null>(null);
+  readonly pendingPayment = signal<{ result: PaymentTransactionResult; method: 'pix' | 'cash'; orderNumber: string } | null>(null);
+  private readonly orderIdempotencyKey = signal<string | null>(null);
 
   activeStore = computed(() => {
     const id = this.ecosystem.currentTenantId();
@@ -692,8 +759,11 @@ export class CustomerStorefrontComponent {
 
   totalCartCount = computed(() => this.customerCart().reduce((sum, i) => sum + i.quantity, 0));
   cartTotal = computed(() => this.customerCart().reduce((sum, i) => sum + i.product.price * i.quantity, 0));
-  serviceFeeAmount = computed(() => this.cartTotal() * (this.activeStore().serviceFeePercent / 100));
-  finalTotal = computed(() => this.cartTotal() + this.serviceFeeAmount());
+  deliveryFeeAmount = computed(() => {
+    const fee = this.activeStore().deliveryFee;
+    return typeof fee === 'number' && Number.isFinite(fee) && fee >= 0 ? fee : 5;
+  });
+  finalTotal = computed(() => this.cartTotal() + this.deliveryFeeAmount());
 
   onBackClick() {
     this.backToRegional.emit();
@@ -738,95 +808,154 @@ export class CustomerStorefrontComponent {
   }
 
   async placeOnlineOrder() {
-    if (!this.activeStore().isOpen) {
-      this.ecosystem.notify('Esta loja está temporariamente em operação local/balcão sem conexão de delivery online. Atendimento presencial ativo no balcão.', 'warning');
-      return;
-    }
+    if (this.isSubmittingOrder()) return;
+    this.isSubmittingOrder.set(true);
 
-    if (!this.ecosystem.activeConsumer()) {
-      this.ecosystem.notify('Para finalizar seu pedido, por favor faça login ou cadastre-se.', 'warning');
-      this.showCartModal.set(false);
-      this.router.navigate(['/consumer/login']);
-      return;
-    }
-
-    if (!this.customerName().trim()) {
-      this.ecosystem.notify('Por favor, informe seu nome para finalizar o pedido.', 'warning');
-      return;
-    }
-
-    const modality = this.orderType();
-    const isDineIn = modality === 'dine-in';
-    const isDelivery = modality === 'delivery';
-    const subtotal = this.cartTotal();
-
-    // Validate Minimum Order Value for Delivery only
-    if (isDelivery) {
-      const minVal = this.activeStore().minOrderValue || 0;
-      if (minVal > 0 && subtotal < minVal) {
-        const diff = minVal - subtotal;
-        this.ecosystem.notify(`O pedido mínimo para entrega nesta loja é de R$ ${minVal.toFixed(2)}. Faltam R$ ${diff.toFixed(2)} na sua sacola!`, 'warning');
+    try {
+      if (!this.activeStore().isOpen) {
+        this.ecosystem.notify('Esta loja está temporariamente em operação local/balcão sem conexão de delivery online. Atendimento presencial ativo no balcão.', 'warning');
         return;
       }
-    }
 
-    const tax = isDelivery ? this.serviceFeeAmount() : 0;
-    const total = subtotal + tax;
-    const prefix = isDineIn ? `#M${this.selectedTableNumber()}-` : modality === 'takeout' ? '#RET-' : '#';
-    const orderNum = prefix + Math.floor(Math.random() * 900 + 100);
+      if (!this.ecosystem.activeConsumer()) {
+        this.ecosystem.notify('Para finalizar seu pedido, por favor faça login ou cadastre-se.', 'warning');
+        this.showCartModal.set(false);
+        this.router.navigate(['/consumer/login']);
+        return;
+      }
 
-    const userCoords = this.ecosystem.userReferenceCoords();
+      if (!this.customerName().trim()) {
+        this.ecosystem.notify('Por favor, informe seu nome para finalizar o pedido.', 'warning');
+        return;
+      }
 
-    const newOrder = {
-      tenantId: this.activeStore().id,
-      orderNumber: orderNum,
-      type: modality,
-      tableNumber: isDineIn ? `Mesa ${this.selectedTableNumber()}` : undefined,
-      customerName: this.customerName(),
-      customerPhone: this.customerPhone() || '(11) 99999-9999',
-      items: [...this.customerCart()],
-      subtotal,
-      tax,
-      discount: 0,
-      total,
-      paymentMethod: (isDineIn ? 'card' : 'online') as 'card' | 'online',
-      status: 'pending' as const,
-      channel: (isDineIn ? 'Table QR' : 'Customer Storefront') as 'Table QR' | 'Customer Storefront',
-      lat: isDelivery ? userCoords.lat : this.activeStore().lat,
-      lng: isDelivery ? userCoords.lng : this.activeStore().lng,
-      address: isDelivery ? this.deliveryAddress() : undefined
-    };
+      const paymentMethod = this.selectedPaymentMethod();
+      if (paymentMethod === 'pix' && !this.activeStore().pixAvailable && !this.ecosystem.isSimulationMode()) {
+        this.ecosystem.notify('Esta loja ainda não configurou o recebimento PIX. Escolha dinheiro ou avise a loja.', 'warning');
+        return;
+      }
 
-    const placedOrder = await this.ecosystem.addOrder(newOrder);
-    this.lastPlacedOrder.set(placedOrder);
+      const modality = this.orderType();
+      const isDineIn = modality === 'dine-in';
+      const isDelivery = modality === 'delivery';
+      const subtotal = this.cartTotal();
 
-    // If dine-in, mark table occupied and update running total
-    if (isDineIn) {
-      const tblNum = this.selectedTableNumber();
-      const tbl = this.ecosystem.tables().find((t: TableInfo) => t.number === tblNum);
-      if (tbl) {
-        this.ecosystem.updateTable(tbl.id, {
-          status: 'occupied',
-          currentTotal: (tbl.currentTotal || 0) + total,
-          guests: tbl.guests || 2
+      if (isDelivery) {
+        const minVal = this.activeStore().minOrderValue || 0;
+        if (minVal > 0 && subtotal < minVal) {
+          const diff = minVal - subtotal;
+          this.ecosystem.notify(`O pedido mínimo para entrega nesta loja é de R$ ${minVal.toFixed(2)}. Faltam R$ ${diff.toFixed(2)} na sua sacola!`, 'warning');
+          return;
+        }
+      }
+
+      const deliveryFee = isDelivery ? this.deliveryFeeAmount() : 0;
+      const total = subtotal + deliveryFee;
+      let placedOrder = this.paymentTargetOrder();
+
+      if (!placedOrder) {
+        const prefix = isDineIn ? `#M${this.selectedTableNumber()}-` : modality === 'takeout' ? '#RET-' : '#';
+        const orderNum = prefix + Math.floor(Math.random() * 900 + 100);
+        const userCoords = this.ecosystem.userReferenceCoords();
+        const key = this.orderIdempotencyKey() ||
+          `marketplace-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`}`;
+        this.orderIdempotencyKey.set(key);
+
+        const orderPayload: Partial<OrderTransaction> & { idempotencyKey: string } = {
+          idempotencyKey: key,
+          tenantId: this.activeStore().id,
+          orderNumber: orderNum,
+          type: modality,
+          tableNumber: isDineIn ? `Mesa ${this.selectedTableNumber()}` : undefined,
+          customerName: this.customerName(),
+          customerPhone: this.customerPhone() || '(11) 99999-9999',
+          items: [...this.customerCart()],
+          subtotal,
+          deliveryFee,
+          tax: 0,
+          discount: 0,
+          total,
+          paymentMethod,
+          status: 'pending',
+          channel: (isDineIn ? 'Table QR' : 'Customer Storefront') as 'Table QR' | 'Customer Storefront',
+          lat: isDelivery ? userCoords.lat : this.activeStore().lat,
+          lng: isDelivery ? userCoords.lng : this.activeStore().lng,
+          address: isDelivery ? this.deliveryAddress() : undefined
+        };
+        placedOrder = await this.ecosystem.addOrder(orderPayload);
+        this.paymentTargetOrder.set(placedOrder);
+      }
+
+      if (this.ecosystem.isSimulationMode()) {
+        this.lastPlacedOrder.set(placedOrder);
+        this.ecosystem.notify('Pedido criado somente na simulação. Nenhum pagamento real foi processado.', 'info');
+      } else {
+        const payment = await this.ecosystem.paymentEngine.processPayment({
+          orderId: placedOrder.id,
+          amount: placedOrder.total,
+          method: paymentMethod,
+          tenantId: this.activeStore().id
+        });
+
+        this.pendingPayment.set({ result: payment, method: paymentMethod, orderNumber: placedOrder.orderNumber });
+        this.lastPlacedOrder.set({
+          ...placedOrder,
+          paymentTransactionId: payment.transactionId,
+          paymentStatus: payment.status === 'approved' ? 'approved' : 'pending_pix'
+        });
+        this.ecosystem.notify(
+          paymentMethod === 'pix'
+            ? `Pedido ${placedOrder.orderNumber} recebido. Pague o PIX da loja para concluir.`
+            : `Pedido ${placedOrder.orderNumber} recebido. O pagamento em dinheiro será feito ao receber ou retirar.`,
+          'success'
+        );
+      }
+
+      if (isDineIn) {
+        const tblNum = this.selectedTableNumber();
+        const tbl = this.ecosystem.tables().find((t: TableInfo) => t.number === tblNum);
+        if (tbl) {
+          this.ecosystem.updateTable(tbl.id, {
+            status: 'occupied',
+            currentTotal: (tbl.currentTotal || 0) + placedOrder.total,
+            guests: tbl.guests || 2
+          });
+        }
+      }
+
+      const cons = this.ecosystem.activeConsumer();
+      if (cons) {
+        this.ecosystem.updateConsumerProfile(cons.id, {
+          totalOrders: cons.totalOrders + 1,
+          totalSpent: cons.totalSpent + placedOrder.total,
+          loyaltyPoints: (cons.loyaltyPoints || 50) + Math.max(1, Math.floor(placedOrder.total * 0.1))
         });
       }
-    } else {
-      const modalityLabel = modality === 'takeout' ? 'Retirada no Balcão' : 'Delivery';
-      this.ecosystem.notify(`Pedido ${orderNum} (${modalityLabel}) confirmado! Enviado para a cozinha (KDS) da loja ${this.activeStore().name}.`, 'success');
-    }
 
-    const cons = this.ecosystem.activeConsumer();
-    if (cons) {
-      this.ecosystem.updateConsumerProfile(cons.id, {
-        totalOrders: cons.totalOrders + 1,
-        totalSpent: cons.totalSpent + total,
-        loyaltyPoints: (cons.loyaltyPoints || 50) + Math.max(1, Math.floor(total * 0.1))
-      });
+      this.paymentTargetOrder.set(null);
+      this.orderIdempotencyKey.set(null);
+      this.ecosystem.customerCart.set([]);
+      this.showCartModal.set(false);
+    } catch (error: unknown) {
+      const apiError = error as { error?: { error?: string; code?: string }; message?: string };
+      this.ecosystem.notify(
+        apiError?.error?.error || apiError?.message || 'Não foi possível concluir o pagamento. Repita a tentativa antes de criar outro pedido.',
+        'error'
+      );
+    } finally {
+      this.isSubmittingOrder.set(false);
     }
+  }
 
-    this.ecosystem.customerCart.set([]);
-    this.showCartModal.set(false);
+  async copyPixCode(): Promise<void> {
+    const code = this.pendingPayment()?.result.pixCopyPaste;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      this.ecosystem.notify('Código PIX copiado.', 'success');
+    } catch {
+      this.ecosystem.notify('Não foi possível copiar o código PIX neste navegador.', 'warning');
+    }
   }
 
   openReservationModal() {

@@ -10,4 +10,5 @@
    - Na mesa do estabelecimento, escaneie o QR Code para incluir itens direto na sua comanda física.
 3. **Checkout & Pagamento**:
    - Escolha entre **Delivery** (entrega no seu endereço) ou **Retirada** (Takeout).
-   - Realize o pagamento via **PIX instantâneo (BACEN EMV com QR Code)** ou cartão.
+   - Pague via **PIX da loja** (quando disponível) ou em dinheiro ao receber/retirar. O cartão ficará disponível quando cada loja conectar sua própria conta de pagamento.
+   - Depois do PIX, aguarde a confirmação manual da loja. O QR Code envia o valor diretamente à chave Pix cadastrada pelo estabelecimento.

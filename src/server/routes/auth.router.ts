@@ -9,6 +9,7 @@ import {
 } from '../middleware/auth.middleware';
 import { authRegisterRateLimiter } from '../middleware/rate-limiter.middleware';
 import { isValidCnpj } from '../utils/cnpj';
+import { getPlanDeviceLimit } from '../utils/plan-limits';
 
 export { isValidCnpj } from '../utils/cnpj';
 
@@ -204,6 +205,14 @@ authRouter.post('/register-merchant', requireAuth, authRegisterRateLimiter, asyn
     ? reqCategory
     : 'restaurant';
 
+  let initialDeviceLimit: number;
+  try {
+    initialDeviceLimit = await getPlanDeviceLimit('Starter');
+  } catch {
+    res.status(503).json({ error: 'Não foi possível carregar a cota cadastrada para o plano Starter.', code: 'PLAN_CONFIGURATION_UNAVAILABLE' });
+    return;
+  }
+
   const newTenant: CompanyTenant = {
     id: tenantId,
     name: storeName.slice(0, 120),
@@ -222,8 +231,7 @@ authRouter.post('/register-merchant', requireAuth, authRegisterRateLimiter, asyn
     deliveryRadiusKm: 5.0,
     openingHours: String(body['openingHours'] || '09:00 às 22:00').slice(0, 60),
     activeDevicesCount: 1,
-    devicesLimit: 2,
-    serviceFeePercent: 8,
+    devicesLimit: initialDeviceLimit,
     minOrderValue: 20,
     deliveryFee: 5,
     deliveryFleetType: 'own',
@@ -322,6 +330,14 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
       });
       return;
     }
+  }
+
+  if (requestedRole === 'tenant_owner') {
+    res.status(409).json({
+      error: 'Vincule o responsável pela rota POST /api/tenants/:id/owner para manter identidade e tenant sincronizados.',
+      code: 'OWNER_LINK_REQUIRED'
+    });
+    return;
   }
 
   try {

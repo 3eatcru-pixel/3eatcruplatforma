@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -33,6 +33,14 @@ import { EcosystemService } from '../../services/ecosystem.service';
                   } @else {
                     <p class="text-[9px] leading-relaxed text-amber-100/70">A comissão da rede própria está ativa. Motoristas da loja e o valor pago a eles continuam sob decisão do lojista; a comissão não entra no caixa do Store OS.</p>
                   }
+                  <button
+                    type="button"
+                    [disabled]="!canEditSettings() || savingCommissionStatus()"
+                    (click)="keepCommissionComingSoon()"
+                    class="w-full rounded-xl border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-amber-200 hover:bg-amber-800/50 disabled:cursor-not-allowed disabled:opacity-50">
+                    {{ savingCommissionStatus() ? 'Salvando...' : platformCommissionStatus() === 'coming_soon' ? 'Salvar como Em breve' : 'Desativar e manter Em breve' }}
+                  </button>
+                  <p class="text-[8px] text-amber-100/60">Esta tela só permite manter ou desativar. A ativação exige um processo futuro de prontidão.</p>
                </div>
 
                <div class="p-4 bg-rose-950/20 border border-rose-500/30 rounded-2xl space-y-2">
@@ -79,7 +87,26 @@ export class HqSystemConfigComponent {
   readonly ecosystem = inject(EcosystemService);
   readonly canEditSettings = computed(() => this.ecosystem.isSimulationMode() || this.ecosystem.hqOverview() !== null);
   readonly platformCommissionStatus = computed(() => this.ecosystem.hqOverview()?.platformDeliveryCommissionStatus ?? 'coming_soon');
+  readonly savingCommissionStatus = signal(false);
   readonly unavailableMetrics = ['Latência API', 'Vazão do banco', 'Uso de armazenamento', 'Tráfego global'];
+
+  async keepCommissionComingSoon() {
+    if (!this.canEditSettings() || this.savingCommissionStatus()) return;
+    this.savingCommissionStatus.set(true);
+    try {
+      await this.ecosystem.keepPlatformCommissionComingSoon();
+      this.ecosystem.notify(
+        this.ecosystem.isSimulationMode()
+          ? 'Em breve confirmado localmente; a simulação não grava no servidor.'
+          : 'Comissão mantida como Em breve. Nenhum cálculo de comissão está ativo.',
+        'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível salvar o status Em breve. A configuração anterior continua ativa.', 'error');
+    } finally {
+      this.savingCommissionStatus.set(false);
+    }
+  }
 
   async toggleMaintenanceMode() {
     if (!this.canEditSettings()) return;

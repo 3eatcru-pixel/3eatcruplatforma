@@ -122,85 +122,6 @@ function generateBacenPixPayload(params: {
 }
 
 /**
- * Process real payment via Stripe API if key is available
- */
-async function processStripePayment(params: {
-  amount: number;
-  orderId: string;
-  tenantId: string;
-  isLive: boolean;
-  paymentMethodToken?: string;
-}): Promise<{
-  success: boolean;
-  externalId: string;
-  authorizationCode: string;
-  gateway: string;
-  status: 'approved' | 'failed' | 'requires_action';
-  rawResponse?: unknown;
-}> {
-  const stripeKey = process.env['STRIPE_SECRET_KEY']!;
-  try {
-    const bodyParams = new URLSearchParams();
-    bodyParams.append('amount', Math.round(params.amount * 100).toString());
-    bodyParams.append('currency', 'brl');
-    bodyParams.append('description', `Pedido 3eatcru #${params.orderId}`);
-    bodyParams.append('metadata[orderId]', params.orderId);
-    bodyParams.append('metadata[tenantId]', params.tenantId);
-    bodyParams.append('confirm', 'true');
-    
-    // Safety: Fallback to test card ONLY if we are in Test Mode (sk_test_...)
-    const effectiveToken = params.paymentMethodToken || (params.isLive ? undefined : 'pm_card_visa');
-    if (!effectiveToken) {
-       return { success: false, externalId: '', authorizationCode: '', gateway: 'Stripe', status: 'failed', rawResponse: { error: 'No payment method token provided for LIVE transaction' } };
-    }
-    
-    bodyParams.append('payment_method', effectiveToken);
-    bodyParams.append('automatic_payment_methods[enabled]', 'true');
-    bodyParams.append('automatic_payment_methods[allow_redirects]', 'never');
-
-    const res = await fetch('https://api.stripe.com/v1/payment_intents', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stripeKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: bodyParams.toString()
-    });
-
-    const data = (await res.json()) as Record<string, unknown>;
-    if (res.ok && data['status'] === 'succeeded') {
-      const chargeId = String(data['id'] || '');
-      return {
-        success: true,
-        externalId: chargeId,
-        authorizationCode: `STRIPE-${chargeId.slice(-8).toUpperCase()}`,
-        gateway: 'Stripe Live Payments PSP',
-        status: 'approved',
-        rawResponse: data
-      };
-    } else {
-      return {
-        success: false,
-        externalId: String(data['id'] || ''),
-        authorizationCode: 'FAILED',
-        gateway: 'Stripe Live Payments PSP',
-        status: 'failed',
-        rawResponse: data
-      };
-    }
-  } catch (err) {
-    console.error('Stripe API Call Failed:', err);
-    return {
-      success: false,
-      externalId: '',
-      authorizationCode: 'ERROR',
-      gateway: 'Stripe Live Payments PSP',
-      status: 'failed'
-    };
-  }
-}
-
-/**
  * POST /api/payments/process
  * Server-authoritative Universal Payment Proxy.
  * Strictly separates:
@@ -323,7 +244,8 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     const tenantData = tenantDoc.exists ? tenantDoc.data() : null;
     const merchantName = (tenantData?.['name'] as string) || '3EATCRU';
     const merchantCity = (tenantData?.['address']?.['city'] as string) || 'SAO PAULO';
-    const pixKey = (tenantData?.['pixKey'] as string) || 'pix@3eatcru.com.br';
+    const configuredPixKey =
+      typeof tenantData?.['pixKey'] === 'string' ? tenantData['pixKey'].trim() : '';
 
     // This route settles the tenant's order payment. The platform courier commission is
     // evaluated separately by HQ after a real delivery is marked delivered.
@@ -334,13 +256,10 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     const txId = `tx-${Date.now().toString(36)}-${Math.floor(1000 + Math.random() * 9000)}`;
     const nowIso = new Date().toISOString();
 
-    let feeRate = 0.0099;
-    if (method === 'credit_card') feeRate = 0.0319;
-    if (method === 'debit_card') feeRate = 0.0149;
-    if (method === 'cash' || method === 'voucher') feeRate = 0;
-
-    const feeDeducted = Number((amount * feeRate).toFixed(2));
-    const netAmount = Number((amount - feeDeducted).toFixed(2));
+    // The store receives its PIX amount directly. PSP fees are unknown until a
+    // tenant-specific provider is connected, so do not fabricate deductions.
+    const feeDeducted = 0;
+    const netAmount = Number(amount.toFixed(2));
 
     let status: PaymentTransactionRecord['status'];
     let gatewayLabel: string;
@@ -350,9 +269,12 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
 
     let pixCopyPaste: string | undefined;
     let qrCodePix: string | undefined;
+    let isRealPaymentFlow = false;
 
     // CASE 1: CASH / VOUCHER (Physical Currency)
     if (method === 'cash' || method === 'voucher') {
+      // Cash/voucher belongs to the store and does not pass through the platform PSP.
+      isRealPaymentFlow = true;
       const isOperatorAtCounter =
         caller.role === 'tenant_owner' || caller.role === 'operator' || caller.role === 'hq_admin';
       if (isOperatorAtCounter && cashConfirmedByOperator) {
@@ -369,6 +291,27 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     }
     // CASE 2: PIX (Instant Payment)
     else if (method === 'pix') {
+      const isRealConsumerOrder =
+        caller.role === 'consumer' && !orderData.isSimulated && orderData.mode !== 'simulation';
+      if (configuredPixKey.length > 77) {
+        res.status(503).json({
+          error: 'A chave Pix cadastrada pela loja ultrapassa o limite aceito pelo BR Code. Atualize a chave em Minha Loja.',
+          code: 'TENANT_PIX_KEY_INVALID'
+        });
+        return;
+      }
+      if (!configuredPixKey && (isLive || isRealConsumerOrder)) {
+        res.status(503).json({
+          error: 'A loja precisa cadastrar sua própria chave Pix antes de receber pagamentos reais.',
+          code: 'TENANT_PIX_KEY_NOT_CONFIGURED'
+        });
+        return;
+      }
+
+      // A configured tenant key receives the payment directly. A missing key can only
+      // produce a clearly marked sandbox example and never routes funds to the platform.
+      const hasLivePixKey = Boolean(configuredPixKey);
+      const pixKey = hasLivePixKey ? configuredPixKey : 'sandbox.invalid@invalid.invalid';
       status = 'pending_pix';
       pixCopyPaste = generateBacenPixPayload({
         key: pixKey,
@@ -378,42 +321,27 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
         txId
       });
       qrCodePix = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(pixCopyPaste)}`;
-      gatewayLabel = isLive
-        ? `PIX Direto BACEN / PSP (${pspProvider!.toUpperCase()})`
+      gatewayLabel = hasLivePixKey
+        ? 'PIX direto para a chave da loja (confirmação manual)'
         : 'PIX Universal (Ambiente de Testes / Sandbox)';
+      isRealPaymentFlow = hasLivePixKey;
       authCode = `PIX-${Date.now().toString().slice(-6)}`;
-      if (!isLive) {
-        simulationWarning = 'PIX gerado em modo de demonstração. Confirmação manual ou via webhook simulado.';
+      if (!hasLivePixKey) {
+        simulationWarning = 'PIX de demonstração com chave inválida. Não transfira valores.';
       }
     }
     // CASE 3: CARD (Credit / Debit)
     else {
       if (isLive && pspProvider === 'stripe') {
-        const stripeResult = await processStripePayment({
-          amount,
-          orderId,
-          tenantId,
-          isLive,
-          paymentMethodToken: typeof body['paymentMethodToken'] === 'string' ? body['paymentMethodToken'] : undefined
+        res.status(503).json({
+          error: 'Cartão real indisponível: a loja ainda não possui uma conta de pagamento conectada para receber diretamente.',
+          code: 'TENANT_CARD_ACCOUNT_NOT_CONFIGURED'
         });
-
-        if (stripeResult.success) {
-          status = 'approved';
-          gatewayLabel = stripeResult.gateway;
-          authCode = stripeResult.authorizationCode;
-          externalTransactionId = stripeResult.externalId;
-        } else {
-          res.status(402).json({
-            error: 'Pagamento recusado pela adquirente.',
-            code: 'PAYMENT_DECLINED',
-            details: stripeResult.rawResponse
-          });
-          return;
-        }
+        return;
       } else {
         if (pspProvider === 'mercadopago') {
           res.status(503).json({
-            error: 'Integração direta Mercado Pago cartão de crédito em homologação final. Utilize o método PIX ou simulação em sandbox.',
+            error: 'Cartão Mercado Pago ainda não está integrado. Configure uma conta de pagamento vinculada à loja antes de habilitar cobranças reais.',
             code: 'PROVIDER_NOT_IMPLEMENTED'
           });
           return;
@@ -427,8 +355,8 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       }
     }
 
-    const effectiveEnvironment: PaymentTransactionRecord['environment'] = (gatewayLabel.includes('SIMULADOR') || !isLive) ? 'sandbox' : 'live';
-    const effectiveMode: PaymentTransactionRecord['mode'] = (gatewayLabel.includes('SIMULADOR') || !isLive) ? 'simulation' : 'real';
+    const effectiveEnvironment: PaymentTransactionRecord['environment'] = isRealPaymentFlow ? 'live' : 'sandbox';
+    const effectiveMode: PaymentTransactionRecord['mode'] = isRealPaymentFlow ? 'real' : 'simulation';
 
     const record: PaymentTransactionRecord = {
       id: txId,
@@ -451,31 +379,85 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       ...(status === 'approved' ? { confirmedAt: nowIso } : {})
     };
 
-    const isSimulationPayment = record.mode === 'simulation' || orderData.isSimulated || orderData.mode === 'simulation';
-    const finalMode: PaymentTransactionRecord['mode'] = isSimulationPayment ? 'simulation' : 'real';
-    const finalIsSimulated = isSimulationPayment;
+    const commitResult = await adminDb.runTransaction(async (transaction) => {
+      const currentOrderSnapshot = await transaction.get(orderRef);
+      if (!currentOrderSnapshot.exists) {
+        return { kind: 'rejected' as const, httpStatus: 404, code: 'ORDER_NOT_FOUND', error: 'Pedido não encontrado.' };
+      }
 
-    record.mode = finalMode;
-    record.isSimulated = finalIsSimulated;
+      const currentOrder = currentOrderSnapshot.data() as OrderTransaction;
+      const canPayCurrentOrder =
+        caller.role === 'hq_admin' ||
+        (isTenantStaffRole(caller.role) && caller.tenantId === currentOrder.tenantId) ||
+        currentOrder.customerId === caller.id;
+      if (!canPayCurrentOrder) {
+        return { kind: 'rejected' as const, httpStatus: 403, code: 'FORBIDDEN', error: 'Sem permissão para pagar este pedido.' };
+      }
+      if (currentOrder.tenantId !== tenantId) {
+        return { kind: 'rejected' as const, httpStatus: 403, code: 'TENANT_MISMATCH', error: 'Divergência de estabelecimento no pedido.' };
+      }
+      if (currentOrder.paymentStatus === 'approved' || currentOrder.status === 'completed') {
+        return { kind: 'rejected' as const, httpStatus: 409, code: 'ORDER_ALREADY_PAID', error: 'Este pedido já está pago.' };
+      }
+      if (currentOrder.status === 'cancelled') {
+        return { kind: 'rejected' as const, httpStatus: 409, code: 'ORDER_CANCELLED', error: 'Não é possível pagar um pedido cancelado.' };
+      }
+      if (Math.abs(currentOrder.total - amount) > 0.05) {
+        return { kind: 'rejected' as const, httpStatus: 422, code: 'PAYMENT_AMOUNT_MISMATCH', error: 'O valor não corresponde ao total atual do pedido.' };
+      }
 
-    // Save transaction record and update order atomically in a batch
-    const batch = adminDb.batch();
-    batch.set(adminDb.collection('payment_transactions').doc(txId), record);
+      if (currentOrder.paymentTransactionId) {
+        const existingPaymentRef = adminDb.collection('payment_transactions').doc(currentOrder.paymentTransactionId);
+        const existingPaymentSnapshot = await transaction.get(existingPaymentRef);
+        if (existingPaymentSnapshot.exists) {
+          const existingPayment = existingPaymentSnapshot.data() as PaymentTransactionRecord;
+          if (existingPayment.status === 'approved') {
+            return { kind: 'rejected' as const, httpStatus: 409, code: 'ORDER_ALREADY_PAID', error: 'Este pedido já tem um pagamento aprovado.' };
+          }
+          if (existingPayment.status === 'pending_pix') {
+            if (existingPayment.method === method && Math.abs(existingPayment.amount - amount) <= 0.005) {
+              return { kind: 'existing' as const, record: existingPayment, order: currentOrder };
+            }
+            return {
+              kind: 'rejected' as const,
+              httpStatus: 409,
+              code: 'PAYMENT_ATTEMPT_PENDING',
+              error: 'O pedido já tem um pagamento pendente. Confirme ou resolva essa tentativa antes de escolher outro meio de pagamento.'
+            };
+          }
+        }
+      }
 
-    const newPaymentStatus = record.status === 'pending_pix' ? 'pending_pix' : 'approved';
-    const orderUpdates: Partial<OrderTransaction> = {
-      paymentTransactionId: txId,
-      paymentStatus: newPaymentStatus,
-      ...(isSimulationPayment ? { isSimulated: true, mode: 'simulation' } : {})
-    };
-    batch.update(orderRef, orderUpdates);
+      const isSimulationPayment = record.mode === 'simulation' || currentOrder.isSimulated || currentOrder.mode === 'simulation';
+      const committedRecord: PaymentTransactionRecord = {
+        ...record,
+        mode: isSimulationPayment ? 'simulation' : 'real',
+        isSimulated: isSimulationPayment
+      };
+      const newPaymentStatus = committedRecord.status === 'pending_pix' ? 'pending_pix' : 'approved';
+      const orderUpdates: Partial<OrderTransaction> = {
+        paymentTransactionId: committedRecord.id,
+        paymentStatus: newPaymentStatus,
+        ...(isSimulationPayment ? { isSimulated: true, mode: 'simulation' } : {})
+      };
 
-    await batch.commit();
+      transaction.create(adminDb.collection('payment_transactions').doc(committedRecord.id), committedRecord);
+      transaction.update(orderRef, orderUpdates);
+      return { kind: 'created' as const, record: committedRecord, order: currentOrder };
+    });
+
+    if (commitResult.kind === 'rejected') {
+      res.status(commitResult.httpStatus).json({ error: commitResult.error, code: commitResult.code });
+      return;
+    }
+
+    const committedRecord = commitResult.record;
 
     // If POS sale was immediately settled via cash or card, transition order to completed
     if (
-      record.status === 'approved' &&
-      orderData.type === 'pos-counter' &&
+      commitResult.kind === 'created' &&
+      committedRecord.status === 'approved' &&
+      commitResult.order.type === 'pos-counter' &&
       (caller.role === 'tenant_owner' || caller.role === 'operator' || caller.role === 'hq_admin')
     ) {
       await transitionCommercialOrderStatus({
@@ -485,21 +467,28 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json({
-      transactionId: record.id,
-      orderId: record.orderId,
-      status: record.status,
-      gateway: record.gateway,
-      qrCodePix: record.qrCodePix,
-      pixCopyPaste: record.pixCopyPaste,
-      authorizationCode: record.authorizationCode,
-      processedAt: nowIso,
-      feeDeducted: record.feeDeducted,
-      netAmount: record.netAmount,
-      environment: record.environment,
-      mode: record.mode,
-      isSimulation: record.mode === 'simulation',
-      ...(simulationWarning ? { simulationWarning } : {})
+    const effectiveSimulationWarning = simulationWarning ||
+      (committedRecord.mode === 'simulation' && committedRecord.method === 'pix'
+        ? 'PIX de demonstração com chave inválida. Não transfira valores.'
+        : committedRecord.mode === 'simulation' && (committedRecord.method === 'credit_card' || committedRecord.method === 'debit_card')
+          ? 'Transação executada em ambiente de testes/simulação. Nenhuma cobrança financeira real foi efetuada em cartão.'
+          : undefined);
+
+    res.status(commitResult.kind === 'created' ? 201 : 200).json({
+      transactionId: committedRecord.id,
+      orderId: committedRecord.orderId,
+      status: committedRecord.status,
+      gateway: committedRecord.gateway,
+      qrCodePix: committedRecord.qrCodePix,
+      pixCopyPaste: committedRecord.pixCopyPaste,
+      authorizationCode: committedRecord.authorizationCode,
+      processedAt: committedRecord.createdAt,
+      feeDeducted: committedRecord.feeDeducted,
+      netAmount: committedRecord.netAmount,
+      environment: committedRecord.environment,
+      mode: committedRecord.mode,
+      isSimulation: committedRecord.mode === 'simulation',
+      ...(effectiveSimulationWarning ? { simulationWarning: effectiveSimulationWarning } : {})
     });
   } catch (err) {
     console.error('Payment Proxy Error:', err);

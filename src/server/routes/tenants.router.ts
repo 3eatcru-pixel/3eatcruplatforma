@@ -6,11 +6,22 @@ import {
   requireTenantAccess,
   toPublicStorefront
 } from '../middleware/auth.middleware';
-import { adminDb } from '../firebase-admin';
-import { QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { adminAuth, adminDb } from '../firebase-admin';
+import { FieldValue, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { isValidCnpj } from '../utils/cnpj';
+import { getPlanDeviceLimit } from '../utils/plan-limits';
 
 export const tenantsRouter = Router();
+
+class TenantOwnerLinkError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
 
 function getParamId(req: Request): string {
   const p = req.params['id'];
@@ -104,6 +115,45 @@ tenantsRouter.get('/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/tenants/:id/owner - Resolve the linked owner's current account details (HQ only).
+ */
+tenantsRouter.get('/:id/owner', requireHqAdmin, async (req: Request, res: Response) => {
+  const tenantId = getParamId(req);
+  try {
+    const tenantSnap = await adminDb.collection('tenants').doc(tenantId).get();
+    if (!tenantSnap.exists) {
+      res.status(404).json({ error: 'Loja não encontrada.', code: 'TENANT_NOT_FOUND' });
+      return;
+    }
+
+    const tenant = tenantSnap.data() as CompanyTenant;
+    const ownerUid = typeof tenant.ownerUid === 'string' ? tenant.ownerUid : '';
+    if (!ownerUid) {
+      res.json({ tenantId, ownerUid: null, ownerEmail: null, emailVerified: null });
+      return;
+    }
+
+    try {
+      const owner = await adminAuth.getUser(ownerUid);
+      res.json({
+        tenantId,
+        ownerUid,
+        ownerEmail: owner.email || null,
+        emailVerified: owner.emailVerified
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'auth/user-not-found') {
+        res.json({ tenantId, ownerUid, ownerEmail: null, emailVerified: null });
+        return;
+      }
+      throw error;
+    }
+  } catch {
+    res.status(500).json({ error: 'Não foi possível consultar a conta responsável.' });
+  }
+});
+
+/**
  * POST /api/tenants - Provision new tenant (HQ Central Only)
  */
 tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
@@ -150,6 +200,13 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
   const plan = validPlans.includes(body['plan'] as CompanyTenant['plan'])
     ? body['plan'] as CompanyTenant['plan']
     : 'Starter';
+  let initialDeviceLimit: number;
+  try {
+    initialDeviceLimit = await getPlanDeviceLimit(plan);
+  } catch {
+    res.status(503).json({ error: 'Não foi possível carregar a cota cadastrada para este plano.', code: 'PLAN_CONFIGURATION_UNAVAILABLE' });
+    return;
+  }
   const tenantsCollection = adminDb.collection('tenants');
   const tenantRef = tenantsCollection.doc();
   const id = tenantRef.id;
@@ -162,8 +219,7 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
     plan,
     status: 'trial',
     isOpen: false,
-    ...(typeof body['ownerUid'] === 'string' && body['ownerUid'].trim() ? { ownerUid: body['ownerUid'].trim() } : {}),
-    staffUids: Array.isArray(body['staffUids']) ? (body['staffUids'] as string[]).slice(0, 20) : [],
+    staffUids: [],
     ...(Number.isFinite(Number(body['lat'])) ? { lat: Number(body['lat']) } : {}),
     ...(Number.isFinite(Number(body['lng'])) ? { lng: Number(body['lng']) } : {}),
     address:
@@ -183,13 +239,12 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
     deliveryRadiusKm: Number(body['deliveryRadiusKm']) || 5.0,
     openingHours: typeof body['openingHours'] === 'string' ? body['openingHours'].slice(0, 60) : '10:00 às 22:00',
     activeDevicesCount: 0,
-    devicesLimit: plan === 'Enterprise' ? 20 : plan === 'Professional' ? 5 : 2,
-    serviceFeePercent: Number.isFinite(Number(body['serviceFeePercent']))
-      ? Number(body['serviceFeePercent'])
-      : 8,
+    devicesLimit: initialDeviceLimit,
     minOrderValue: Number(body['minOrderValue']) || 25,
-    deliveryFee: Number(body['deliveryFee']) || 5,
-    deliveryFleetType: body['deliveryFleetType'] === 'own' || body['deliveryFleetType'] === 'platform' ? body['deliveryFleetType'] : 'hybrid',
+    deliveryFee: Number.isFinite(Number(body['deliveryFee'])) && Number(body['deliveryFee']) >= 0
+      ? Number(body['deliveryFee'])
+      : 5,
+    deliveryFleetType: 'own',
     storeSlug: typeof body['storeSlug'] === 'string' && body['storeSlug'].trim() ? body['storeSlug'].trim().slice(0, 80) : id,
     themeColor: 'amber'
   };
@@ -217,6 +272,195 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/tenants/:id/owner - Link an existing, verified account as tenant owner (HQ only).
+ */
+tenantsRouter.post('/:id/owner', requireHqAdmin, async (req: Request, res: Response) => {
+  const tenantId = getParamId(req);
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: 'Informe um e-mail válido da conta do responsável.', code: 'INVALID_OWNER_EMAIL' });
+    return;
+  }
+
+  let ownerRecord: Awaited<ReturnType<typeof adminAuth.getUserByEmail>>;
+  try {
+    ownerRecord = await adminAuth.getUserByEmail(email);
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'auth/user-not-found') {
+      res.status(404).json({ error: 'Não existe uma conta cadastrada com esse e-mail.', code: 'OWNER_ACCOUNT_NOT_FOUND' });
+      return;
+    }
+    res.status(500).json({ error: 'Não foi possível consultar a conta do responsável.' });
+    return;
+  }
+
+  if (!ownerRecord.emailVerified) {
+    res.status(409).json({ error: 'A conta precisa confirmar o e-mail antes de ser vinculada.', code: 'OWNER_EMAIL_NOT_VERIFIED' });
+    return;
+  }
+
+  const claims = ownerRecord.customClaims || {};
+  if (claims['role'] === 'hq_admin') {
+    res.status(409).json({ error: 'Uma conta administradora do HQ não pode ser responsável de uma loja.', code: 'OWNER_ACCOUNT_IS_HQ_ADMIN' });
+    return;
+  }
+
+  try {
+    const existingOwnerships = await adminDb.collection('tenants').where('ownerUid', '==', ownerRecord.uid).get();
+    if (existingOwnerships.docs.some((doc) => doc.id !== tenantId)) {
+      res.status(409).json({ error: 'Esta conta já está vinculada como responsável de outro estabelecimento.', code: 'OWNER_LINKED_TO_ANOTHER_TENANT' });
+      return;
+    }
+  } catch {
+    res.status(500).json({ error: 'Não foi possível verificar os vínculos atuais do responsável.' });
+    return;
+  }
+
+  const tenantRef = adminDb.collection('tenants').doc(tenantId);
+  const userRef = adminDb.collection('users').doc(ownerRecord.uid);
+  const adminRef = adminDb.collection('admins').doc(ownerRecord.uid);
+  const nowIso = new Date().toISOString();
+  let previousUser: Record<string, unknown> | null = null;
+  let wasAlreadyOwner = false;
+  let wasAlreadyStaff = false;
+  let reservationCommitted = false;
+  let claimsUpdateAttempted = false;
+
+  try {
+    await adminDb.runTransaction(async (transaction) => {
+      const tenantSnap = await transaction.get(tenantRef);
+      const userSnap = await transaction.get(userRef);
+      const adminSnap = await transaction.get(adminRef);
+      if (!tenantSnap.exists) {
+        throw new TenantOwnerLinkError(404, 'TENANT_NOT_FOUND', 'Loja não encontrada.');
+      }
+      const tenant = tenantSnap.data() as CompanyTenant;
+      const userData = (userSnap.data() || {}) as Record<string, unknown>;
+      if (adminSnap.exists || userData['role'] === 'hq_admin') {
+        throw new TenantOwnerLinkError(409, 'OWNER_ACCOUNT_IS_HQ_ADMIN', 'Uma conta administradora do HQ não pode ser responsável de uma loja.');
+      }
+      const existingOwnerUid = typeof tenant.ownerUid === 'string' ? tenant.ownerUid : '';
+      const staffUids = Array.isArray(tenant.staffUids)
+        ? tenant.staffUids.filter((uid): uid is string => typeof uid === 'string')
+        : [];
+      const userTenantId = typeof userData['tenantId'] === 'string' ? userData['tenantId'] : '';
+      const claimsTenantId = typeof claims['tenantId'] === 'string' ? claims['tenantId'] : '';
+
+      if (existingOwnerUid && existingOwnerUid !== ownerRecord.uid) {
+        throw new TenantOwnerLinkError(409, 'TENANT_OWNER_ALREADY_LINKED', 'Esta loja já possui outro responsável vinculado.');
+      }
+      if ((userTenantId && userTenantId !== tenantId) || (claimsTenantId && claimsTenantId !== tenantId)) {
+        throw new TenantOwnerLinkError(409, 'OWNER_LINKED_TO_ANOTHER_TENANT', 'Esta conta já está vinculada a outro estabelecimento.');
+      }
+      if (staffUids.length >= 20 && !staffUids.includes(ownerRecord.uid)) {
+        throw new TenantOwnerLinkError(409, 'TENANT_STAFF_LIMIT_REACHED', 'A lista de equipe desta loja atingiu o limite cadastrado.');
+      }
+
+      previousUser = userSnap.exists ? { ...userData } : null;
+      wasAlreadyOwner = existingOwnerUid === ownerRecord.uid;
+      wasAlreadyStaff = staffUids.includes(ownerRecord.uid);
+      transaction.update(tenantRef, {
+        ownerUid: ownerRecord.uid,
+        staffUids: wasAlreadyStaff ? staffUids : [...staffUids, ownerRecord.uid],
+        updatedAt: nowIso
+      });
+      transaction.set(userRef, {
+        uid: ownerRecord.uid,
+        role: 'tenant_owner',
+        tenantId,
+        updatedAt: nowIso
+      }, { merge: true });
+    });
+    reservationCommitted = true;
+
+    claimsUpdateAttempted = true;
+    await adminAuth.setCustomUserClaims(ownerRecord.uid, {
+      ...claims,
+      role: 'tenant_owner',
+      tenantId
+    });
+
+    try {
+      const auditRef = adminDb.collection('audit_logs').doc();
+      await auditRef.set({
+        id: auditRef.id,
+        timestamp: nowIso,
+        user: req.user?.email || 'HQ ADMIN',
+        action: 'Responsável de tenant vinculado',
+        module: 'HQ',
+        severity: 'info',
+        details: `Usuário [${ownerRecord.uid}] vinculado como responsável do tenant [${tenantId}].`
+      });
+    } catch {
+      // Owner linking remains authoritative even if audit persistence is unavailable.
+    }
+
+    res.json({ tenantId, ownerUid: ownerRecord.uid, ownerEmail: ownerRecord.email || email, role: 'tenant_owner' });
+  } catch (error) {
+    if (reservationCommitted) {
+      let claimsRollbackFailed = false;
+      if (claimsUpdateAttempted) {
+        try {
+          await adminAuth.setCustomUserClaims(ownerRecord.uid, claims);
+        } catch {
+          claimsRollbackFailed = true;
+        }
+      }
+
+      try {
+        await adminDb.runTransaction(async (transaction) => {
+          const tenantSnap = await transaction.get(tenantRef);
+          const userSnap = await transaction.get(userRef);
+          if (!tenantSnap.exists || !userSnap.exists) throw new Error('Reservation records are no longer available.');
+
+          const currentTenant = tenantSnap.data() as CompanyTenant;
+          const currentUser = (userSnap.data() || {}) as Record<string, unknown>;
+          if (currentTenant.ownerUid !== ownerRecord.uid || currentUser['tenantId'] !== tenantId || currentUser['role'] !== 'tenant_owner') {
+            throw new Error('Reservation changed before rollback.');
+          }
+
+          const currentStaff = Array.isArray(currentTenant.staffUids)
+            ? currentTenant.staffUids.filter((uid): uid is string => typeof uid === 'string')
+            : [];
+          const tenantRollback: Record<string, unknown> = {
+            staffUids: wasAlreadyStaff ? currentStaff : currentStaff.filter(uid => uid !== ownerRecord.uid)
+          };
+          if (!wasAlreadyOwner) tenantRollback['ownerUid'] = FieldValue.delete();
+          transaction.update(tenantRef, tenantRollback);
+
+          transaction.update(userRef, {
+            uid: previousUser && typeof previousUser['uid'] === 'string' ? previousUser['uid'] : FieldValue.delete(),
+            role: previousUser && typeof previousUser['role'] === 'string' ? previousUser['role'] : FieldValue.delete(),
+            tenantId: previousUser && typeof previousUser['tenantId'] === 'string' ? previousUser['tenantId'] : FieldValue.delete(),
+            updatedAt: previousUser && typeof previousUser['updatedAt'] === 'string' ? previousUser['updatedAt'] : FieldValue.delete()
+          });
+        });
+      } catch {
+        res.status(500).json({
+          error: 'A vinculação falhou e a reversão automática do Firestore ficou incompleta. Revise o vínculo no HQ antes de tentar novamente.',
+          code: 'OWNER_LINK_ROLLBACK_INCOMPLETE'
+        });
+        return;
+      }
+
+      if (claimsRollbackFailed) {
+        res.status(500).json({
+          error: 'A vinculação falhou e a reversão automática das permissões ficou incompleta. Revise a conta no HQ antes de tentar novamente.',
+          code: 'OWNER_LINK_ROLLBACK_INCOMPLETE'
+        });
+        return;
+      }
+    }
+
+    if (error instanceof TenantOwnerLinkError) {
+      res.status(error.status).json({ error: error.message, code: error.code });
+      return;
+    }
+    res.status(500).json({ error: 'Não foi possível vincular o responsável. Nenhuma confirmação foi registrada.' });
+  }
+});
+
+/**
  * PATCH /api/tenants/:id - Update tenant governance or store profile
  */
 tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Response) => {
@@ -231,11 +475,17 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
     }
 
     const updates = { ...req.body };
+    // Ownership and staff membership are changed only by dedicated identity flows.
+    delete updates.ownerUid;
+    delete updates.staffUids;
+    // Ignore the retired tenant-level percentage; online delivery charges the fixed deliveryFee only.
+    delete updates.serviceFeePercent;
+    // Store deliveries remain store-managed until the platform network is activated.
+    delete updates.deliveryFleetType;
     if (req.user?.role !== 'hq_admin') {
       delete updates.status;
       delete updates.plan;
       delete updates.devicesLimit;
-      delete updates.serviceFeePercent;
       delete updates.cnpj;
       delete updates.id;
       delete updates.createdAt;
@@ -254,10 +504,17 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
       res.status(400).json({ error: 'Status de tenant inválido.', code: 'INVALID_TENANT_STATUS' });
       return;
     }
-    if ('serviceFeePercent' in updates &&
-        (typeof updates.serviceFeePercent !== 'number' || !Number.isFinite(updates.serviceFeePercent) || updates.serviceFeePercent < 0 || updates.serviceFeePercent > 50)) {
-      res.status(400).json({ error: 'A taxa de serviço deve estar entre 0% e 50%.', code: 'INVALID_SERVICE_FEE' });
+    if ('deliveryFee' in updates &&
+        (typeof updates.deliveryFee !== 'number' || !Number.isFinite(updates.deliveryFee) || updates.deliveryFee < 0)) {
+      res.status(400).json({ error: 'A taxa de entrega deve ser um valor igual ou maior que zero.', code: 'INVALID_DELIVERY_FEE' });
       return;
+    }
+    if ('pixKey' in updates) {
+      if (typeof updates.pixKey !== 'string' || updates.pixKey.trim().length > 77) {
+        res.status(400).json({ error: 'Informe uma chave Pix com até 77 caracteres.', code: 'INVALID_TENANT_PIX_KEY' });
+        return;
+      }
+      updates.pixKey = updates.pixKey.trim();
     }
     if ('devicesLimit' in updates &&
         (typeof updates.devicesLimit !== 'number' || !Number.isInteger(updates.devicesLimit) || updates.devicesLimit < 1 || updates.devicesLimit > 999)) {

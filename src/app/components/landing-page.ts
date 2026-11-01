@@ -177,13 +177,13 @@ import { animate, inView } from "motion";
                 <div class="space-y-2">
                   <h3 class="text-4xl font-black text-white tracking-tighter">01. Gabinete HQ Central</h3>
                   <p class="text-slate-400 max-w-lg font-medium leading-relaxed text-lg">
-                    A visão do falcão para o dono da plataforma. Monitore toda a malha regional, audite fluxos de caixa e governe as regras de comissionamento de forma soberana.
+                    Governe lojas e planos, consulte o inventário e acompanhe os agregados operacionais. A comissão da rede própria de entregadores está em breve; o HQ não processa split ou repasses.
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-3">
-                  <span class="text-[11px] font-bold text-slate-300 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">Governance Console</span>
-                  <span class="text-[11px] font-bold text-slate-300 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">Split Engine</span>
-                  <span class="text-[11px] font-bold text-slate-300 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">MDM Node Fleet</span>
+                  <span class="text-[11px] font-bold text-slate-300 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">Governança de lojas</span>
+                  <span class="text-[11px] font-bold text-slate-300 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">Comissão da plataforma · Em breve</span>
+                  <span class="text-[11px] font-bold text-slate-300 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">Inventário de dispositivos</span>
                 </div>
               </div>
             </div>

@@ -169,6 +169,7 @@ export interface PublicStorefront {
   supportsDelivery?: boolean;
   supportsTakeout?: boolean;
   supportsReservation?: boolean;
+  pixAvailable?: boolean;
   isOpen?: boolean;
   estimatedDeliveryMinutes?: string;
   deliveryFee?: number;
@@ -226,7 +227,12 @@ export interface CompanyTenant {
   createdAt: string;
   address: StoreAddress;
   deliveryRadiusKm: number;
-  serviceFeePercent: number;
+  /** Public PIX receiving key for this tenant; provider credentials are never stored here. */
+  pixKey?: string;
+  /** Sanitized public capability flag; does not expose the receiving key itself. */
+  pixAvailable?: boolean;
+  /** @deprecated Legacy value ignored by checkout; delivery uses the store's fixed deliveryFee. */
+  serviceFeePercent?: number;
   openingHours: string;
   fichaCode?: string;
   lat?: number;
@@ -256,9 +262,12 @@ export interface CompanyTenant {
   highlightedProductIds?: string[];
   driverRateConfig?: DriverRateConfig;
   minOrderValue?: number;
+  /** @deprecated New and active store operations use their own drivers until the platform network is ready. */
   deliveryFleetType?: 'own' | 'platform' | 'hybrid';
   ownerUid?: string;
   staffUids?: string[];
+  /** Internal version used to serialize device registration against the tenant quota. */
+  deviceInventoryVersion?: number;
 }
 
 export interface RegionalMarketplaceConfig {

@@ -144,10 +144,10 @@ export type DocSection = 'tripartite' | 'modules' | 'delivery' | 'permissions' |
                 <div class="bg-white p-4 rounded-2xl border border-[#e8dfce] space-y-2">
                   <h4 class="font-serif font-black text-amber-950 uppercase text-xs">Módulos Principais do HQ Central (/api/hq/*)</h4>
                   <ul class="list-disc pl-5 space-y-1.5 text-stone-700">
-                    <li><strong>Portfólio de Lojas:</strong> Provisionamento em <code>trial</code>, validação de CNPJ e governança manual de status.</li>
-                    <li><strong>Planos Comerciais SaaS:</strong> Edição de mensalidade e cota cadastradas. A cota não bloqueia o registro de dispositivos nem inicia cobrança recorrente.</li>
-                    <li><strong>Inventário de dispositivos:</strong> Cadastro de tenant, nome e serial; não envia comandos remotos nem recebe telemetria de hardware.</li>
-                    <li><strong>Comissão da plataforma:</strong> Está em breve. O cálculo fica desativado até existirem entregadores próprios da plataforma e a inteligência operacional estar pronta. Motoristas da loja e seus pagamentos continuam sob responsabilidade do lojista.</li>
+                    <li><strong>Portfólio de Lojas:</strong> Provisionamento em <code>trial</code>, validação de CNPJ, métricas históricas de pedidos, consulta do responsável atual e vínculo de uma conta existente com e-mail confirmado. O HQ não cria a conta nem substitui um responsável já vinculado.</li>
+                    <li><strong>Planos Comerciais SaaS:</strong> Edição de mensalidade e cota inicial para novos tenants. O cadastro de dispositivos respeita a cota definida no tenant; alterar o plano não ajusta a cota automaticamente nos tenants existentes nem inicia cobrança recorrente.</li>
+                    <li><strong>Inventário de dispositivos:</strong> Cadastro de tenant, nome e serial com bloqueio transacional ao atingir a cota; não envia comandos remotos nem recebe telemetria de hardware.</li>
+                    <li><strong>Comissão da plataforma:</strong> Está em breve. A configuração permite manter ou restaurar esse estado; a API não permite ativar antes de existirem entregadores próprios da plataforma e a inteligência operacional estar pronta. Motoristas da loja e seus pagamentos continuam sob responsabilidade do lojista.</li>
                     <li><strong>Portal Regional:</strong> Separação entre <code>/hq_settings/global</code> (privado) e <code>/public_regional/default</code> (banner público do Marketplace).</li>
                     <li><strong>Auditoria estrutural:</strong> Varredura sob demanda de tenants, produtos, pedidos e inventário; não certifica todos os dados do sistema. Logs são persistidos sem garantia de imutabilidade.</li>
                   </ul>
@@ -209,7 +209,7 @@ export type DocSection = 'tripartite' | 'modules' | 'delivery' | 'permissions' |
                       <tr>
                         <td class="py-2 px-3 font-bold text-amber-900">tenant_owner</td>
                         <td class="py-2 px-3 text-stone-600">/os</td>
-                        <td class="py-2 px-3 text-stone-800 font-sans">Gestão integral da própria loja, equipe interna, catálogo ERP, reservas e DRE.</td>
+                        <td class="py-2 px-3 text-stone-800 font-sans">Gestão integral da própria loja, equipe interna, catálogo ERP, reservas e DRE. O vínculo inicial da conta é feito pelo HQ no tenant.</td>
                       </tr>
                       <tr>
                         <td class="py-2 px-3 font-bold text-amber-800">operator</td>

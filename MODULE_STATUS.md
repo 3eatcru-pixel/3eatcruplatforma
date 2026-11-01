@@ -2,14 +2,14 @@
 
 Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS / Omnichannel**. Caminhos e capacidades descritos aqui devem existir no repositório; presença de serviço/API não significa que exista uma tela integrada ao Store OS.
 
-**ESTADO DA AUDITORIA (2026-11-01)**: em correção. A compilação do shell estava bloqueada por imports de janelas ausentes. O PDV está implementado como rota standalone `/pos`, com subcomponentes locais; telas integradas no desktop serão classificadas separadamente. Não há homologação declarada nesta revisão.
+**ESTADO DA AUDITORIA (2026-11-01)**: leitura estática em correção. Um bloqueio de compilação por imports de janelas ausentes foi registrado anteriormente; não foi revalidado nesta atualização documental. O PDV está implementado como rota standalone /pos; os demais estados de interface estão discriminados abaixo. Build, testes e homologação não foram executados nesta revisão.
 
 ## Legenda Oficial de Classificação
 
 | Status | Significado | Critério Técnico |
 |---|---|---|
-| 🟢 **REAL** | Produção funcional | Persistência real no Cloud Firestore via Admin SDK, RBAC por Firebase ID Token + Custom Claims, validação multi-tenant e cobertura de testes automatizados. |
-| 🟡 **BETA** | Funciona, precisa homologação | Conectado ao backend/Firestore ou fluxo real, porém exige rodada de homologação operacional (ex.: hardware físico ESC/POS, integrações OAuth externas reais). |
+| 🟢 **REAL** | Fluxo implementado com persistência | Código conectado ao Cloud Firestore via Admin SDK e verificações de papel/tenant conforme o domínio. Esta classificação não declara produção ou homologação; veja o registro datado de validação. |
+| 🟡 **BETA** | Integrado, validação pendente | Conectado ao backend/Firestore, com homologação operacional ou integração externa pendente. |
 | 🔵 **MOCK** | Demonstração | Opera com estado reativo local (Signals) ou dados simulados para demonstração comercial de UX sem persistência dedicada no backend. |
 | ⚪ **PLACEHOLDER** | Interface ausente ou não integrada | A janela do Store OS não existe/está conectada. O domínio pode ter serviços e endpoints próprios; avaliar esses itens separadamente. |
 | 🔴 **DISABLED** | Não usar em produção | Recursos legados desativados ou substituídos. |
@@ -29,7 +29,7 @@ Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS 
 | **Tables Router** (`routes/tables.router.ts`) | 🟢 **REAL** | Gestão de mesas e comandas por empresa com bloqueio cruzado entre tenants e estado `reserved` sincronizado. |
 | **Reservations Router** (`routes/reservations.router.ts`) | 🟢 **REAL** | Reservas de mesa e fila de espera (`/api/reservations` + `/api/reservations/public`) com isolamento multi-tenant, RBAC por papel e transação ACID sincronizando ocupação/liberação de mesas (`/tables/{tableId}`). |
 | **Financials Router** (`routes/financials.router.ts`) | 🟢 **REAL** | Livro-razão por empresa (`income` / suprimento, `expense` / sangria, bloqueio de `sale` manual e estornos automáticos pelo `CommerceEngine`). |
-| **Universal Payment Proxy** (`routes/payments.router.ts`) | 🟡 **BETA** | Proxy Universal de pagamentos no servidor (`/process`, `/:id/confirm`, `/:id`) com persistência em `/payment_transactions`, bloqueio de auto-liquidação client-side e confirmação explícita de PIX (`pending_pix` → `approved`). Opera transparentemente em modo `sandbox` enquanto credenciais de adquirente real (`STRIPE_SECRET_KEY` / `MERCADOPAGO_ACCESS_TOKEN`) não forem configuradas. |
+| **Universal Payment Proxy** (`routes/payments.router.ts`) | 🟡 **BETA** | Registra transações em `/payment_transactions`. PIX live pode ir direto à chave da loja, cadastrada em Minha Loja, mas a confirmação é manual. Dinheiro/voucher ficam sob gestão da loja. Cartão real é bloqueado enquanto não houver adquirente conectada ao tenant; a chave Stripe global não é usada para cobrar pedidos das lojas. Repetir a mesma tentativa pendente reutiliza a transação; trocar o meio fica bloqueado. Não há expiração/cancelamento automático, idempotência no PSP ou conciliação. |
 | **Logistics Router** (`routes/logistics.router.ts`) | 🟢 **REAL** | Rotas e entregadores (`/routes*`, `/drivers*`) desacoplados do `/api/hq`, aceite transacional com validação estrita de empresa/frota (`403 TENANT_MISMATCH`), vínculo `driverId` propagado aos pedidos e listagem restrita a pedidos atribuídos (`driverId === uid`). |
 | **CRM Router** (`routes/crm.router.ts`) | 🟡 **BETA** | Endpoint dedicado `/api/crm/consumers` desacoplado do namespace `/api/hq`, com escopo global para `hq_admin` e escopo por loja para `tenant_owner`/`operator`. |
 | **HQ Governance Router** (`routes/hq.router.ts`) | 🟡 **BETA** | Exclusivo `hq_admin` (exceto `GET /regional` público): visão global SaaS, planos, comissão (`{ percent }`), MDM de terminais, auditoria estrutural e separação `hq_settings` (privado) vs `public_regional` (público). |
@@ -70,7 +70,8 @@ O registro em `src/app/components/os/os-apps-registry.ts` contém atalhos, mas o
 |---|---|---|
 | `pos` | 🟡 **BETA — rota standalone** | `/pos` carrega `src/app/components/pos-terminal.ts`; a janela do OS oferece navegação para essa rota. Os subcomponentes estão em `src/app/components/eapps/pos/`. A rota depende de build e homologação operacional ainda não registradas nesta auditoria. |
 | `waiter-sim`, `driver-sim`, `consumer-sim` | 🔵 **MOCK — simuladores integrados** | `src/app/components/eapps/eapp-waiter-sim.ts`, `eapp-driver-sim.ts` e `eapp-consumer-sim.ts`; são molduras de demonstração para telas móveis/web. |
-| `tables`, `kds`, `inventory`, `finance`, `suppliers`, `reconciliation`, `stock-audit`, `store-manager`, `whatsapp`, `ifood`, `instagram`, `tasks`, `calendar`, `agenda`, `services`, `rh`, `drivers`, `history`, `reports`, `crm`, `docs`, `google-drive`, `calculator`, `notes`, `admin-hub`, `appstore`, `browser`, `settings`, `system` | ⚪ **PLACEHOLDER no desktop** | Os IDs constam no registro, mas não têm janela standalone integrada. `client-os.ts` exibe estado explícito de interface ausente. Serviços, APIs e rotas móveis existentes continuam avaliados nas seções próprias; não são evidência de eApp. |
+| `store-manager` | 🟡 **BETA** | eApp Minha Loja integrado ao desktop. Edita perfil da vitrine, taxa de entrega, pedido mínimo e chave PIX do tenant; o cadastro de chave não valida titularidade. |
+| `tables`, `kds`, `inventory`, `finance`, `suppliers`, `reconciliation`, `stock-audit`, `whatsapp`, `ifood`, `instagram`, `tasks`, `calendar`, `agenda`, `services`, `rh`, `drivers`, `history`, `reports`, `crm`, `docs`, `google-drive`, `calculator`, `notes`, `admin-hub`, `appstore`, `browser`, `settings`, `system` | ⚪ **PLACEHOLDER no desktop** | Os IDs constam no registro, mas não têm janela standalone integrada. `client-os.ts` exibe estado explícito de interface ausente. Serviços, APIs e rotas móveis existentes continuam avaliados nas seções próprias; não são evidência de eApp. |
 | `/waiter`, `/driver`, `/hq`, vitrine pública | Aplicações/rotas separadas | Componentes próprios em `src/app/components/`; não são janelas do Store OS. |
 
 ### Correção do modo de estoque

@@ -575,7 +575,8 @@ export class HQCentralComponent implements OnInit {
       this.showRegisterDeviceModal.set(false);
       this.ecosystem.notify('Dispositivo registrado no inventário. A conexão física e a telemetria ainda não foram verificadas.', 'warning');
     } catch (err: unknown) {
-      const message = (err as { error?: { error?: string } })?.error?.error;
+      const deviceError = err as { error?: { error?: string }; message?: string };
+      const message = deviceError?.error?.error || deviceError?.message;
       this.ecosystem.notify(message || 'Não foi possível registrar o dispositivo.', 'error');
     }
   }

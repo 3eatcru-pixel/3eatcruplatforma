@@ -27,4 +27,4 @@ export interface OSAppDefinition {
   imageUrl?: string;
 }
 
-};
+export { OS_APPS_REGISTRY } from '../components/os/os-apps-registry';

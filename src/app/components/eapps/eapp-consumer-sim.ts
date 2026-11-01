@@ -13,11 +13,11 @@ import { RegionalMarketplaceComponent } from '../regional-marketplace';
       <!-- iPhone Hardware Buttons -->
       <div class="absolute left-10 top-32 flex flex-col gap-4">
         <div class="w-1.5 h-8 bg-stone-800 rounded-r-md"></div> <!-- Mute switch -->
-        <button (click)="volumeUp()" class="w-1.5 h-12 bg-stone-700 rounded-r-md hover:bg-stone-500 cursor-pointer shadow-sm transition-colors"></button>
-        <button (click)="volumeDown()" class="w-1.5 h-12 bg-stone-700 rounded-r-md hover:bg-stone-500 cursor-pointer shadow-sm transition-colors"></button>
+        <button type="button" aria-label="Aumentar Volume" (click)="volumeUp()" class="w-1.5 h-12 bg-stone-700 rounded-r-md hover:bg-stone-500 cursor-pointer shadow-sm transition-colors"></button>
+        <button type="button" aria-label="Diminuir Volume" (click)="volumeDown()" class="w-1.5 h-12 bg-stone-700 rounded-r-md hover:bg-stone-500 cursor-pointer shadow-sm transition-colors"></button>
       </div>
       <div class="absolute right-10 top-40">
-        <button (click)="power()" class="w-1.5 h-20 bg-stone-700 rounded-l-md hover:bg-stone-500 cursor-pointer shadow-sm transition-colors"></button>
+        <button type="button" aria-label="Botão Liga/Desliga" (click)="power()" class="w-1.5 h-20 bg-stone-700 rounded-l-md hover:bg-stone-500 cursor-pointer shadow-sm transition-colors"></button>
       </div>
 
       <!-- iOS Phone Frame (Marketplace) -->

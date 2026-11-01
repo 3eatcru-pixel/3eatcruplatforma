@@ -108,7 +108,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
           @if (!win.isMinimized) {
             <app-os-window-shell
               [window]="win"
-              (close)="winManager.closeWindow(win.id)"
+              (closeWindow)="winManager.closeWindow(win.id)"
               (minimize)="winManager.minimizeWindow(win.id)"
               (maximize)="winManager.toggleMaximize(win.id)"
               (dock)="winManager.dockWindow(win.id, $event)"
@@ -221,7 +221,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
             </button>
             <button (click)="closeDesktopContextMenu()" class="w-full text-left px-3 py-2 rounded-xl text-[10px] text-stone-500 hover:text-stone-300 flex items-center justify-center cursor-pointer mt-1">Fechar Menu</button>
           </div>
-          <button (click)="closeDesktopContextMenu()" class="fixed inset-0 z-[550] bg-transparent cursor-default border-none"></button>
+          <button type="button" aria-label="Fechar Menu de Contexto" (click)="closeDesktopContextMenu()" class="fixed inset-0 z-[550] bg-transparent cursor-default border-none"></button>
         }
 
         <!-- ICON CONTEXT MENU -->
@@ -246,7 +246,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
             </button>
             <button (click)="closeIconContextMenu()" class="w-full text-left px-3 py-2 rounded-xl text-[10px] text-stone-500 hover:text-stone-300 flex items-center justify-center cursor-pointer mt-1">Cancelar</button>
           </div>
-          <button (click)="closeIconContextMenu()" class="fixed inset-0 z-[550] bg-transparent cursor-default border-none"></button>
+          <button type="button" aria-label="Fechar Menu de Contexto" (click)="closeIconContextMenu()" class="fixed inset-0 z-[550] bg-transparent cursor-default border-none"></button>
         }
 
         <!-- MAINTENANCE OVERLAY -->
@@ -404,7 +404,7 @@ export class ClientOsComponent implements OnInit, OnDestroy {
   onRestoreWorkspace(id: string) {
     const ws = this.savedWorkspaces().find(w => w.id === id);
     if (!ws) return;
-    this.winManager.restoreWorkspace(ws.windows as OSWindow[], (ws as any).activeWinId as OSAppId);
+    this.winManager.restoreWorkspace(ws.windows as OSWindow[], ws.activeWinId as OSAppId);
     this.prefsService.updatePrefs({ currentWorkspaceId: id });
   }
   onDeleteWorkspace(id: string) { this.prefsService.deleteWorkspace(id); }

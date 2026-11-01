@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, inject } from '@angular/core';
 import { OSAppId, OSWindow, OS_APPS_REGISTRY } from '../models/os.model';
 import { EcosystemService } from './ecosystem.service';
 
@@ -74,7 +74,7 @@ export class EAppWindowManagerService {
   }
 
   dockWindow(id: OSAppId, position: 'left' | 'right' | 'full') {
-    this.openWindows.update(wins => wins.map(w => w.id === id ? { ...w, dockPosition: position as any, isMaximized: false } : w));
+    this.openWindows.update(wins => wins.map(w => w.id === id ? { ...w, dockPosition: position, isMaximized: false } : w));
   }
 
   updateWindowPosition(id: OSAppId, x: number, y: number) {

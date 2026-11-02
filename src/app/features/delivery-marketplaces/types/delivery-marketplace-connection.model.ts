@@ -11,4 +11,5 @@ export interface DeliveryMarketplaceConnectionSummary {
   status: DeliveryMarketplaceConnectionStatus;
   connectedAt?: string;
   lastSyncAt?: string;
+  externalMerchantId?: string;
 }

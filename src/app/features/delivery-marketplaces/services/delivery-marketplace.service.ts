@@ -32,4 +32,33 @@ export class DeliveryMarketplaceService {
     this.connections.set(connections || []);
     return connections || [];
   }
+
+  async updateConnection(
+    provider: DeliveryMarketplaceConnectionSummary['provider'],
+    payload: { status?: DeliveryMarketplaceConnectionSummary['status']; externalMerchantId?: string }
+  ): Promise<DeliveryMarketplaceConnectionSummary> {
+    if (this.security.isSimulated()) {
+      const updated: DeliveryMarketplaceConnectionSummary = {
+        provider,
+        status: payload.status || 'active',
+        ...(payload.externalMerchantId ? { externalMerchantId: payload.externalMerchantId } : {}),
+        connectedAt: new Date().toISOString(),
+        lastSyncAt: new Date().toISOString()
+      };
+      this.connections.update((list) => {
+        const filtered = list.filter((c) => c.provider !== provider);
+        return [...filtered, updated];
+      });
+      return updated;
+    }
+
+    const result = await firstValueFrom(
+      this.http.put<DeliveryMarketplaceConnectionSummary>(`/api/marketplace-delivery/connections/${provider}`, payload)
+    );
+    this.connections.update((list) => {
+      const filtered = list.filter((c) => c.provider !== provider);
+      return [...filtered, result];
+    });
+    return result;
+  }
 }

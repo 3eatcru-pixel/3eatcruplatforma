@@ -74,10 +74,17 @@ export class SecurityService {
         const savedSim = sessionStorage.getItem('3eatcru_simulated_session');
         if (savedSim) {
           const parsed = JSON.parse(savedSim) as UserSession;
-          this.currentSession.set(parsed);
-          this.token.set(parsed.token || 'simulated-token');
+          const simulatedSession: UserSession = {
+            ...parsed,
+            tenantId: parsed.role === 'hq_admin' ? 'hq' : 'tenant-1',
+            tenantName: parsed.role === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co Gourmet',
+            token: 'simulated-token'
+          };
+          this.currentSession.set(simulatedSession);
+          this.token.set('simulated-token');
           this.updateExecutionMode('simulation');
           this.authInitialized.set(true);
+          sessionStorage.setItem('3eatcru_simulated_session', JSON.stringify(simulatedSession));
         }
       } catch {
         // ignore parse error
@@ -127,8 +134,8 @@ export class SecurityService {
   setExecutionMode(
     mode: SystemExecutionMode,
     simulatedRole: AppRole = 'tenant_owner',
-    tenantId = 'tenant-sp-001',
-    tenantName = 'Burger & Co. Jardins'
+    tenantId = simulatedRole === 'hq_admin' ? 'hq' : 'tenant-1',
+    tenantName = simulatedRole === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co Gourmet'
   ) {
     this.updateExecutionMode(mode);
     if (mode === 'simulation') {
@@ -159,8 +166,8 @@ export class SecurityService {
   async setExecutionModeAndWait(
     mode: SystemExecutionMode,
     simulatedRole: AppRole = 'tenant_owner',
-    tenantId = 'tenant-sp-001',
-    tenantName = 'Burger & Co. Jardins'
+    tenantId = simulatedRole === 'hq_admin' ? 'hq' : 'tenant-1',
+    tenantName = simulatedRole === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co Gourmet'
   ): Promise<UserSession | null> {
     if (mode === 'simulation') {
       this.setExecutionMode(mode, simulatedRole, tenantId, tenantName);
@@ -188,11 +195,15 @@ export class SecurityService {
   toggleExecutionMode() {
     const next = this.executionMode() === 'real' ? 'simulation' : 'real';
     const session = this.currentSession();
+    if (next === 'simulation') {
+      this.setExecutionMode(next, session?.role ?? 'tenant_owner');
+      return;
+    }
     this.setExecutionMode(
       next,
       session?.role ?? 'tenant_owner',
-      session?.tenantId ?? 'tenant-sp-001',
-      session?.tenantName ?? 'Burger & Co. Jardins'
+      session?.tenantId ?? 'tenant-1',
+      session?.tenantName ?? 'Burger & Co Gourmet'
     );
   }
 
@@ -210,6 +221,8 @@ export class SecurityService {
     tenantId?: string,
     tenantName?: string
   ): UserSession {
+    const demoTenantId = role === 'hq_admin' ? 'hq' : tenantId || 'tenant-1';
+    const demoTenantName = role === 'hq_admin' ? '3EATCRU HQ Central' : tenantName || 'Burger & Co Gourmet';
     const wasSimulation = this.executionMode() === 'simulation';
     const previousSession = this.currentSession();
     this.updateExecutionMode('simulation');
@@ -225,8 +238,8 @@ export class SecurityService {
       name,
       email,
       role,
-      tenantId,
-      tenantName: tenantName || (tenantId ? `Estabelecimento ${tenantId}` : '3EATCRU HQ Central'),
+      tenantId: demoTenantId,
+      tenantName: demoTenantName,
       token: 'simulated-token'
     };
 

@@ -20,6 +20,7 @@ export class TablesService {
   private tablesSubscription: Unsubscribe | null = null;
   private lastModeIsSimulation = this.security.isSimulated();
   private lastTenantId = this.security.currentSession()?.tenantId;
+  private lastModeRevision = this.security.executionModeRevision();
   private latestFetchId = 0;
   private modeGeneration = 0;
 
@@ -36,7 +37,7 @@ export class TablesService {
     }
 
     const fetchId = ++this.latestFetchId;
-    const url = tenantId ? `/api/tables?tenantId=${tenantId}` : '/api/tables';
+    const url = tenantId ? `/api/tables?tenantId=${encodeURIComponent(tenantId)}` : '/api/tables';
     const data = await firstValueFrom(this.http.get<TableInfo[]>(url));
     this.syncExecutionMode();
     if (fetchId !== this.latestFetchId || this.lastModeIsSimulation) return this.tables();
@@ -130,10 +131,12 @@ export class TablesService {
   private syncExecutionMode() {
     const isSimulation = this.isSimulation();
     const tenantId = this.security.currentSession()?.tenantId;
-    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
+    const modeRevision = this.security.executionModeRevision();
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId && modeRevision === this.lastModeRevision) return;
 
     this.lastModeIsSimulation = isSimulation;
     this.lastTenantId = tenantId;
+    this.lastModeRevision = modeRevision;
     this.modeGeneration += 1;
     this.latestFetchId += 1;
     if (this.tablesSubscription) {
@@ -145,7 +148,7 @@ export class TablesService {
   }
 
   private seedSimulationTables() {
-    const tenantId = this.security.currentSession()?.tenantId || 'tenant-sp-001';
+    const tenantId = this.security.currentSession()?.tenantId || 'tenant-1';
     if (this.tables().some((table) => table.tenantId === tenantId)) return;
 
     this.tables.update((tables) => [

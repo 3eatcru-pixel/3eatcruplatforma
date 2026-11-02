@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { SecurityService } from '../../services/security.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,14 +65,29 @@ import { EcosystemService } from '../../services/ecosystem.service';
     </div>
   `
 })
-export class HqCrmComponent implements OnInit {
+export class HqCrmComponent {
   readonly ecosystem = inject(EcosystemService);
   readonly crm = this.ecosystem.crmService;
+  private readonly security = inject(SecurityService);
 
-  ngOnInit(): void {
-    if (!this.ecosystem.isSimulationMode() && this.crm.consumerDirectoryStatus() === 'idle') {
-      void this.crm.fetchConsumerDirectoryPage();
-    }
+  constructor() {
+    effect(() => {
+      const isSimulation = this.ecosystem.isSimulationMode();
+      const modeRevision = this.security.executionModeRevision();
+      if (isSimulation) {
+        this.crm.resetConsumerDirectory();
+        return;
+      }
+      queueMicrotask(() => {
+        if (
+          !this.ecosystem.isSimulationMode() &&
+          modeRevision === this.security.executionModeRevision() &&
+          this.crm.consumerDirectoryStatus() === 'idle'
+        ) {
+          void this.crm.fetchConsumerDirectoryPage();
+        }
+      });
+    });
   }
 
   refresh(): void {

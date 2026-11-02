@@ -93,9 +93,13 @@ export class HqService {
 
   async getTenantMetrics(tenantId: string): Promise<HqTenantMetricsResponse | null> {
     if (this.isSimulation()) return null;
-    return firstValueFrom(
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
+    const data = await firstValueFrom(
       this.http.get<HqTenantMetricsResponse>(`/api/hq/tenants/${encodeURIComponent(tenantId)}/metrics`)
     );
+    if (this.isSimulation() || generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return null;
+    return data;
   }
 
   async updatePlanPrice(planId: string, price: number, maxDevices?: number): Promise<void> {
@@ -219,8 +223,9 @@ export class HqService {
   }
 
   async logAudit(action: string, module: AuditLog['module'], details: string, severity: AuditLog['severity'] = 'info'): Promise<void> {
-    // Audit logging is usually server-side, but this can be a client bridge if needed.
-    // For now, we update local signal for UI feedback.
+    // Real audit records are written by the server with the authorized mutation.
+    // Keep client-only entries in the demo context so they cannot look authoritative.
+    if (!this.isSimulation()) return;
     this.auditLogs.update(cur => [{
       id: `aud-${Date.now()}`,
       timestamp: new Date().toLocaleString('pt-BR'),
@@ -228,7 +233,9 @@ export class HqService {
       action,
       module,
       details,
-      severity
+      severity,
+      isSimulated: true,
+      mode: 'simulation'
     }, ...cur]);
   }
 
@@ -242,7 +249,9 @@ export class HqService {
         deviceName: device.deviceName || 'Dispositivo sem nome',
         type: device.type || 'terminal',
         serialNumber: device.serialNumber || '',
-        status: 'unverified'
+        status: 'unverified',
+        isSimulated: true,
+        mode: 'simulation'
       };
       this.devices.update((cur) => [simulatedDevice, ...cur]);
       return simulatedDevice;
@@ -291,7 +300,7 @@ export class HqService {
   }
 
   async fetchAuditLogs(): Promise<AuditLog[]> {
-    if (this.isSimulation()) return [];
+    if (this.isSimulation()) return this.auditLogs();
     const generation = this.dataGeneration;
     const modeRevision = this.security.executionModeRevision();
     try {
@@ -308,18 +317,24 @@ export class HqService {
 
   async restartDevice(deviceId: string): Promise<void> {
     if (this.isSimulation()) return;
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
     await firstValueFrom(this.http.post(`/api/hq/devices/${deviceId}/restart`, {}));
+    if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return;
     await this.fetchDevices();
   }
 
   async lockDevice(deviceId: string): Promise<void> {
     if (this.isSimulation()) {
       this.devices.update((cur) => cur.map((device) => device.id === deviceId
-        ? { ...device, status: device.status === 'locked' ? 'unverified' : 'locked' }
+        ? { ...device, status: device.status === 'locked' ? 'unverified' : 'locked', isSimulated: true, mode: 'simulation' }
         : device));
       return;
     }
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
     await firstValueFrom(this.http.post(`/api/hq/devices/${deviceId}/lock`, {}));
+    if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return;
     await this.fetchDevices();
   }
 

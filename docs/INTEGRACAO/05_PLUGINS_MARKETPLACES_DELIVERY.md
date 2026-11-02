@@ -11,7 +11,7 @@ O eApp **Pedidos de Marketplaces** centraliza a fila de pedidos originados em pl
 - `src/app/features/delivery-marketplaces/` contém o eApp, o contrato de metadados e os manifests de iFood, 99Food e Rappi.
 - A janela lista requisitos e documentação oficial. A aba de pedidos lê `GET /api/marketplace-delivery/orders`; o servidor busca a subcoleção da unidade vinculada à sessão, e a tela confere novamente o `tenantId` ativo. Proprietário e operador podem consultar; os demais papéis não recebem dados de cliente.
 - `GET /api/marketplace-delivery/connections` retorna apenas provedor, estado e horários da conexão da unidade. A projeção não expõe IDs de segredo, tokens ou payloads de autorização.
-- O backend tem `ingestVerifiedMarketplaceOrder`, um serviço interno de persistência idempotente. Ele exige conexão ativa do merchant, tenant ativo e evento autenticado/normalizado pelo adapter; registra o recibo do evento sem salvar o payload bruto. Ainda não há adapter que chame esse serviço.
+- O backend tem `ingestVerifiedMarketplaceOrder`, um serviço interno de persistência idempotente. Ele valida tenant ativo, vínculo ativo entre merchant e loja e o formato normalizado; o adapter futuro terá de autenticar o evento antes de chamá-lo. O serviço registra o recibo sem salvar o payload bruto. Ainda não há adapter que chame esse serviço.
 - A interface não inventa pedidos nem mostra conexão ativa. Não há credenciais, OAuth de provedor, webhook, polling, endpoint HTTP de ingestão, confirmação ou sincronização de status implementados.
 - Segredos de provedores não devem ser digitados ou persistidos no navegador. O onboarding deve ser associado ao tenant e processado por serviços seguros no servidor.
 - O componente antigo `eapp-ifood.ts` foi removido: seus pedidos estáticos e botão de confirmação local não representavam uma integração.
@@ -27,7 +27,7 @@ O eApp **Pedidos de Marketplaces** centraliza a fila de pedidos originados em pl
 ## Contrato de entrada que falta implementar
 
 1. Registrar uma integração por `tenantId` e provedor; OAuth, client secrets e tokens ficam no servidor.
-2. Receber eventos autenticados. Validar assinatura antes de ler/processar dados, aplicar rate limits e registrar tentativas sem guardar dados sensíveis além do necessário.
+2. Receber eventos autenticados. O adapter futuro deve validar assinatura antes de ler/processar dados, aplicar rate limits e registrar tentativas sem guardar dados sensíveis além do necessário.
 3. Deduplicar por `provider + externalEventId` e por `provider + externalOrderId`; acknowledgments só depois da persistência durável do evento.
 4. Normalizar itens, cliente, endereço, valores, meio de pagamento, modalidade, descontos e estado original para um pedido externo associado ao tenant correto.
 5. Aplicar uma política explícita de vínculo entre SKU externo e produto local antes de mexer em estoque ou KDS. Não reutilizar o checkout do consumidor sem adaptação: ele recalcula preços e pagamento para a venda própria da loja.

@@ -10,6 +10,18 @@ export interface OSWorkspace {
   activeWinId: OSAppId | null;
 }
 
+export type ReceiptPaperWidthMm = 58 | 80;
+
+export interface LocalReceiptPrinterPreferences {
+  /** Local label only; the browser print dialog selects the installed operating-system printer. */
+  label: string;
+  paperWidthMm: ReceiptPaperWidthMm;
+}
+
+export interface OSPeripheralPreferences {
+  receiptPrinter: LocalReceiptPrinterPreferences;
+}
+
 export interface OperationalProfilePreset {
   id: OperationalSegmentProfileId;
   label: string;
@@ -32,10 +44,24 @@ export interface OSPreferences {
   currentWorkspaceId: string | null;
   sessionWindows?: Partial<OSWindow>[];
   sessionActiveWinId?: OSAppId | null;
+  peripherals: OSPeripheralPreferences;
 }
 
 const PREFS_STORAGE_KEY = '3eatcru_os_prefs';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
+
+function normalizePeripheralPreferences(value: unknown): OSPeripheralPreferences {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const rawPrinter = raw['receiptPrinter'] && typeof raw['receiptPrinter'] === 'object'
+    ? raw['receiptPrinter'] as Record<string, unknown>
+    : {};
+  return {
+    receiptPrinter: {
+      label: typeof rawPrinter['label'] === 'string' ? rawPrinter['label'].trim().slice(0, 80) : '',
+      paperWidthMm: rawPrinter['paperWidthMm'] === 58 ? 58 : 80
+    }
+  };
+}
 
 function migrateLegacyAppId(id: unknown): OSAppId | null {
   if (typeof id !== 'string') return null;
@@ -266,7 +292,7 @@ export class OsPreferencesService {
       const saved = localStorage.getItem(key) ?? (key !== PREFS_STORAGE_KEY ? null : null);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<OSPreferences>;
-        if (parsed && [1, 2, SCHEMA_VERSION].includes(parsed.version || 0)) {
+        if (parsed && [1, 2, 3, SCHEMA_VERSION].includes(parsed.version || 0)) {
           const profile: OperationalSegmentProfileId =
             parsed.operationalProfile && SEGMENT_PROFILE_PRESETS[parsed.operationalProfile]
               ? parsed.operationalProfile
@@ -290,7 +316,8 @@ export class OsPreferencesService {
             })) : [],
             currentWorkspaceId: parsed.currentWorkspaceId ?? null,
             sessionWindows: Array.isArray(parsed.sessionWindows) ? migrateWindowIds(parsed.sessionWindows) : undefined,
-            sessionActiveWinId: migrateLegacyAppId(parsed.sessionActiveWinId)
+            sessionActiveWinId: migrateLegacyAppId(parsed.sessionActiveWinId),
+            peripherals: normalizePeripheralPreferences(parsed.peripherals)
           };
         }
       }
@@ -313,7 +340,8 @@ export class OsPreferencesService {
       shortcuts: [...preset.shortcuts],
       favorites: [...preset.favorites],
       workspaces: [],
-      currentWorkspaceId: null
+      currentWorkspaceId: null,
+      peripherals: normalizePeripheralPreferences(undefined)
     };
   }
 
@@ -347,6 +375,20 @@ export class OsPreferencesService {
 
   updateWallpaper(wallpaper: OSPreferences['wallpaper']) {
     this.prefs.update((p) => ({ ...p, wallpaper }));
+  }
+
+  updateReceiptPrinter(partial: Partial<LocalReceiptPrinterPreferences>) {
+    this.prefs.update((current) => ({
+      ...current,
+      peripherals: {
+        ...current.peripherals,
+        receiptPrinter: {
+          ...current.peripherals.receiptPrinter,
+          ...partial,
+          label: (partial.label ?? current.peripherals.receiptPrinter.label).trim().slice(0, 80)
+        }
+      }
+    }));
   }
 
   toggleShortcut(appId: OSAppId) {

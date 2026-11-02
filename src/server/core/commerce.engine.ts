@@ -2,6 +2,7 @@ import { Transaction } from 'firebase-admin/firestore';
 import {
   CartItem,
   CompanyTenant,
+  ExternalPaymentTerminal,
   FinancialRecord,
   OrderTransaction,
   PaymentTransactionRecord,
@@ -515,10 +516,133 @@ export async function executeCommercialOrder(
       verifiedPaymentRecord = txData;
     }
 
+    const externalTerminalFields = [
+      body['externalTerminalConfirmedByOperator'],
+      body['externalTerminalId'],
+      body['externalTerminalMethod'],
+      body['externalTerminalReference']
+    ];
+    const hasExternalTerminalFields = externalTerminalFields.some((value) => value !== undefined);
+    const externalTerminalId = body['externalTerminalId'];
+    const externalTerminalMethod = body['externalTerminalMethod'];
+    let configuredExternalTerminal: ExternalPaymentTerminal | undefined;
+    let externalTerminalReference: string | undefined;
+
+    if (hasExternalTerminalFields) {
+      if (body['externalTerminalConfirmedByOperator'] !== true) {
+        throw {
+          status: 400,
+          code: 'EXTERNAL_TERMINAL_CONFIRMATION_REQUIRED',
+          message: 'Confirme explicitamente o recebimento no terminal externo da loja.'
+        } satisfies CommercialEngineError;
+      }
+      if (
+        externalTerminalMethod !== 'pix' &&
+        externalTerminalMethod !== 'credit_card' &&
+        externalTerminalMethod !== 'debit_card'
+      ) {
+        throw {
+          status: 400,
+          code: 'INVALID_EXTERNAL_TERMINAL_METHOD',
+          message: 'Informe PIX, cartão de crédito ou cartão de débito para o terminal externo.'
+        } satisfies CommercialEngineError;
+      }
+      if (typeof externalTerminalId !== 'string' || !externalTerminalId.trim() || externalTerminalId.length > 64) {
+        throw {
+          status: 400,
+          code: 'EXTERNAL_TERMINAL_ID_REQUIRED',
+          message: 'Selecione um terminal externo cadastrado pela loja.'
+        } satisfies CommercialEngineError;
+      }
+      const tenantTerminalProfiles = Array.isArray(tenant.externalPaymentTerminals)
+        ? tenant.externalPaymentTerminals
+        : [];
+      configuredExternalTerminal = tenantTerminalProfiles.find(
+        (candidate) => Boolean(candidate) &&
+          candidate.id === externalTerminalId &&
+          candidate.enabled === true &&
+          typeof candidate.name === 'string' &&
+          candidate.name.trim().length > 0 &&
+          Array.isArray(candidate.methods)
+      );
+      if (!configuredExternalTerminal) {
+        throw {
+          status: 409,
+          code: 'EXTERNAL_TERMINAL_NOT_CONFIGURED',
+          message: 'O terminal selecionado está desativado ou não pertence à configuração atual da loja.'
+        } satisfies CommercialEngineError;
+      }
+      if (!configuredExternalTerminal.methods.includes(externalTerminalMethod)) {
+        throw {
+          status: 422,
+          code: 'EXTERNAL_TERMINAL_METHOD_NOT_ENABLED',
+          message: 'Este terminal não está configurado para aceitar o método informado.'
+        } satisfies CommercialEngineError;
+      }
+      if (
+        orderType !== 'pos-counter' ||
+        !isPosOperation ||
+        (user?.role !== 'tenant_owner' && user?.role !== 'operator')
+      ) {
+        throw {
+          status: 403,
+          code: 'EXTERNAL_TERMINAL_POS_ONLY',
+          message: 'Somente um operador autenticado pode registrar recebimento externo no PDV da loja.'
+        } satisfies CommercialEngineError;
+      }
+      if (
+        (externalTerminalMethod === 'pix' && paymentMethod !== 'pix') ||
+        ((externalTerminalMethod === 'credit_card' || externalTerminalMethod === 'debit_card') && paymentMethod !== 'card')
+      ) {
+        throw {
+          status: 422,
+          code: 'EXTERNAL_TERMINAL_METHOD_MISMATCH',
+          message: 'O meio de pagamento do pedido não corresponde ao método do terminal externo.'
+        } satisfies CommercialEngineError;
+      }
+      if (body['cashConfirmedByOperator'] === true || requestedPaymentTxId || verifiedPaymentRecord) {
+        throw {
+          status: 409,
+          code: 'CONFLICTING_PAYMENT_CONFIRMATION',
+          message: 'O recebimento externo não pode ser combinado com confirmação em dinheiro ou outra transação.'
+        } satisfies CommercialEngineError;
+      }
+      if (body['isSimulated'] === true) {
+        throw {
+          status: 409,
+          code: 'SIMULATED_EXTERNAL_TERMINAL_PAYMENT',
+          message: 'Recebimento externo real não pode ser registrado como simulação.'
+        } satisfies CommercialEngineError;
+      }
+      if (body['externalTerminalReference'] !== undefined) {
+        if (typeof body['externalTerminalReference'] !== 'string') {
+          throw {
+            status: 400,
+            code: 'INVALID_EXTERNAL_TERMINAL_REFERENCE',
+            message: 'A referência do comprovante deve ser um texto curto.'
+          } satisfies CommercialEngineError;
+        }
+        const reference = body['externalTerminalReference'].trim();
+        const containsControlCharacter = Array.from(reference).some((character) => {
+          const codePoint = character.codePointAt(0) || 0;
+          return codePoint <= 31 || codePoint === 127;
+        });
+        if (reference.length > 80 || containsControlCharacter) {
+          throw {
+            status: 400,
+            code: 'INVALID_EXTERNAL_TERMINAL_REFERENCE',
+            message: 'A referência do comprovante deve ter até 80 caracteres e não conter caracteres de controle.'
+          } satisfies CommercialEngineError;
+        }
+        externalTerminalReference = reference || undefined;
+      }
+    }
+
     // P0.3: Client sending `status: 'completed'` alone NEVER settles an order.
     // Immediate POS settlement requires either:
     //  (a) Physical cash explicitly confirmed by an authenticated POS operator (`cashConfirmedByOperator === true`), OR
-    //  (b) A server-verified `PaymentTransactionRecord` in `approved` status.
+    //  (b) Manual external-terminal confirmation by an authenticated POS operator, OR
+    //  (c) A server-verified `PaymentTransactionRecord` in `approved` status.
     const isVerifiedCashPosSale =
       orderType === 'pos-counter' &&
       isPosOperation &&
@@ -533,7 +657,15 @@ export async function executeCommercialOrder(
       verifiedPaymentRecord !== null &&
       verifiedPaymentRecord.status === 'approved';
 
-    const isImmediatePosSale = isVerifiedCashPosSale || isVerifiedGatewayPosSale;
+    const isVerifiedExternalTerminalPosSale =
+      hasExternalTerminalFields &&
+      body['externalTerminalConfirmedByOperator'] === true &&
+      orderType === 'pos-counter' &&
+      isPosOperation &&
+      (user?.role === 'tenant_owner' || user?.role === 'operator');
+
+    const isImmediatePosSale =
+      isVerifiedCashPosSale || isVerifiedExternalTerminalPosSale || isVerifiedGatewayPosSale;
     const initialStatus: OrderTransaction['status'] = isImmediatePosSale ? 'completed' : 'pending';
 
     const resolvedPaymentStatus: OrderTransaction['paymentStatus'] = isImmediatePosSale
@@ -573,6 +705,35 @@ export async function executeCommercialOrder(
           confirmedAt: nowIso
         }
       : undefined;
+
+    const posExternalTerminalPaymentRecord: PaymentTransactionRecord | undefined =
+      isVerifiedExternalTerminalPosSale && user
+        ? {
+            id: `external-${orderId}`,
+            orderId,
+            tenantId: tenant.id,
+            amount: total,
+            feeDeducted: 0,
+            netAmount: total,
+            method: externalTerminalMethod as PaymentTransactionRecord['method'],
+            status: 'approved',
+            gateway: `Terminal ${configuredExternalTerminal?.name || 'externo'} (confirmação manual por ${user.name || user.id})`,
+            authorizationCode: `MANUAL-POS-${orderId.slice(-12)}`,
+            ...(externalTerminalReference ? { externalReference: externalTerminalReference } : {}),
+            ...(configuredExternalTerminal
+              ? {
+                  externalTerminalId: configuredExternalTerminal.id,
+                  externalTerminalName: configuredExternalTerminal.name
+                }
+              : {}),
+            environment: 'live',
+            mode: 'real',
+            isSimulated: false,
+            createdByUid: user.id,
+            createdAt: nowIso,
+            confirmedAt: nowIso
+          }
+        : undefined;
 
     const resolvedDeviceType: OrderTransaction['deviceType'] =
       body['deviceType'] === 'terminal' ||
@@ -614,11 +775,21 @@ export async function executeCommercialOrder(
       discount,
       total,
       paymentMethod,
-      ...(verifiedPaymentRecord || posCashPaymentRecord
-        ? { paymentTransactionId: verifiedPaymentRecord?.id || posCashPaymentRecord!.id }
+      ...(verifiedPaymentRecord || posExternalTerminalPaymentRecord || posCashPaymentRecord
+        ? {
+            paymentTransactionId:
+              verifiedPaymentRecord?.id || posExternalTerminalPaymentRecord?.id || posCashPaymentRecord!.id
+          }
         : {}),
       paymentStatus: resolvedPaymentStatus,
       ...(isVerifiedCashPosSale ? { cashConfirmedByOperator: true } : {}),
+      ...(isVerifiedExternalTerminalPosSale
+        ? {
+            externalTerminalId: configuredExternalTerminal!.id,
+            externalTerminalName: configuredExternalTerminal!.name,
+            externalTerminalMethod: externalTerminalMethod as NonNullable<OrderTransaction['externalTerminalMethod']>
+          }
+        : {}),
       channel: resolvedChannel,
       ...(typeof body['deviceId'] === 'string' && body['deviceId'].trim()
         ? { deviceId: body['deviceId'].trim().slice(0, 64) }
@@ -668,6 +839,12 @@ export async function executeCommercialOrder(
 
     if (posCashPaymentRecord) {
       transaction.set(adminDb.collection('payment_transactions').doc(posCashPaymentRecord.id), posCashPaymentRecord);
+    }
+    if (posExternalTerminalPaymentRecord) {
+      transaction.set(
+        adminDb.collection('payment_transactions').doc(posExternalTerminalPaymentRecord.id),
+        posExternalTerminalPaymentRecord
+      );
     }
 
     // 7. Persist Unified Commercial Order

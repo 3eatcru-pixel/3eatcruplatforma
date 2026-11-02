@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
@@ -9,7 +9,15 @@ import { CrmService } from '../services/crm.service';
 import { SecurityService } from '../services/security.service';
 import { OfflineSyncService } from '../core/offline/offline-sync.service';
 import { PaymentEngine, PaymentTransactionResult } from '../core/engines/payment.engine';
-import { ProductItem, CartItem, OrderTransaction, CustomerProfile } from '../models/ecosystem.model';
+import {
+  ProductItem,
+  CartItem,
+  OrderTransaction,
+  CustomerProfile,
+  ExternalPaymentTerminal,
+  ExternalTerminalMethod
+} from '../models/ecosystem.model';
+import { OsPreferencesService } from '../services/os-preferences.service';
 
 import { PosScannerComponent } from './eapps/pos/pos-scanner';
 import { PosGridComponent } from './eapps/pos/pos-grid';
@@ -27,6 +35,23 @@ interface HeldSale {
   items: CartItem[];
   total: number;
   time: string;
+}
+
+interface ExternalTerminalDraft {
+  method: ExternalTerminalMethod;
+  idempotencyKey: string;
+  tenantId: string;
+  terminals: ExternalPaymentTerminal[];
+  selectedTerminalId: string;
+  orderNumber: string;
+  items: CartItem[];
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  tableNumber?: string;
+  submissionStarted: boolean;
+  submittedReference?: string;
 }
 
 @Component({
@@ -105,6 +130,13 @@ interface HeldSale {
             </div>
           }
 
+          @if (offlineSync.isOnline() && offlineSync.pendingSyncCount() > 0) {
+            <button type="button" (click)="syncOfflineQueue()" [disabled]="offlineSync.isSyncing()"
+              class="bg-sky-950/80 text-sky-200 border border-sky-700/60 px-2.5 py-1 rounded-xl text-[10px] font-bold disabled:opacity-50">
+              {{ offlineSync.isSyncing() ? 'SINCRONIZANDO…' : 'SINCRONIZAR FILA' }}
+            </button>
+          }
+
           <!-- Botão para alternar para a Área de Trabalho do Store OS (se tiver privilégio) -->
           @if (canAccessDesktopOs()) {
             <button
@@ -149,6 +181,19 @@ interface HeldSale {
         </div>
       }
 
+      @if (offlineSync.visibleDeadLetters()[0]; as deadLetter) {
+        <div class="bg-amber-950/95 border-b-2 border-amber-500 p-2.5 px-6 shadow-md flex items-center justify-between gap-3 text-xs shrink-0">
+          <div class="flex items-center gap-2 text-amber-100 truncate">
+            <mat-icon class="text-amber-400 text-sm">sync_problem</mat-icon>
+            <span class="truncate">{{ offlineSync.deadLetterCount() }} operação(ões) desta sessão excederam as tentativas automáticas. {{ deadLetter.payload['orderNumber'] || deadLetter.id }} pode ser reenfileirada com a mesma chave idempotente.</span>
+          </div>
+          <button type="button" (click)="retryDeadLetter(deadLetter.id)" [disabled]="offlineSync.isSyncing()"
+            class="bg-amber-500 hover:bg-amber-400 text-stone-950 px-3 py-1 rounded-lg font-bold text-[10px] uppercase cursor-pointer disabled:opacity-50 shrink-0">
+            Recolocar na fila
+          </button>
+        </div>
+      }
+
       <!-- CORPO PRINCIPAL DO TERMINAL PDV -->
       <main class="flex-1 p-3 sm:p-4 min-h-0 overflow-hidden">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 h-full min-h-0 overflow-hidden">
@@ -189,6 +234,8 @@ interface HeldSale {
               [cartTax]="cartTax()"
               [cartTotal]="cartTotal()"
               [isOnline]="offlineSync.isOnline()"
+              [canUseExternalTerminal]="canUseExternalTerminal()"
+              [externalTerminalMethods]="externalTerminalMethods()"
               (holdSale)="holdSale()"
               (clearCart)="clearCart()"
               (removeCustomer)="selectedCustomer.set(null)"
@@ -240,8 +287,60 @@ interface HeldSale {
         <app-pos-receipt-modal
           [order]="order"
           [customerCpf]="customerCpf()"
+          [paperWidthMm]="osPreferences.prefs().peripherals.receiptPrinter.paperWidthMm"
+          [printerLabel]="osPreferences.prefs().peripherals.receiptPrinter.label"
           (closeRequest)="showReceiptModal.set(null)"
         />
+      }
+
+      @if (externalTerminalDraft(); as draft) {
+        <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <section class="w-full max-w-md space-y-4 rounded-2xl border border-amber-700/70 bg-[#180b04] p-5 shadow-2xl">
+            <header>
+              <h2 class="text-lg font-black text-white">Registrar pagamento externo</h2>
+              <p class="mt-1 text-xs text-stone-400">{{ externalTerminalMethodLabel(draft.method) }} • Maquininha ou PIX da loja</p>
+            </header>
+            <div class="rounded-xl border border-[#482814] bg-[#0b0705] p-4 text-center">
+              <p class="text-[10px] uppercase tracking-wider text-stone-400">Valor da venda</p>
+              <p class="mt-1 text-2xl font-black text-amber-300">R$ {{ draft.total.toFixed(2) }}</p>
+            </div>
+            @if (draft.terminals.length > 1) {
+              <label class="block space-y-1 text-xs text-stone-300">
+                <span>Maquininha da loja</span>
+                <select class="w-full rounded-lg border border-[#68421d] bg-[#0b0705] px-3 py-2 text-sm text-white" [disabled]="draft.submissionStarted" [value]="draft.selectedTerminalId" (change)="selectExternalTerminal($any($event.target).value)">
+                  @for (terminal of draft.terminals; track terminal.id) { <option [value]="terminal.id">{{ terminal.name }}{{ terminal.brand ? ' • ' + terminal.brand : '' }}</option> }
+                </select>
+              </label>
+            } @else {
+              <p class="rounded-lg border border-[#482814] bg-[#0b0705] p-3 text-xs text-stone-300">Maquininha: <strong class="text-white">{{ draft.terminals[0]?.name }}</strong>{{ draft.terminals[0]?.brand ? ' • ' + draft.terminals[0]?.brand : '' }}</p>
+            }
+            <label class="block space-y-1 text-xs text-stone-300">
+              <span>Referência do comprovante (opcional)</span>
+              <input
+                class="w-full rounded-lg border border-[#68421d] bg-[#0b0705] px-3 py-2 text-sm text-white"
+                maxlength="80"
+                autocomplete="off"
+                placeholder="Ex.: NSU ou código curto"
+                [disabled]="draft.submissionStarted"
+                [value]="externalTerminalReference()"
+                (input)="externalTerminalReference.set($any($event.target).value)" />
+            </label>
+            <p class="text-[10px] text-stone-500">Não informe número do cartão, validade ou código de segurança. Esta referência serve apenas para conferência da loja.</p>
+            <label class="flex items-start gap-2 rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-xs leading-relaxed text-amber-100">
+              <input type="checkbox" class="mt-0.5 accent-amber-500" [disabled]="draft.submissionStarted" [checked]="externalTerminalApproved()" (change)="externalTerminalApproved.set($any($event.target).checked)" />
+              <span>Conferi a aprovação na maquininha ou no aplicativo bancário da loja e confirmo o recebimento deste valor.</span>
+            </label>
+            @if (draft.submissionStarted) {
+              <p class="text-[10px] text-amber-200">Esta tentativa mantém a mesma chave e referência. Se a resposta falhar, repita o lançamento para evitar duplicidade.</p>
+            }
+            <div class="flex gap-2">
+              <button type="button" (click)="cancelExternalTerminalConfirmation()" [disabled]="confirmingExternalTerminal() || draft.submissionStarted" class="flex-1 rounded-lg border border-stone-700 py-2.5 text-xs font-bold text-stone-300 disabled:opacity-50">Voltar</button>
+              <button type="button" (click)="confirmExternalTerminalPayment()" [disabled]="confirmingExternalTerminal() || !externalTerminalApproved()" class="flex-1 rounded-lg bg-amber-500 py-2.5 text-xs font-black text-stone-950 disabled:opacity-40">
+                {{ confirmingExternalTerminal() ? 'Registrando…' : draft.submissionStarted ? 'Repetir lançamento' : 'Confirmar recebimento' }}
+              </button>
+            </div>
+          </section>
+        </div>
       }
 
       @if (pendingPixModal(); as pixData) {
@@ -297,17 +396,32 @@ export class PosTerminalComponent {
   readonly crmService = inject(CrmService);
   readonly security = inject(SecurityService);
   readonly offlineSync = inject(OfflineSyncService);
+  readonly osPreferences = inject(OsPreferencesService);
   private readonly paymentEngine = inject(PaymentEngine);
   private readonly router = inject(Router);
 
   private saleNumberSequence = Math.floor(Math.random() * 900 + 100);
   private lastOperationalTenantId: string | null = null;
   private lastPosModeIsSimulation: boolean | null = null;
+  private lastPosModeRevision: number | null = null;
+  private lastPosSessionId: string | null = null;
   readonly currentSaleNumber = signal(this.saleNumberSequence);
   readonly activeDeviceId = computed(() => this.ecosystem.getOperationalContext().deviceId || 'pos-terminal');
   readonly activeDeviceName = signal('PDV lógico da loja');
   readonly operatorName = computed(() => this.security.currentSession()?.name || 'Operador Caixa');
   readonly activeTenant = computed(() => this.ecosystem.currentTenant());
+  readonly externalTerminalMethods = computed<ExternalTerminalMethod[]>(() => {
+    const methods = new Set<ExternalTerminalMethod>();
+    for (const terminal of this.activeTenant()?.externalPaymentTerminals || []) {
+      if (terminal.enabled) terminal.methods.forEach((method) => methods.add(method));
+    }
+    return [...methods];
+  });
+  readonly canUseExternalTerminal = computed(() => {
+    const role = this.security.currentSession()?.role;
+    const isStoreOperator = role === 'tenant_owner' || role === 'operator';
+    return isStoreOperator && this.offlineSync.isOnline() && !this.security.isSimulated() && this.externalTerminalMethods().length > 0;
+  });
 
   // POS State
   readonly cart = signal<CartItem[]>([]);
@@ -332,6 +446,10 @@ export class PosTerminalComponent {
   readonly showReceiptModal = signal<OrderTransaction | null>(null);
   readonly pendingPixModal = signal<{ order: OrderTransaction; payment: PaymentTransactionResult } | null>(null);
   readonly confirmingPix = signal<boolean>(false);
+  readonly externalTerminalDraft = signal<ExternalTerminalDraft | null>(null);
+  readonly externalTerminalReference = signal('');
+  readonly externalTerminalApproved = signal(false);
+  readonly confirmingExternalTerminal = signal(false);
 
   readonly categories = [
     'Todos',
@@ -418,7 +536,12 @@ export class PosTerminalComponent {
   constructor() {
     effect(() => {
       const isSimulation = this.security.isSimulated();
+      const modeRevision = this.security.executionModeRevision();
+      const session = this.security.currentSession();
+      const sessionId = session?.id || null;
       const tid = this.ecosystem.resolveOperationalTenantId();
+      const activeTenant = this.ecosystem.tenants().find((tenant) => tenant.id === tid);
+      untracked(() => this.osPreferences.setScope(session?.id || session?.email, tid || undefined, activeTenant?.category));
       if (!tid) {
         this.cart.set([]);
         this.selectedCustomer.set(null);
@@ -426,16 +549,27 @@ export class PosTerminalComponent {
         this.heldSales.set([]);
         this.lastOperationalTenantId = null;
         this.lastPosModeIsSimulation = null;
+        this.lastPosModeRevision = modeRevision;
+        this.lastPosSessionId = sessionId;
+        this.resetExternalTerminalConfirmation();
         return;
       }
 
-      if (this.lastOperationalTenantId !== tid || this.lastPosModeIsSimulation !== isSimulation) {
+      if (
+        this.lastOperationalTenantId !== tid ||
+        this.lastPosModeIsSimulation !== isSimulation ||
+        this.lastPosModeRevision !== modeRevision ||
+        this.lastPosSessionId !== sessionId
+      ) {
         this.cart.set([]);
         this.selectedCustomer.set(null);
         this.customerSearchResults.set([]);
         this.heldSales.set([]);
+        this.resetExternalTerminalConfirmation();
         this.lastOperationalTenantId = tid;
         this.lastPosModeIsSimulation = isSimulation;
+        this.lastPosModeRevision = modeRevision;
+        this.lastPosSessionId = sessionId;
       }
 
       this.inventoryService.fetchProducts(tid).catch(() => []);
@@ -618,7 +752,7 @@ export class PosTerminalComponent {
     this.showSangriaModal.set(false);
   }
 
-  async checkout(method: 'cash' | 'card' | 'pix') {
+  async checkout(method: 'cash' | 'card' | 'pix' | 'external-pix' | 'external-credit' | 'external-debit') {
     if (this.cart().length === 0) return;
     const tenantId = this.ecosystem.resolveOperationalTenantId();
     if (!tenantId || this.cart().some((item) => item.product.tenantId !== tenantId)) {
@@ -631,6 +765,18 @@ export class PosTerminalComponent {
       this.ecosystem.notify('Cartão e PIX exigem conexão. Use dinheiro para registrar uma venda em contingência.', 'warning');
       return;
     }
+
+    if (method === 'external-pix' || method === 'external-credit' || method === 'external-debit') {
+      if (this.security.isSimulated()) {
+        this.ecosystem.notify('Recebimento por terminal externo só pode ser registrado no modo real.', 'warning');
+        return;
+      }
+      this.openExternalTerminalConfirmation(
+        method === 'external-pix' ? 'pix' : method === 'external-credit' ? 'credit_card' : 'debit_card'
+      );
+      return;
+    }
+
     const subtotal = this.cartSubtotal();
     const tax = this.cartTax();
     const discount = this.cartDiscount() + this.cartPromotionsDiscount();
@@ -696,6 +842,16 @@ export class PosTerminalComponent {
         });
         this.advanceSaleNumber();
 
+        if (pendingOrder.isSimulated || pendingOrder.mode === 'simulation') {
+          this.ecosystem.notify(
+            `Pedido ${pendingOrder.orderNumber} registrado somente na demonstração; nenhum pagamento PIX foi processado.`,
+            'info'
+          );
+          this.showReceiptModal.set(pendingOrder);
+          this.clearCart();
+          return;
+        }
+
         const pixPayment = await this.paymentEngine.processPayment({
           orderId: pendingOrder.id,
           amount: pendingOrder.total,
@@ -729,6 +885,16 @@ export class PosTerminalComponent {
         operatorName: this.operatorName()
       });
       this.advanceSaleNumber();
+
+      if (cardOrder.isSimulated || cardOrder.mode === 'simulation') {
+        this.ecosystem.notify(
+          `Pedido ${cardOrder.orderNumber} registrado somente na demonstração; nenhuma cobrança de cartão foi processada.`,
+          'info'
+        );
+        this.showReceiptModal.set(cardOrder);
+        this.clearCart();
+        return;
+      }
 
       const paymentResult = await this.paymentEngine.processPayment({
         orderId: cardOrder.id,
@@ -771,9 +937,162 @@ export class PosTerminalComponent {
     }
   }
 
+  private openExternalTerminalConfirmation(method: ExternalTerminalMethod) {
+    const tenantId = this.ecosystem.resolveOperationalTenantId();
+    if (!tenantId || this.cart().length === 0) return;
+    const terminals = (this.activeTenant()?.externalPaymentTerminals || [])
+      .filter((terminal) => terminal.enabled && terminal.methods.includes(method));
+    if (terminals.length === 0) {
+      this.ecosystem.notify('Cadastre e ative uma maquininha compatível em Configurações da Loja.', 'warning');
+      return;
+    }
+    const key = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+    this.externalTerminalDraft.set({
+      method,
+      idempotencyKey: `pos-ext-${key}`,
+      tenantId,
+      terminals,
+      selectedTerminalId: terminals[0]!.id,
+      orderNumber: `#${this.currentSaleNumber()}`,
+      items: this.cart().map((item) => ({ ...item })),
+      subtotal: this.cartSubtotal(),
+      tax: this.cartTax(),
+      discount: this.cartDiscount() + this.cartPromotionsDiscount(),
+      total: this.cartTotal(),
+      ...(this.tableOrComanda() ? { tableNumber: this.tableOrComanda() } : {}),
+      submissionStarted: false
+    });
+    this.externalTerminalReference.set('');
+    this.externalTerminalApproved.set(false);
+  }
+
+  externalTerminalMethodLabel(method: ExternalTerminalMethod): string {
+    if (method === 'pix') return 'PIX externo';
+    return method === 'credit_card' ? 'Cartão de crédito' : 'Cartão de débito';
+  }
+
+  selectExternalTerminal(id: string) {
+    this.externalTerminalDraft.update((draft) => draft ? { ...draft, selectedTerminalId: id } : null);
+  }
+
+  cancelExternalTerminalConfirmation() {
+    if (this.confirmingExternalTerminal() || this.externalTerminalDraft()?.submissionStarted) return;
+    this.resetExternalTerminalConfirmation();
+  }
+
+  private resetExternalTerminalConfirmation() {
+    this.externalTerminalDraft.set(null);
+    this.externalTerminalReference.set('');
+    this.externalTerminalApproved.set(false);
+  }
+
+  async confirmExternalTerminalPayment() {
+    const draft = this.externalTerminalDraft();
+    if (!draft || !this.externalTerminalApproved() || this.confirmingExternalTerminal()) return;
+    if (this.security.isSimulated() || !this.offlineSync.isOnline()) {
+      this.ecosystem.notify('Confirmação externa exige sessão real e conexão com o servidor.', 'warning');
+      return;
+    }
+    if (this.ecosystem.resolveOperationalTenantId() !== draft.tenantId) {
+      this.cancelExternalTerminalConfirmation();
+      this.ecosystem.notify('A loja ativa mudou. Confira o carrinho e inicie o registro novamente.', 'warning');
+      return;
+    }
+
+    const modeRevision = this.security.executionModeRevision();
+    const sessionId = this.security.currentSession()?.id || null;
+    const externalReference = draft.submissionStarted
+      ? draft.submittedReference || ''
+      : this.externalTerminalReference().trim();
+    if (!draft.submissionStarted) {
+      this.externalTerminalDraft.set({
+        ...draft,
+        submissionStarted: true,
+        ...(externalReference ? { submittedReference: externalReference } : {})
+      });
+    }
+    this.confirmingExternalTerminal.set(true);
+    try {
+      const order = await this.ecosystem.addOrder({
+        idempotencyKey: draft.idempotencyKey,
+        tenantId: draft.tenantId,
+        externalTerminalId: draft.selectedTerminalId,
+        orderNumber: draft.orderNumber,
+        type: 'pos-counter',
+        ...(draft.tableNumber ? { tableNumber: draft.tableNumber } : {}),
+        items: draft.items,
+        subtotal: draft.subtotal,
+        tax: draft.tax,
+        discount: draft.discount,
+        total: draft.total,
+        paymentMethod: draft.method === 'pix' ? 'pix' : 'card',
+        externalTerminalConfirmedByOperator: true,
+        externalTerminalMethod: draft.method,
+        externalTerminalReference: externalReference,
+        status: 'completed',
+        channel: 'POS',
+        deviceId: this.activeDeviceId(),
+        deviceName: this.activeDeviceName(),
+        deviceType: 'terminal',
+        operatorName: this.operatorName()
+      });
+
+      if (
+        modeRevision !== this.security.executionModeRevision() ||
+        sessionId !== (this.security.currentSession()?.id || null) ||
+        this.security.isSimulated() ||
+        this.ecosystem.resolveOperationalTenantId() !== draft.tenantId
+      ) {
+        this.resetExternalTerminalConfirmation();
+        return;
+      }
+
+      if (order.status !== 'completed' || order.paymentStatus !== 'approved' || order.isSimulated || order.mode === 'simulation') {
+        this.ecosystem.notify('O servidor não confirmou a liquidação real. Confira o pedido antes de tentar novamente.', 'warning');
+        return;
+      }
+
+      this.advanceSaleNumber();
+      this.showReceiptModal.set(order);
+      this.clearCart();
+      this.resetExternalTerminalConfirmation();
+      this.ecosystem.notify(
+        `Recebimento externo de R$ ${order.total.toFixed(2)} registrado como ${this.externalTerminalMethodLabel(draft.method)}.`,
+        'success'
+      );
+    } catch (err: unknown) {
+      if (
+        modeRevision !== this.security.executionModeRevision() ||
+        sessionId !== (this.security.currentSession()?.id || null) ||
+        this.security.isSimulated() ||
+        this.ecosystem.resolveOperationalTenantId() !== draft.tenantId
+      ) {
+        this.resetExternalTerminalConfirmation();
+        return;
+      }
+      const msg =
+        (err as { error?: { error?: string } })?.error?.error ||
+        'Não foi possível registrar o pagamento externo. A mesma tentativa pode ser repetida com segurança.';
+      this.ecosystem.notify(msg, 'error');
+    } finally {
+      this.confirmingExternalTerminal.set(false);
+    }
+  }
+
   async confirmPendingPix() {
     const activePix = this.pendingPixModal();
     if (!activePix) return;
+    if (this.security.isSimulated()) {
+      this.ecosystem.notify(
+        'Confirmação PIX bloqueada enquanto o PDV estiver em modo de simulação.',
+        'warning'
+      );
+      return;
+    }
+    if (activePix.order.isSimulated || activePix.order.mode === 'simulation') {
+      this.ecosystem.notify('Pedidos demonstrativos não podem liquidar pagamentos PIX.', 'warning');
+      return;
+    }
     this.confirmingPix.set(true);
     try {
       const confirmed = await this.paymentEngine.confirmPixPayment(activePix.payment.transactionId);
@@ -809,6 +1128,37 @@ export class PosTerminalComponent {
     const first = this.offlineSync.unresolvedConflicts()[0];
     if (first) {
       this.offlineSync.acknowledgeConflict(first.id);
+    }
+  }
+
+  async syncOfflineQueue() {
+    try {
+      const result = await this.offlineSync.processSyncQueue();
+      if (result.processed > 0) {
+        this.ecosystem.notify(`${result.processed} operação(ões) offline sincronizada(s).`, 'success');
+      } else if (result.conflicts > 0) {
+        this.ecosystem.notify('A fila contém operações que precisam de revisão.', 'warning');
+      } else if (result.failed > 0) {
+        this.ecosystem.notify('A API não concluiu a sincronização. A fila foi mantida para nova tentativa.', 'warning');
+      } else {
+        this.ecosystem.notify('Não há operações desta unidade autorizadas para sincronizar.', 'info');
+      }
+    } catch {
+      this.ecosystem.notify('Não foi possível sincronizar agora. As operações locais foram preservadas.', 'error');
+    }
+  }
+
+  async retryDeadLetter(id: string) {
+    try {
+      const queued = await this.offlineSync.retryDeadLetter(id);
+      this.ecosystem.notify(
+        queued
+          ? 'Operação recolocada na fila com a mesma chave idempotente; a sincronização tentará novamente.'
+          : 'Esta operação não está mais disponível para esta sessão.',
+        queued ? 'info' : 'warning'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível recuperar a operação agora. Ela continua na lista de falhas.', 'error');
     }
   }
 

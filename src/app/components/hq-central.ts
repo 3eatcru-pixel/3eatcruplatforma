@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
@@ -561,6 +561,28 @@ export class HQCentralComponent implements OnInit {
       : `R$ ${overview.estimatedCommissionRevenue.toFixed(2)}`;
   });
 
+  constructor() {
+    let lastRevision = this.security.executionModeRevision();
+    effect(() => {
+      const revision = this.security.executionModeRevision();
+      if (revision === lastRevision) return;
+      lastRevision = revision;
+      this.showModal.set(false);
+      this.showRegisterDeviceModal.set(false);
+      this.showCommandPalette.set(false);
+      this.showDocModal.set(false);
+      this.selectedTenantForGovernance.set(null);
+      this.commandSearchQuery.set('');
+      this.newTenantName.set('');
+      this.newTenantCnpj.set('');
+      this.newTenantPlan.set('Professional');
+      this.newDeviceTenantId.set('');
+      this.newDeviceName.set('');
+      this.newDeviceSerial.set('');
+      this.isProvisioningTenant.set(false);
+    });
+  }
+
   ngOnInit() {
     this.security.setPillar('hq');
     const session = this.ecosystem.currentSession();
@@ -657,6 +679,7 @@ export class HQCentralComponent implements OnInit {
       return;
     }
 
+    const modeRevision = this.security.executionModeRevision();
     this.isProvisioningTenant.set(true);
     try {
       await this.ecosystem.addTenant({
@@ -665,6 +688,10 @@ export class HQCentralComponent implements OnInit {
         category: this.newTenantCategory() as 'restaurant' | 'retail' | 'services',
         plan: this.newTenantPlan() as 'Starter' | 'Professional' | 'Enterprise'
       });
+      if (modeRevision !== this.security.executionModeRevision()) {
+        this.ecosystem.notify('A solicitação começou no contexto anterior. Volte ao modo real para verificar se a loja foi criada.', 'warning');
+        return;
+      }
       this.showModal.set(false);
       this.newTenantName.set('');
       this.newTenantCnpj.set('');
@@ -691,8 +718,13 @@ export class HQCentralComponent implements OnInit {
       return;
     }
 
+    const modeRevision = this.security.executionModeRevision();
     try {
       await this.ecosystem.addDevice({ tenantId, deviceName, type: 'terminal', serialNumber });
+      if (modeRevision !== this.security.executionModeRevision()) {
+        this.ecosystem.notify('A solicitação começou no contexto anterior. Volte ao modo real para verificar o inventário.', 'warning');
+        return;
+      }
       this.showRegisterDeviceModal.set(false);
       this.ecosystem.notify('Dispositivo registrado no inventário. A conexão física e a telemetria ainda não foram verificadas.', 'warning');
     } catch (err: unknown) {

@@ -72,6 +72,26 @@ crmRouter.get('/consumers', requireHqAdmin, async (req: Request, res: Response) 
   }
 });
 
+/** An authenticated consumer can read only the contact profile keyed by their UID. */
+crmRouter.get('/consumers/me', async (req: Request, res: Response) => {
+  const caller = req.user;
+  if (!caller || caller.role !== 'consumer') {
+    res.status(403).json({ error: 'Somente consumidores podem consultar o próprio perfil.' });
+    return;
+  }
+
+  try {
+    const profile = await adminDb.collection('consumers').doc(caller.id).get();
+    if (!profile.exists) {
+      res.status(404).json({ error: 'Perfil de consumidor não encontrado.', code: 'CONSUMER_NOT_FOUND' });
+      return;
+    }
+    res.json(profile.data());
+  } catch {
+    res.status(500).json({ error: 'Falha ao consultar perfil do consumidor.' });
+  }
+});
+
 /** A consumer can create or update only their own contact profile. */
 crmRouter.post('/consumers', async (req: Request, res: Response) => {
   const caller = req.user;
@@ -82,12 +102,23 @@ crmRouter.post('/consumers', async (req: Request, res: Response) => {
 
   const body = req.body || {};
   const id = caller.id;
+  const primaryAddress = String(body.primaryAddress || body.address || '').trim().slice(0, 240);
+  const phone = String(body.phone || '').trim().slice(0, 32);
+  const neighborhood = String(body.neighborhood || '').trim().slice(0, 100);
+  const city = String(body.city || '').trim().slice(0, 100);
+  if (phone.length < 8 || primaryAddress.length < 5 || !neighborhood || !city) {
+    res.status(400).json({ error: 'Informe telefone, endereço, bairro e cidade válidos.', code: 'INVALID_CONSUMER_PROFILE' });
+    return;
+  }
   const profile = {
     id,
     name: String(body.name || caller.name || 'Consumidor').trim().slice(0, 100),
     email: caller.email,
-    phone: String(body.phone || '').trim().slice(0, 32),
-    address: String(body.address || '').trim().slice(0, 240),
+    phone,
+    address: primaryAddress,
+    primaryAddress,
+    neighborhood,
+    city,
     updatedAt: new Date().toISOString()
   };
 
@@ -116,7 +147,14 @@ crmRouter.patch('/consumers/:id', async (req: Request, res: Response) => {
   const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (typeof body.name === 'string') updates['name'] = body.name.trim().slice(0, 100);
   if (typeof body.phone === 'string') updates['phone'] = body.phone.trim().slice(0, 32);
-  if (typeof body.address === 'string') updates['address'] = body.address.trim().slice(0, 240);
+  const primaryAddress = typeof body.primaryAddress === 'string' ? body.primaryAddress : body.address;
+  if (typeof primaryAddress === 'string') {
+    const normalizedAddress = primaryAddress.trim().slice(0, 240);
+    updates['address'] = normalizedAddress;
+    updates['primaryAddress'] = normalizedAddress;
+  }
+  if (typeof body.neighborhood === 'string') updates['neighborhood'] = body.neighborhood.trim().slice(0, 100);
+  if (typeof body.city === 'string') updates['city'] = body.city.trim().slice(0, 100);
 
   try {
     const ref = adminDb.collection('consumers').doc(consumerId);

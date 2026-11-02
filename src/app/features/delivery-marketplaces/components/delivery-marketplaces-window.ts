@@ -69,7 +69,7 @@ import { DeliveryMarketplaceConnectionSummary } from '../types/delivery-marketpl
             <div class="flex h-full min-h-56 items-center justify-center rounded-2xl border border-amber-900/50 bg-amber-950/20 p-6 text-center text-sm text-amber-200">A fila de pedidos externos fica restrita ao proprietário ou operador da loja.</div>
           } @else if (isLoading()) {
             <div class="flex h-full min-h-56 items-center justify-center text-sm text-slate-400">Carregando pedidos recebidos…</div>
-          } @else if (loadError()) {
+          } @else if (ordersError()) {
             <div class="flex h-full min-h-56 flex-col items-center justify-center gap-3 text-center text-rose-300">
               <p>{{ ordersError() }}</p><button type="button" (click)="refreshOrders()" class="font-bold underline">Tentar novamente</button>
             </div>

@@ -19,12 +19,12 @@ import { StoreTask } from '../../models/ecosystem.model';
       </header>
       @if (!canManage()) { <div class="flex-1 flex items-center justify-center text-center text-amber-300">Tarefas estão restritas ao proprietário ou operador da unidade.</div> }
       @else {
-        @if (isSimulation()) { <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: tarefas reais estão protegidas; esta janela não envia alterações ao servidor.</div> }
-        <form (ngSubmit)="createTask()" class="grid gap-2 sm:grid-cols-[2fr_1fr_auto] bg-[#180b04] border border-[#381c0c] rounded-2xl p-3 shrink-0"><input name="title" required maxlength="160" [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" placeholder="Descreva a tarefa" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" /><input name="sector" required maxlength="60" [ngModel]="draftSector()" (ngModelChange)="draftSector.set($event)" placeholder="Setor" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" /><button type="submit" [disabled]="isSimulation() || isSaving()" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-stone-950 disabled:opacity-50">{{ isSaving() ? 'Salvando…' : 'Criar tarefa' }}</button></form>
+        @if (isSimulation()) { <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: tarefas e alterações ficam somente na memória desta sessão.</div> }
+        <form (ngSubmit)="createTask()" class="grid gap-2 sm:grid-cols-[2fr_1fr_auto] bg-[#180b04] border border-[#381c0c] rounded-2xl p-3 shrink-0"><input name="title" required maxlength="160" [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" placeholder="Descreva a tarefa" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" /><input name="sector" required maxlength="60" [ngModel]="draftSector()" (ngModelChange)="draftSector.set($event)" placeholder="Setor" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" /><button type="submit" [disabled]="isSaving()" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-stone-950 disabled:opacity-50">{{ isSaving() ? 'Salvando…' : 'Criar tarefa' }}</button></form>
         @if (error()) { <div role="alert" class="rounded-xl border border-rose-800 bg-rose-950/30 p-3 text-xs text-rose-200">{{ error() }} <button type="button" (click)="refresh()" class="ml-2 underline">Tentar novamente</button></div> }
         @if (isLoading()) { <div class="flex-1 flex items-center justify-center text-sm text-stone-400">Carregando tarefas…</div> }
         @else if (tasks().length === 0) { <div class="flex-1 flex items-center justify-center text-center text-sm text-stone-500">Nenhuma tarefa cadastrada nesta unidade.</div> }
-        @else { <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2">@for (task of tasks(); track task.id) { <button type="button" (click)="toggle(task)" [disabled]="isSimulation() || busyId() === task.id" [class]="task.completed ? 'bg-[#180b04]/60 border-[#2a1307] opacity-60' : 'bg-[#1c0d06] border-[#381c0c]'" class="w-full text-left p-3 rounded-xl border flex items-center justify-between gap-3 hover:border-amber-600/60 disabled:cursor-wait"><div class="flex items-center gap-2.5"><mat-icon [class]="task.completed ? 'text-emerald-400' : 'text-stone-600'">{{ task.completed ? 'check_box' : 'check_box_outline_blank' }}</mat-icon><div><span [class]="task.completed ? 'line-through text-stone-500' : 'text-white font-bold'" class="text-xs block">{{ task.title }}</span><span class="text-[9px] text-amber-500/80 uppercase">{{ task.sector }} · {{ task.createdAt | date:'dd/MM HH:mm' }}</span></div></div><span class="text-[10px] text-stone-500">{{ task.completed ? 'Concluída' : 'Pendente' }}</span></button> }</div> }
+        @else { <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2">@for (task of tasks(); track task.id) { <button type="button" (click)="toggle(task)" [disabled]="busyId() === task.id" [class]="task.completed ? 'bg-[#180b04]/60 border-[#2a1307] opacity-60' : 'bg-[#1c0d06] border-[#381c0c]'" class="w-full text-left p-3 rounded-xl border flex items-center justify-between gap-3 hover:border-amber-600/60 disabled:cursor-wait"><div class="flex items-center gap-2.5"><mat-icon [class]="task.completed ? 'text-emerald-400' : 'text-stone-600'">{{ task.completed ? 'check_box' : 'check_box_outline_blank' }}</mat-icon><div><span [class]="task.completed ? 'line-through text-stone-500' : 'text-white font-bold'" class="text-xs block">{{ task.title }}</span><span class="text-[9px] text-amber-500/80 uppercase">{{ task.sector }} · {{ task.createdAt | date:'dd/MM HH:mm' }}</span></div></div><span class="text-[10px] text-stone-500">{{ task.completed ? 'Concluída' : 'Pendente' }}</span></button> }</div> }
         @if (actionError()) { <div role="alert" class="text-xs text-rose-300">{{ actionError() }}</div> }
       }
     </div>
@@ -48,25 +48,26 @@ export class EAppTasksWindow {
 
   constructor() {
     effect(() => {
+      this.isSimulation();
       const tenantId = this.ecosystem.resolveOperationalTenantId();
       const allowed = this.canManage();
-      const simulation = this.isSimulation();
       const generation = ++this.generation;
-      this.tasksService.tasks.set([]);
-      if (!tenantId || !allowed || simulation) { this.isLoading.set(false); return; }
+      this.draftTitle.set('');
+      this.draftSector.set('');
+      if (!tenantId || !allowed) { this.tasksService.tasks.set([]); this.isLoading.set(false); return; }
       void this.load(tenantId, generation);
     });
   }
 
   async refresh(): Promise<void> {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    if (tenantId && this.canManage() && !this.isSimulation()) await this.load(tenantId, ++this.generation);
+    if (tenantId && this.canManage()) await this.load(tenantId, ++this.generation);
   }
 
   async createTask(): Promise<void> {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
     const title = this.draftTitle().trim(); const sector = this.draftSector().trim();
-    if (!tenantId || !this.canManage() || !title || !sector || this.isSimulation()) return;
+    if (!tenantId || !this.canManage() || !title || !sector) return;
     this.isSaving.set(true); this.actionError.set(null);
     try { await this.tasksService.createTask(tenantId, title, sector); this.draftTitle.set(''); }
     catch { this.actionError.set('Não foi possível criar a tarefa.'); }
@@ -74,7 +75,6 @@ export class EAppTasksWindow {
   }
 
   async toggle(task: StoreTask): Promise<void> {
-    if (this.isSimulation()) return;
     this.busyId.set(task.id); this.actionError.set(null);
     try { await this.tasksService.setCompleted(task, !task.completed); }
     catch { this.actionError.set('Não foi possível atualizar a tarefa.'); }

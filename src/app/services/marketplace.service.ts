@@ -34,9 +34,16 @@ export class MarketplaceService {
     this.maxDiscoveryRadiusKm.set(config.defaultSearchRadiusKm);
     this.regionalConfigError.set(null);
     this.regionalConfigStatus.set(simulation ? 'loaded' : 'idle');
+    this.clearUserLocation();
   }
 
   requestRealUserLocation(): Promise<boolean> {
+    if (this.security.isSimulated()) {
+      this.clearUserLocation();
+      this.geoErrorMessage.set('O GPS do dispositivo não é solicitado durante a simulação.');
+      return Promise.resolve(false);
+    }
+    const modeRevision = this.security.executionModeRevision();
     return new Promise((resolve) => {
       if (typeof window === 'undefined' || !('geolocation' in navigator)) {
         this.geoStatus.set('error');
@@ -51,6 +58,11 @@ export class MarketplaceService {
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          if (!this.isCurrentLocationContext(modeRevision)) {
+            this.clearUserLocation();
+            resolve(false);
+            return;
+          }
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           this.userReferenceCoords.set({ lat, lng });
@@ -60,6 +72,11 @@ export class MarketplaceService {
           resolve(true);
         },
         (error) => {
+          if (!this.isCurrentLocationContext(modeRevision)) {
+            this.clearUserLocation();
+            resolve(false);
+            return;
+          }
           this.geoStatus.set(error.code === error.PERMISSION_DENIED ? 'denied' : 'error');
           this.isRealLocationActive.set(false);
           this.userReferenceCoords.set(null);
@@ -91,6 +108,11 @@ export class MarketplaceService {
   }
 
   async fetchRegionalConfig(): Promise<RegionalMarketplaceConfig> {
+    if (this.security.isSimulated()) {
+      this.regionalConfigStatus.set('loaded');
+      this.regionalConfigError.set(null);
+      return this.regionalConfig();
+    }
     const modeRevision = this.security.executionModeRevision();
     this.regionalConfigStatus.set('loading');
     this.regionalConfigError.set(null);
@@ -113,7 +135,8 @@ export class MarketplaceService {
   async updateRegionalConfig(config: Partial<RegionalMarketplaceConfig>, persist = true): Promise<boolean> {
     const modeRevision = this.security.executionModeRevision();
     const merged = normalizeRegionalMarketplaceConfig({ ...this.regionalConfig(), ...config });
-    if (persist) {
+    const shouldPersist = persist && !this.security.isSimulated();
+    if (shouldPersist) {
       this.regionalConfigError.set(null);
       try {
         await firstValueFrom(this.http.post('/api/hq/regional', merged));
@@ -122,7 +145,7 @@ export class MarketplaceService {
         this.regionalConfigError.set('Não foi possível publicar as configurações. Revise a conexão e tente novamente.');
         return false;
       }
-      if (modeRevision !== this.security.executionModeRevision()) return false;
+      if (modeRevision !== this.security.executionModeRevision() || this.security.isSimulated()) return false;
     }
     this.regionalConfig.set(merged);
     this.maxDiscoveryRadiusKm.set(merged.defaultSearchRadiusKm);
@@ -132,5 +155,17 @@ export class MarketplaceService {
 
   openStorefront(tenantId: string) {
     this.router.navigate(['/p', tenantId]);
+  }
+
+  private clearUserLocation() {
+    this.userReferenceCoords.set(null);
+    this.userReferenceAddress.set('Localização não informada');
+    this.isRealLocationActive.set(false);
+    this.geoStatus.set('idle');
+    this.geoErrorMessage.set(null);
+  }
+
+  private isCurrentLocationContext(modeRevision: number): boolean {
+    return !this.security.isSimulated() && modeRevision === this.security.executionModeRevision();
   }
 }

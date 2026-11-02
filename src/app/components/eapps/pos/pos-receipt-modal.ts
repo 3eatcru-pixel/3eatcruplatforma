@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { OrderTransaction } from '../../../models/ecosystem.model';
+import { PosPrintService } from '../../../services/pos-print.service';
+import { ReceiptPaperWidthMm } from '../../../services/os-preferences.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,6 +23,12 @@ import { OrderTransaction } from '../../../models/ecosystem.model';
       } @else {
         <p class="mt-2 text-center text-[10px] font-bold text-emerald-800">Venda confirmada pelo servidor.</p>
       }
+      @if (order().externalTerminalMethod) {
+        <p class="mt-2 rounded border border-indigo-300 bg-indigo-50 p-2 text-center text-[10px] font-bold text-indigo-900">
+          {{ order().externalTerminalName || 'Terminal externo da loja' }} • {{ externalMethodLabel(order().externalTerminalMethod) }}<br />
+          Confirmação manual do operador; não validada pelo equipamento.
+        </p>
+      }
       <div class="my-3 border-y border-dashed border-stone-400 py-2">@for (item of order().items; track item.product.id) { <div class="flex justify-between gap-2 text-xs"><span>{{ item.quantity }} × {{ item.product.name }}</span><span>R$ {{ (item.quantity * item.product.price).toFixed(2) }}</span></div> }</div>
       <div class="flex justify-between font-black"><span>Total</span><span>R$ {{ order().total.toFixed(2) }}</span></div><p class="mt-3 text-center text-[10px] text-stone-500">Este documento não substitui documento fiscal.</p>
       <button type="button" (click)="printReceipt()" class="mt-4 w-full rounded-lg bg-stone-900 py-2 text-sm font-bold text-white">Imprimir</button>
@@ -30,9 +38,20 @@ import { OrderTransaction } from '../../../models/ecosystem.model';
 export class PosReceiptModal {
   readonly order = input.required<OrderTransaction>();
   readonly customerCpf = input('');
+  readonly paperWidthMm = input<ReceiptPaperWidthMm>(80);
+  readonly printerLabel = input('');
   readonly closeRequest = output<void>();
+  private readonly printService = inject(PosPrintService);
+
+  externalMethodLabel(method: OrderTransaction['externalTerminalMethod']): string {
+    if (method === 'pix') return 'PIX';
+    if (method === 'credit_card') return 'Cartão de crédito';
+    if (method === 'debit_card') return 'Cartão de débito';
+    return '';
+  }
 
   printReceipt() {
-    window.print();
+    const opened = this.printService.printReceipt(this.order(), this.paperWidthMm(), this.printerLabel());
+    if (!opened) window.print();
   }
 }

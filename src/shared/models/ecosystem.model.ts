@@ -273,6 +273,18 @@ export interface CompanyTenant {
   staffUids?: string[];
   /** Internal version used to serialize device registration against the tenant quota. */
   deviceInventoryVersion?: number;
+  /** Merchant-managed terminal profiles; these describe manual terminals and do not include PSP credentials. */
+  externalPaymentTerminals?: ExternalPaymentTerminal[];
+}
+
+export type ExternalTerminalMethod = 'pix' | 'credit_card' | 'debit_card';
+
+export interface ExternalPaymentTerminal {
+  id: string;
+  name: string;
+  brand?: string;
+  enabled: boolean;
+  methods: ExternalTerminalMethod[];
 }
 
 export type TenantUpdate = Omit<Partial<CompanyTenant>, 'deliveryFee' | 'storeDeliveryContribution' | 'minOrderValue' | 'aboutText' | 'pixKey'> & {
@@ -311,6 +323,8 @@ export interface POSDevice {
   lastPing?: string;
   location?: string;
   batteryLevel?: number;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface ProductItem {
@@ -366,6 +380,8 @@ export interface StoreTask {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface PublicCatalogProduct {
@@ -378,6 +394,8 @@ export interface PublicCatalogProduct {
   availableOnline: boolean;
   inStock: boolean;
   description: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface CartItem {
@@ -402,6 +420,10 @@ export interface PaymentTransactionRecord {
   isSimulated?: boolean;
   qrCodePix?: string;
   pixCopyPaste?: string;
+  /** Optional receipt/reference from a store-owned external terminal; never card credentials. */
+  externalReference?: string;
+  externalTerminalId?: string;
+  externalTerminalName?: string;
   createdByUid: string;
   createdAt: string;
   confirmedAt?: string;
@@ -446,6 +468,18 @@ export interface OrderTransaction {
   paymentTransactionId?: string;
   paymentStatus?: 'pending' | 'pending_pix' | 'approved' | 'declined' | 'refunded';
   cashConfirmedByOperator?: boolean;
+  /** Request-only POS metadata: manual receipt on a store-owned terminal, confirmed by the operator. */
+  externalTerminalConfirmedByOperator?: boolean;
+  /** Server-validated payment method used with the store's external PIX/card terminal. */
+  externalTerminalMethod?: ExternalTerminalMethod;
+  /** Request-only identifier for a terminal configured by this store. */
+  externalTerminalId?: string;
+  /** Persisted terminal label resolved from the store's server-side configuration. */
+  externalTerminalName?: string;
+  /** Optional non-sensitive terminal receipt/reference; never store card number or CVV. */
+  externalTerminalReference?: string;
+  /** Request-only idempotency key for safely retrying a POS submission. */
+  idempotencyKey?: string;
   status: 'pending' | 'preparing' | 'ready' | 'dispatched' | 'completed' | 'cancelled' | 'delivered';
   createdAt: string;
   channel: CommercialChannel;
@@ -563,6 +597,8 @@ export interface AuditLog {
   module: 'HQ' | 'OS Client' | 'Marketplace' | 'System';
   details: string;
   severity: 'info' | 'warning' | 'critical';
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface LicensePlan {
@@ -677,6 +713,8 @@ export interface Employee {
   status: 'active' | 'on_leave' | 'fired';
   shift: 'integral' | 'manhã' | 'tarde' | 'noite';
   hireDate: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface ClockEvent {
@@ -686,6 +724,8 @@ export interface ClockEvent {
   employeeName: string;
   timestamp: string;
   type: 'in' | 'out';
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export type DeliveryMarketplaceProviderId = 'ifood' | '99food' | 'rappi';
@@ -777,6 +817,8 @@ export interface MemoNote {
   category?: string;
   createdByUid?: string;
   tenantId?: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface CustomerProfile {
@@ -795,6 +837,7 @@ export interface CustomerProfile {
 
 export interface Supplier {
   id: string;
+  tenantId?: string;
   name: string;
   cnpj?: string;
   contactName: string;
@@ -833,6 +876,8 @@ export interface ServiceOrder {
   status: 'draft' | 'open' | 'parts_pending' | 'in_progress' | 'ready' | 'delivered' | 'triagem' | 'execucao' | 'finalizado';
   createdAt?: string;
   finishedAt?: string;
+  isSimulated?: boolean;
+  mode?: SystemExecutionMode;
 }
 
 export interface Promotion {

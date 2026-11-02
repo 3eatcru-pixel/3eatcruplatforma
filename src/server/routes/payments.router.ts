@@ -30,28 +30,16 @@ function getParamId(req: Request): string {
   return Array.isArray(p) ? p[0] || '' : p || '';
 }
 
-/**
- * Checks if a Stripe key is actually a Live key (sk_live_)
- */
 function isLiveStripeKey(key?: string): boolean {
   return !!key && key.startsWith('sk_live_');
 }
 
-/**
- * Validates if real PSP credentials exist and determines if they are LIVE or TEST
- */
 function getActivePspProvider(): { provider: 'stripe' | 'mercadopago'; isLive: boolean } | null {
   const stripeKey = process.env['STRIPE_SECRET_KEY']?.trim();
-  if (stripeKey) {
-    return { provider: 'stripe', isLive: isLiveStripeKey(stripeKey) };
-  }
+  if (stripeKey) return { provider: 'stripe', isLive: isLiveStripeKey(stripeKey) };
 
   const mpToken = process.env['MERCADOPAGO_ACCESS_TOKEN']?.trim();
-  if (mpToken) {
-    // Mercado Pago tokens starting with APP_USR are usually live, TEST- are sandbox
-    const isLive = mpToken.startsWith('APP_USR-');
-    return { provider: 'mercadopago', isLive };
-  }
+  if (mpToken) return { provider: 'mercadopago', isLive: mpToken.startsWith('APP_USR-') };
   return null;
 }
 
@@ -126,9 +114,10 @@ function generateBacenPixPayload(params: {
  * POST /api/payments/process
  * Server-authoritative Universal Payment Proxy.
  * Strictly separates:
- * 1. Physical Cash & Voucher (requires authenticated POS operator confirmation)
- * 2. Real PSP online payments (calls real gateway APIs when keys are present)
- * 3. Honest Simulation/Sandbox (never fakes banking settlement; clearly flagged as simulation)
+ * 1. Store-collected cash/voucher (cash confirmation requires an authorized operator)
+ * 2. Store-directed PIX (the merchant's own configured key, confirmed manually)
+ * 3. Card only after a tenant-specific acquirer is connected
+ * Demonstration payments stay local and never settle a persisted real order.
  */
 paymentsRouter.post('/process', async (req: Request, res: Response) => {
   const caller = req.user;
@@ -186,6 +175,16 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     }
 
     const orderData = orderDoc.data() as OrderTransaction;
+    const isPosPaymentOperator = orderData.type === 'pos-counter'
+      && (caller.role === 'hq_admin' || caller.role === 'tenant_owner' || caller.role === 'operator');
+
+    if (orderData.isSimulated || orderData.mode === 'simulation') {
+      res.status(409).json({
+        error: 'Pedidos de demonstração não aceitam processamento de pagamento.',
+        code: 'SIMULATED_ORDER_CANNOT_BE_PAID'
+      });
+      return;
+    }
 
     // Check tenant boundary
     if (orderData.tenantId !== tenantId) {
@@ -248,8 +247,8 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     const configuredPixKey =
       typeof tenantData?.['pixKey'] === 'string' ? tenantData['pixKey'].trim() : '';
 
-    // This route settles the tenant's order payment. The platform courier commission is
-    // evaluated separately by HQ after a real delivery is marked delivered.
+    // This route records the store's order payment. The HQ subscription is charged
+    // separately by the platform billing service; platform delivery commission stays disabled.
     const psp = getActivePspProvider();
     const pspProvider = psp?.provider || null;
     const isLive = psp?.isLive || false;
@@ -266,11 +265,10 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     let gatewayLabel: string;
     let authCode: string;
     let externalTransactionId: string | undefined;
-    let simulationWarning: string | undefined;
-
     let pixCopyPaste: string | undefined;
     let qrCodePix: string | undefined;
     let isRealPaymentFlow = false;
+    let simulationWarning: string | undefined;
 
     // CASE 1: CASH / VOUCHER (Physical Currency)
     if (method === 'cash' || method === 'voucher') {
@@ -292,8 +290,6 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
     }
     // CASE 2: PIX (Instant Payment)
     else if (method === 'pix') {
-      const isRealConsumerOrder =
-        caller.role === 'consumer' && !orderData.isSimulated && orderData.mode !== 'simulation';
       if (configuredPixKey.length > 77) {
         res.status(503).json({
           error: 'A chave Pix cadastrada pela loja ultrapassa o limite aceito pelo BR Code. Atualize a chave em Minha Loja.',
@@ -301,7 +297,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
         });
         return;
       }
-      if (!configuredPixKey && (isLive || isRealConsumerOrder)) {
+      if (!configuredPixKey && (isLive || !isPosPaymentOperator)) {
         res.status(503).json({
           error: 'A loja precisa cadastrar sua própria chave Pix antes de receber pagamentos reais.',
           code: 'TENANT_PIX_KEY_NOT_CONFIGURED'
@@ -309,8 +305,8 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
         return;
       }
 
-      // A configured tenant key receives the payment directly. A missing key can only
-      // produce a clearly marked sandbox example and never routes funds to the platform.
+      // A configured tenant key receives PIX directly. POS sandbox may use a clearly
+      // invalid key for operator testing; public consumer checkout cannot use that path.
       const hasLivePixKey = Boolean(configuredPixKey);
       const pixKey = hasLivePixKey ? configuredPixKey : 'sandbox.invalid@invalid.invalid';
       status = 'pending_pix';
@@ -327,33 +323,35 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
         : 'PIX Universal (Ambiente de Testes / Sandbox)';
       isRealPaymentFlow = hasLivePixKey;
       authCode = `PIX-${Date.now().toString().slice(-6)}`;
-      if (!hasLivePixKey) {
-        simulationWarning = 'PIX de demonstração com chave inválida. Não transfira valores.';
-      }
+      if (!hasLivePixKey) simulationWarning = 'PIX de demonstração com chave inválida. Não transfira valores.';
     }
     // CASE 3: CARD (Credit / Debit)
     else {
+      if (!isPosPaymentOperator) {
+        res.status(503).json({
+          error: 'Cartão indisponível para este pedido: conecte uma adquirente à conta da loja antes de aceitar pagamentos online.',
+          code: 'TENANT_CARD_ACCOUNT_NOT_CONFIGURED'
+        });
+        return;
+      }
       if (isLive && pspProvider === 'stripe') {
         res.status(503).json({
           error: 'Cartão real indisponível: a loja ainda não possui uma conta de pagamento conectada para receber diretamente.',
           code: 'TENANT_CARD_ACCOUNT_NOT_CONFIGURED'
         });
         return;
-      } else {
-        if (pspProvider === 'mercadopago') {
-          res.status(503).json({
-            error: 'Cartão Mercado Pago ainda não está integrado. Configure uma conta de pagamento vinculada à loja antes de habilitar cobranças reais.',
-            code: 'PROVIDER_NOT_IMPLEMENTED'
-          });
-          return;
-        }
-        // Honest Sandbox Simulation (Strictly force sandbox/simulation flags)
-        status = 'approved';
-        gatewayLabel = 'SIMULADOR TEF (SANDBOX DEMO - Sem PSP Real Configurado)';
-        authCode = `SIM-${Math.floor(100000 + Math.random() * 900000)}`;
-        simulationWarning =
-          'Transação executada em ambiente de testes/simulação. Nenhuma cobrança financeira real foi efetuada em cartão.';
       }
+      if (isLive && pspProvider === 'mercadopago') {
+        res.status(503).json({
+          error: 'Cartão Mercado Pago ainda não está integrado. Configure uma conta de pagamento vinculada à loja antes de habilitar cobranças reais.',
+          code: 'PROVIDER_NOT_IMPLEMENTED'
+        });
+        return;
+      }
+      status = 'approved';
+      gatewayLabel = 'SIMULADOR TEF (SANDBOX DEMO - Sem PSP Real Configurado)';
+      authCode = `SIM-${Math.floor(100000 + Math.random() * 900000)}`;
+      simulationWarning = 'Transação executada em ambiente de testes/simulação. Nenhuma cobrança financeira real foi efetuada em cartão.';
     }
 
     const effectiveEnvironment: PaymentTransactionRecord['environment'] = isRealPaymentFlow ? 'live' : 'sandbox';
@@ -387,6 +385,16 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
       }
 
       const currentOrder = currentOrderSnapshot.data() as OrderTransaction;
+      if (currentOrder.isSimulated || currentOrder.mode === 'simulation') {
+        return { kind: 'rejected' as const, httpStatus: 409, code: 'SIMULATED_ORDER_CANNOT_BE_PAID', error: 'Pedidos de demonstração não aceitam processamento de pagamento.' };
+      }
+      if (
+        record.mode === 'simulation'
+        && (currentOrder.type !== 'pos-counter'
+          || (caller.role !== 'hq_admin' && caller.role !== 'tenant_owner' && caller.role !== 'operator'))
+      ) {
+        return { kind: 'rejected' as const, httpStatus: 409, code: 'POS_SANDBOX_NOT_ALLOWED', error: 'O sandbox só pode ser usado por operador em pedido do PDV.' };
+      }
       const canPayCurrentOrder =
         caller.role === 'hq_admin' ||
         (isTenantStaffRole(caller.role) && caller.tenantId === currentOrder.tenantId) ||
@@ -429,7 +437,7 @@ paymentsRouter.post('/process', async (req: Request, res: Response) => {
         }
       }
 
-      const isSimulationPayment = record.mode === 'simulation' || currentOrder.isSimulated || currentOrder.mode === 'simulation';
+      const isSimulationPayment = record.mode === 'simulation';
       const committedRecord: PaymentTransactionRecord = {
         ...record,
         mode: isSimulationPayment ? 'simulation' : 'real',

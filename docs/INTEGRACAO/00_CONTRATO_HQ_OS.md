@@ -59,6 +59,7 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
 - Nesta auditoria, `npm run test:ci` passou com 100/100 testes; as suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. A execução usa mocks e não homologa Firebase real, PSP ou hardware.
+- Atualização Real vs Simulação de 2026-11-02: os ajustes de modo no PDV, no GPS demonstrativo e nos painéis de cobrança/comissão do HQ passaram em `npm run lint` e `npm run build`; os testes não foram reexecutados nesta atualização. A validação registrada acima é da execução anterior e não substitui nova homologação.
 
 ---
 

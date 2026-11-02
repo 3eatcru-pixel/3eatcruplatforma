@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { SecurityService } from '../../services/security.service';
 import { RegionalMarketplaceConfig } from '../../models/ecosystem.model';
 
 import { HqRegionalMetricsComponent } from './hq-regional-metrics';
@@ -182,8 +183,9 @@ import { HqRegionalMapToolsComponent } from './hq-regional-map-tools';
     </div>
   `
 })
-export class HqRegionalManagerComponent implements OnInit {
+export class HqRegionalManagerComponent {
   readonly ecosystem = inject(EcosystemService);
+  private readonly security = inject(SecurityService);
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
 
@@ -191,28 +193,46 @@ export class HqRegionalManagerComponent implements OnInit {
   readonly savedConfig = signal<RegionalMarketplaceConfig>({ ...this.draftConfig(), featuredTenantIds: [...this.draftConfig().featuredTenantIds] });
   readonly canEdit = computed(() => this.ecosystem.isSimulationMode() || this.ecosystem.marketplaceService.regionalConfigStatus() === 'loaded');
   readonly hasChanges = computed(() => JSON.stringify(this.draftConfig()) !== JSON.stringify(this.savedConfig()));
+  private requestGeneration = 0;
 
-  ngOnInit() {
-    void this.loadRegionalConfig();
+  constructor() {
+    effect(() => {
+      const isSimulation = this.ecosystem.isSimulationMode();
+      const modeRevision = this.security.executionModeRevision();
+      const generation = ++this.requestGeneration;
+      const config = this.copyConfig(this.ecosystem.regionalConfig());
+      this.draftConfig.set(config);
+      this.savedConfig.set(this.copyConfig(config));
+      this.isLoading.set(false);
+      this.isSaving.set(false);
+
+      if (isSimulation) return;
+      queueMicrotask(() => {
+        if (this.isCurrentContext(generation, modeRevision)) void this.loadRegionalConfig();
+      });
+    });
   }
 
   async loadRegionalConfig() {
     if (this.ecosystem.isSimulationMode()) {
-      const config = this.ecosystem.regionalConfig();
-      this.savedConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
-      this.draftConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
+      const config = this.copyConfig(this.ecosystem.regionalConfig());
+      this.savedConfig.set(config);
+      this.draftConfig.set(this.copyConfig(config));
       return;
     }
 
+    const generation = ++this.requestGeneration;
+    const modeRevision = this.security.executionModeRevision();
     this.isLoading.set(true);
     try {
       const config = await this.ecosystem.marketplaceService.fetchRegionalConfig();
-      this.savedConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
-      this.draftConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
+      if (!this.isCurrentContext(generation, modeRevision)) return;
+      this.savedConfig.set(this.copyConfig(config));
+      this.draftConfig.set(this.copyConfig(config));
     } catch {
       // The editor remains locked until a persisted configuration can be read.
     } finally {
-      this.isLoading.set(false);
+      if (this.isCurrentContext(generation, modeRevision)) this.isLoading.set(false);
     }
   }
 
@@ -229,18 +249,29 @@ export class HqRegionalManagerComponent implements OnInit {
 
   async saveRegionalConfig() {
     if (!this.canEdit() || !this.hasChanges() || this.isSaving()) return;
+    const generation = this.requestGeneration;
+    const modeRevision = this.security.executionModeRevision();
     const config = { ...this.draftConfig(), featuredTenantIds: [...this.draftConfig().featuredTenantIds] };
     this.isSaving.set(true);
     try {
       if (await this.ecosystem.updateRegionalConfig(config)) {
-        this.savedConfig.set(config);
+        if (this.isCurrentContext(generation, modeRevision)) this.savedConfig.set(config);
       }
     } finally {
-      this.isSaving.set(false);
+      if (this.isCurrentContext(generation, modeRevision)) this.isSaving.set(false);
     }
   }
 
   openRegionalMarketplace() {
     this.ecosystem.openRegionalMarketplace();
+  }
+
+  private copyConfig(config: RegionalMarketplaceConfig): RegionalMarketplaceConfig {
+    return { ...config, featuredTenantIds: [...config.featuredTenantIds] };
+  }
+
+  private isCurrentContext(generation: number, modeRevision: number): boolean {
+    return generation === this.requestGeneration &&
+      modeRevision === this.security.executionModeRevision();
   }
 }

@@ -1,6 +1,9 @@
 export interface QueuedAction {
   id: string;
   action: 'CREATE_ORDER' | 'UPDATE_STOCK' | 'RECORD_FINANCIAL' | 'UPDATE_TABLE';
+  tenantId?: string;
+  createdByUid?: string;
+  mode?: 'real' | 'simulation';
   endpoint: string;
   payload: Record<string, unknown>;
   idempotencyKey: string;
@@ -14,6 +17,7 @@ export interface SyncConflictRecord {
   idempotencyKey: string;
   orderNumber?: string;
   tenantId?: string;
+  createdByUid?: string;
   total?: number;
   code: string;
   reason: string;
@@ -74,7 +78,8 @@ export async function executeOfflineOutboxReplay(params: {
   let failed = 0;
   let conflicts = 0;
 
-  for (const rawItem of queue) {
+  for (let queueIndex = 0; queueIndex < queue.length; queueIndex++) {
+    const rawItem = queue[queueIndex]!;
     const item: QueuedAction = { ...rawItem };
     try {
       const response = await transport(item.endpoint, item.payload, {
@@ -87,6 +92,11 @@ export async function executeOfflineOutboxReplay(params: {
       const err = rawErr as Partial<OutboxTransportError>;
       const status = typeof err?.status === 'number' ? err.status : 0;
 
+      if (err?.code === 'CONTEXT_CHANGED') {
+        remainingQueue.push(item, ...queue.slice(queueIndex + 1).map((queued) => ({ ...queued })));
+        break;
+      }
+
       if (isDeterministicBusinessRejection(status)) {
         const conflictRecord: SyncConflictRecord = {
           id: item.id,
@@ -98,6 +108,7 @@ export async function executeOfflineOutboxReplay(params: {
               : item.id,
           tenantId:
             typeof item.payload['tenantId'] === 'string' ? item.payload['tenantId'] : undefined,
+          createdByUid: item.createdByUid,
           total: typeof item.payload['total'] === 'number' ? item.payload['total'] : undefined,
           code: err?.code || (status === 409 ? 'STOCK_CONFLICT' : `HTTP_${status}`),
           reason:

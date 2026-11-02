@@ -4,6 +4,8 @@
 
 A tela de dispositivos mantém registros associados a tenants. O cadastro não confirma pareamento com hardware. Não foi localizado agente de dispositivo para enviar heartbeat, telemetria ou receber comandos remotos.
 
+Os perfis de maquininhas externas e preferências de impressora não pertencem ao inventário MDM do HQ. O proprietário/operador configura os métodos de pagamento em Configurações do Store OS; o HQ não pode editar esses perfis. A configuração da impressora fica no navegador/computador do caixa. A presença de um registro na loja ou no HQ não comprova conexão física.
+
 A coleção /devices pode conter cadastros legados com status e campos de telemetria. Sem agente que os atualize, esses valores não comprovam o estado atual do equipamento. A interface identifica estados como online como status cadastrado e não como conexão verificada.
 
 ## Endpoints
@@ -12,6 +14,7 @@ A coleção /devices pode conter cadastros legados com status e campos de teleme
 - POST /api/hq/devices exige tenant, nome e serial; verifica a existência do tenant, a duplicidade exata do serial e a cota de registros do tenant dentro de uma transação. Cria o registro com status unverified e sem inventar MAC, IP, versão ou bateria. O inventário interno `hq` não consome cota de uma loja.
 - POST /api/hq/devices/:id/lock altera o status salvo no registro. Não envia bloqueio ao hardware.
 - POST /api/hq/devices/:id/restart registra uma solicitação em audit_logs e não reinicia o equipamento.
+- `PATCH /api/tenants/:id` não permite que `hq_admin` edite `externalPaymentTerminals`; essa configuração exige proprietário/operador da própria unidade. O cadastro não contém credenciais de adquirente e não aciona o terminal.
 - O inventário do HQ contém apenas registros de dispositivos. Ele não carrega nomes, telefones, documentos, coordenadas, precisão, rotas ou pings dos motoristas das lojas. Motoristas, rotas e GPS ficam no Store OS da própria unidade. A API de logística limita o HQ à futura frota `marketplace`; enquanto ela estiver em `coming_soon`, as consultas administrativas de frota/rotas respondem `409 PLATFORM_DELIVERY_NETWORK_UNAVAILABLE`.
 - Ações de reinício e bloqueio alteram registros administrativos: reinício grava uma solicitação de auditoria e bloqueio troca o status persistido no inventário. Nenhuma das ações opera o equipamento físico sem agente conectado.
 
@@ -41,4 +44,4 @@ O App Entregador usa o estilo vetorial OpenFreeMap/MapLibre. O GPS do aparelho s
 | Bloqueio ou reinicialização remota | Não localizados |
 | Agente MDM nativo | Não localizado |
 
-Não há teste dedicado da rota de inventário de dispositivos no conjunto atual. A suíte geral passou nesta revisão, mas não substitui testes específicos da rota nem integração com hardware real.
+Não há teste dedicado da rota de inventário de dispositivos no conjunto atual. Nesta etapa, lint e build passaram; os testes automatizados não foram executados. Isso não substitui teste específico da rota nem integração com hardware real.

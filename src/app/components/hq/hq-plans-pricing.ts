@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { SecurityService } from '../../services/security.service';
 import { LicensePlan } from '../../models/ecosystem.model';
 
 @Component({
@@ -144,9 +145,19 @@ import { LicensePlan } from '../../models/ecosystem.model';
 })
 export class HqPlansPricingComponent {
   readonly ecosystem = inject(EcosystemService);
+  private readonly security = inject(SecurityService);
   readonly planDrafts = signal<Record<string, { priceMonthly?: string; maxDevices?: string }>>({});
   readonly savingPlanId = signal<string | null>(null);
   readonly saveError = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      this.security.executionModeRevision();
+      this.planDrafts.set({});
+      this.savingPlanId.set(null);
+      this.saveError.set(null);
+    });
+  }
 
   onPriceChange(planId: string, val: string) {
     this.planDrafts.update((drafts) => ({ ...drafts, [planId]: { ...drafts[planId], priceMonthly: val } }));
@@ -173,19 +184,23 @@ export class HqPlansPricingComponent {
       this.saveError.set('Informe mensalidade válida (mínimo R$ 0) e cota inteira entre 1 e 999.');
       return;
     }
+    const modeRevision = this.security.executionModeRevision();
     this.savingPlanId.set(plan.id);
     this.saveError.set(null);
     try {
       await this.ecosystem.updatePlanPrice(plan.id, price, maxDevices);
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.planDrafts.update((drafts) => {
         const next = { ...drafts };
         delete next[plan.id];
         return next;
       });
     } catch {
-      this.saveError.set(`Não foi possível salvar o plano ${plan.name}. O servidor não confirmou as alterações.`);
+      if (modeRevision === this.security.executionModeRevision()) {
+        this.saveError.set(`Não foi possível salvar o plano ${plan.name}. O servidor não confirmou as alterações.`);
+      }
     } finally {
-      this.savingPlanId.set(null);
+      if (modeRevision === this.security.executionModeRevision()) this.savingPlanId.set(null);
     }
   }
 }

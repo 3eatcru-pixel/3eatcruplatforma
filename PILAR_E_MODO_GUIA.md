@@ -30,4 +30,6 @@ O checkout atual usa Angular 21 com SSR, Express 5, Firebase Authentication, Fir
 - **Placeholder:** o identificador aparece na interface, mas não há janela funcional conectada.
 - **Homologação:** só declarar após registrar a execução dos testes e a validação operacional correspondentes.
 
+Ao alternar de uma sessão autenticada para simulação, a interface usa um perfil e um tenant de demonstração (`tenant-1`, presente em `MOCK_TENANTS`; `hq` para `hq_admin`), sem reaproveitar o ID nem o nome da empresa real. O modo simulado mantém alterações apenas em memória e não deve enviar mutações para APIs reais. Ao voltar ao modo real, a sessão depende novamente do Firebase Auth e os serviços devem recarregar os dados do servidor; sem sessão autenticada, o usuário permanece sem contexto real. O catálogo público simulado também deve usar fixtures locais, nunca buscar o catálogo de um tenant real.
+
 Build, testes e homologação precisam ser reportados com data e resultado da execução. Verifique o estado por módulo em [MODULE_STATUS.md](./MODULE_STATUS.md).

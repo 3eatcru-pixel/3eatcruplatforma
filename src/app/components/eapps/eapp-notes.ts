@@ -21,8 +21,9 @@ import { NotesService } from '../../services/notes.service';
       </header>
 
       @if (canUseNotes() && isSimulation()) {
-        <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: notas reais estão protegidas e esta janela não envia alterações ao servidor.</div>
-      } @else if (canUseNotes()) {
+        <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: notas e alterações ficam somente na memória desta sessão.</div>
+      }
+      @if (canUseNotes()) {
         <form (ngSubmit)="addNote()" class="grid gap-2 sm:grid-cols-[1fr_2fr_auto] bg-[#180b04] border border-[#381c0c] rounded-2xl p-3 shrink-0">
           <input name="title" required maxlength="100" [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" placeholder="Título" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" />
           <textarea name="content" required maxlength="2000" [ngModel]="draftContent()" (ngModelChange)="draftContent.set($event)" placeholder="Anotação operacional" rows="2" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white resize-y"></textarea>
@@ -80,20 +81,22 @@ export class EAppNotesWindow {
       const allowed = this.canUseNotes();
       const simulation = this.isSimulation();
       const generation = ++this.requestGeneration;
-      if (!tenantId || !allowed || simulation) {
+      this.draftTitle.set('');
+      this.draftContent.set('');
+      if (!tenantId || !allowed) {
         this.isLoading.set(false);
         this.loadError.set(null);
         this.notesService.notes.set([]);
         return;
       }
-      this.notesService.notes.set([]);
+      if (!simulation) this.notesService.notes.set([]);
       void this.load(tenantId, generation);
     });
   }
 
   async refresh(): Promise<void> {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    if (!tenantId || !this.canUseNotes() || this.isSimulation()) return;
+    if (!tenantId || !this.canUseNotes()) return;
     await this.load(tenantId, ++this.requestGeneration);
   }
 
@@ -101,7 +104,7 @@ export class EAppNotesWindow {
     const title = this.draftTitle().trim();
     const content = this.draftContent().trim();
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    if (!title || !content || !tenantId || !this.canUseNotes() || this.isSimulation()) return;
+    if (!title || !content || !tenantId || !this.canUseNotes()) return;
     this.isSaving.set(true);
     this.actionError.set(null);
     try {
@@ -116,7 +119,6 @@ export class EAppNotesWindow {
   }
 
   async deleteNote(id: string): Promise<void> {
-    if (this.isSimulation()) return;
     this.deletingId.set(id);
     this.actionError.set(null);
     try {
@@ -131,7 +133,6 @@ export class EAppNotesWindow {
   private async load(tenantId: string, generation: number): Promise<void> {
     this.isLoading.set(true);
     this.loadError.set(null);
-    this.notesService.notes.set([]);
     try {
       await this.notesService.fetchNotes(tenantId);
     } catch {

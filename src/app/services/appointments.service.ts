@@ -17,6 +17,7 @@ export class AppointmentsService {
   readonly isSimulation = computed(() => this.security.isSimulated());
   private lastModeIsSimulation = this.security.isSimulated();
   private lastTenantId = this.security.currentSession()?.tenantId;
+  private lastModeRevision = this.security.executionModeRevision();
   private latestFetchId = 0;
   private modeGeneration = 0;
 
@@ -95,7 +96,10 @@ export class AppointmentsService {
       );
       if (!appointment) throw new Error('Simulated appointment not found');
 
+      const generation = this.modeGeneration;
+      const modeRevision = this.security.executionModeRevision();
       const table = await this.applySimulationTableStatus(appointment, status, tableId);
+      this.assertSimulationContext(generation, activeTenantId, modeRevision);
       const updated: Appointment = {
         ...appointment,
         status,
@@ -127,10 +131,13 @@ export class AppointmentsService {
     appointment: Partial<Appointment>,
     defaults: Pick<Appointment, 'status' | 'channel'>
   ): Promise<Appointment> {
+    const generation = this.modeGeneration;
+    const tenantId = this.security.currentSession()?.tenantId;
+    const modeRevision = this.security.executionModeRevision();
     const candidate: Appointment = {
       ...appointment,
       id: appointment.id || `sim-res-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      tenantId: this.security.currentSession()?.tenantId || appointment.tenantId,
+      tenantId: tenantId || appointment.tenantId,
       customerName: appointment.customerName || 'Cliente simulado',
       date: appointment.date || new Date().toISOString().slice(0, 10),
       time: appointment.time || new Date().toTimeString().slice(0, 5),
@@ -141,6 +148,7 @@ export class AppointmentsService {
       mode: 'simulation'
     };
     const table = await this.applySimulationTableStatus(candidate, defaults.status);
+    this.assertSimulationContext(generation, tenantId, modeRevision);
     const simulated: Appointment = {
       ...candidate,
       ...(table ? { tableNumber: table.number } : {}),
@@ -196,10 +204,12 @@ export class AppointmentsService {
   private syncExecutionMode() {
     const isSimulation = this.isSimulation();
     const tenantId = this.security.currentSession()?.tenantId;
-    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
+    const modeRevision = this.security.executionModeRevision();
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId && modeRevision === this.lastModeRevision) return;
 
     this.lastModeIsSimulation = isSimulation;
     this.lastTenantId = tenantId;
+    this.lastModeRevision = modeRevision;
     this.modeGeneration += 1;
     this.latestFetchId += 1;
     this.appointments.set([]);
@@ -209,6 +219,18 @@ export class AppointmentsService {
     this.syncExecutionMode();
     if (generation !== this.modeGeneration || this.lastModeIsSimulation) {
       throw new Error('Execution mode changed while saving reservation.');
+    }
+  }
+
+  private assertSimulationContext(generation: number, tenantId: string | undefined, modeRevision: number) {
+    this.syncExecutionMode();
+    if (
+      !this.lastModeIsSimulation ||
+      generation !== this.modeGeneration ||
+      tenantId !== this.security.currentSession()?.tenantId ||
+      modeRevision !== this.security.executionModeRevision()
+    ) {
+      throw new Error('Execution context changed while saving simulated reservation.');
     }
   }
 }

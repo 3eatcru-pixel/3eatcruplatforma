@@ -242,6 +242,28 @@ export class IndexedDbPersistenceService {
     });
   }
 
+  async moveDeadLetterToQueue(item: QueuedAction, queue: QueuedAction[], remainingDeadLetters: QueuedAction[]): Promise<void> {
+    const db = await this.getDb();
+    if (!db) {
+      this.fallbackSave('3eatcru_offline_queue', queue);
+      this.fallbackSave('3eatcru_offline_dlq', remainingDeadLetters);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORES.OUTBOX, STORES.DLQ], 'readwrite');
+        tx.objectStore(STORES.OUTBOX).put(item);
+        tx.objectStore(STORES.DLQ).delete(item.id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('Unable to move dead letter to the outbox.'));
+        tx.onabort = () => reject(tx.error || new Error('Dead-letter retry transaction was aborted.'));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   async putCache(key: string, data: unknown): Promise<void> {
     const db = await this.getDb();
     const entry = { key, data, updatedAt: new Date().toISOString() };

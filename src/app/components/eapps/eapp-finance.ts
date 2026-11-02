@@ -27,15 +27,15 @@ import { EcosystemService } from '../../services/ecosystem.service';
         <!-- STATS RESUMO -->
         <div class="flex items-center gap-2 text-xs">
           <div class="px-3 py-1 bg-emerald-950/80 border border-emerald-700/60 rounded-xl">
-            <span class="text-[9px] text-emerald-400 block uppercase">Entradas liquidadas</span>
+            <span class="text-[9px] text-emerald-400 block uppercase">{{ financialsService.isSimulation() ? 'Entradas demonstrativas' : 'Entradas liquidadas' }}</span>
             <strong class="text-white font-black">R$ {{ totalIncome().toFixed(2) }}</strong>
           </div>
           <div class="px-3 py-1 bg-rose-950/80 border border-rose-700/60 rounded-xl">
-            <span class="text-[9px] text-rose-400 block uppercase">Saídas liquidadas</span>
+            <span class="text-[9px] text-rose-400 block uppercase">{{ financialsService.isSimulation() ? 'Saídas demonstrativas' : 'Saídas liquidadas' }}</span>
             <strong class="text-white font-black">R$ {{ totalExpense().toFixed(2) }}</strong>
           </div>
           <div class="px-3 py-1 bg-[#261207] border border-[#482814] rounded-xl">
-            <span class="text-[9px] text-amber-400 block uppercase">Saldo liquidado</span>
+            <span class="text-[9px] text-amber-400 block uppercase">{{ financialsService.isSimulation() ? 'Saldo demonstrativo' : 'Saldo liquidado' }}</span>
             <strong [class]="netBalance() >= 0 ? 'text-emerald-400' : 'text-rose-400'" class="font-black">
               R$ {{ netBalance().toFixed(2) }}
             </strong>
@@ -100,9 +100,13 @@ import { EcosystemService } from '../../services/ecosystem.service';
                     {{ rec.paymentMethod || 'Caixa' }}
                   </td>
                   <td class="p-3 text-[10px]">
-                    <span [class]="rec.status === 'pending' ? 'text-amber-300' : 'text-emerald-300'">
-                      {{ rec.status === 'pending' ? 'Pendente' : 'Liquidado' }}
-                    </span>
+                    @if (rec.isSimulated || rec.mode === 'simulation') {
+                      <span class="text-amber-300">Simulação • fora do saldo real</span>
+                    } @else {
+                      <span [class]="rec.status === 'pending' ? 'text-amber-300' : 'text-emerald-300'">
+                        {{ rec.status === 'pending' ? 'Pendente' : 'Liquidado' }}
+                      </span>
+                    }
                   </td>
                   <td class="p-3 text-right font-black">
                     <span [class]="rec.type === 'expense' ? 'text-rose-400' : 'text-emerald-400'">
@@ -137,9 +141,13 @@ export class EAppFinanceWindow {
     return role === 'tenant_owner' || role === 'operator';
   });
 
-  private readonly settledRecords = computed(() =>
-    this.records().filter((record) => record.status !== 'pending')
-  );
+  private readonly settledRecords = computed(() => {
+    const showDemoTotals = this.financialsService.isSimulation();
+    return this.records().filter((record) =>
+      record.status !== 'pending'
+      && (showDemoTotals || (!record.isSimulated && record.mode !== 'simulation'))
+    );
+  });
 
   readonly totalIncome = computed(() =>
     this.settledRecords()

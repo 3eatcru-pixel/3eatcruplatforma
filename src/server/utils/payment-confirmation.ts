@@ -1,9 +1,12 @@
 import { OrderTransaction, PaymentTransactionRecord } from '../../shared/models/ecosystem.model';
 
-type ConfirmablePayment = Pick<PaymentTransactionRecord, 'id' | 'tenantId' | 'orderId' | 'amount' | 'status'>;
+type ConfirmablePayment = Pick<
+  PaymentTransactionRecord,
+  'id' | 'tenantId' | 'orderId' | 'amount' | 'status'
+>;
 type ConfirmableOrder = Pick<
   OrderTransaction,
-  'tenantId' | 'total' | 'status' | 'paymentStatus' | 'paymentTransactionId'
+  'tenantId' | 'total' | 'status' | 'paymentStatus' | 'paymentTransactionId' | 'mode' | 'isSimulated'
 >;
 
 export interface PaymentConfirmationRejection {
@@ -16,6 +19,13 @@ export function getPaymentConfirmationRejection(
   payment: ConfirmablePayment,
   order: ConfirmableOrder | undefined
 ): PaymentConfirmationRejection | undefined {
+  if (order?.isSimulated || order?.mode === 'simulation') {
+    return {
+      status: 409,
+      code: 'SIMULATED_PAYMENT_CANNOT_BE_CONFIRMED',
+      error: 'Pagamentos e pedidos de demonstração não podem ser liquidados.'
+    };
+  }
   if (payment.status !== 'pending_pix') {
     return { status: 409, code: 'PAYMENT_NOT_PENDING', error: 'A transação não está pendente de confirmação.' };
   }

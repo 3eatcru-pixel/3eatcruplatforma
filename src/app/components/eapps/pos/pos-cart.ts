@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, model, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CartItem, CustomerProfile } from '../../../models/ecosystem.model';
+import { CartItem, CustomerProfile, ExternalTerminalMethod } from '../../../models/ecosystem.model';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +26,17 @@ import { CartItem, CustomerProfile } from '../../../models/ecosystem.model';
       <div class="mt-2 grid grid-cols-2 gap-2"><button type="button" (click)="openDiscount.emit()" class="rounded-lg border border-[#482814] py-2 text-[10px] font-bold">Desconto</button><button type="button" (click)="clearCart.emit()" class="rounded-lg border border-rose-900 py-2 text-[10px] font-bold text-rose-300">Limpar</button></div>
       @if (!isOnline()) { <p class="mt-2 rounded-lg border border-amber-800 bg-amber-950/50 p-2 text-[10px] text-amber-200">Sem conexão: Cartão e PIX indisponíveis. Dinheiro será registrado em contingência até sincronizar.</p> }
       <div class="mt-2 grid grid-cols-3 gap-2"><button type="button" (click)="checkout.emit('cash')" [disabled]="!cart().length" class="rounded-lg bg-emerald-700 py-2 text-[10px] font-black disabled:opacity-40">Dinheiro</button><button type="button" (click)="checkout.emit('card')" [disabled]="!cart().length || !isOnline()" class="rounded-lg bg-indigo-700 py-2 text-[10px] font-black disabled:opacity-40">Cartão</button><button type="button" (click)="checkout.emit('pix')" [disabled]="!cart().length || !isOnline()" class="rounded-lg bg-cyan-700 py-2 text-[10px] font-black disabled:opacity-40">PIX</button></div>
+      @if (canUseExternalTerminal()) {
+        <details class="mt-2 rounded-xl border border-[#68421d] bg-[#1c1209] p-2">
+          <summary class="cursor-pointer text-[10px] font-black text-amber-300">Recebimento manual • maquininha da loja</summary>
+          <p class="mt-2 text-[10px] leading-relaxed text-stone-400">Use quando o pagamento ocorrer fora do sistema. Confirme somente após a aprovação no equipamento.</p>
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            @if (externalTerminalMethods().includes('pix')) { <button type="button" (click)="checkout.emit('external-pix')" [disabled]="!cart().length" class="rounded-lg border border-cyan-800 bg-cyan-950/70 py-2 text-[9px] font-bold text-cyan-200 disabled:opacity-40">PIX externo</button> }
+            @if (externalTerminalMethods().includes('credit_card')) { <button type="button" (click)="checkout.emit('external-credit')" [disabled]="!cart().length" class="rounded-lg border border-indigo-800 bg-indigo-950/70 py-2 text-[9px] font-bold text-indigo-200 disabled:opacity-40">Crédito</button> }
+            @if (externalTerminalMethods().includes('debit_card')) { <button type="button" (click)="checkout.emit('external-debit')" [disabled]="!cart().length" class="rounded-lg border border-violet-800 bg-violet-950/70 py-2 text-[9px] font-bold text-violet-200 disabled:opacity-40">Débito</button> }
+          </div>
+        </details>
+      }
     </section>
   `
 })
@@ -42,6 +53,8 @@ export class PosCartComponent {
   readonly cartTax = input(0);
   readonly cartTotal = input(0);
   readonly isOnline = input(true);
+  readonly canUseExternalTerminal = input(false);
+  readonly externalTerminalMethods = input<ExternalTerminalMethod[]>([]);
   readonly holdSale = output<void>();
   readonly clearCart = output<void>();
   readonly removeCustomer = output<void>();
@@ -51,5 +64,5 @@ export class PosCartComponent {
   readonly decrementQty = output<CartItem>();
   readonly updateItemNotes = output<{ item: CartItem; notes: string }>();
   readonly openDiscount = output<void>();
-  readonly checkout = output<'cash' | 'card' | 'pix'>();
+  readonly checkout = output<'cash' | 'card' | 'pix' | 'external-pix' | 'external-credit' | 'external-debit'>();
 }

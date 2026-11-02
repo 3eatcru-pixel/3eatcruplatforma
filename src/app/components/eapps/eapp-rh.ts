@@ -27,8 +27,8 @@ function localHireDateValue(): string {
         <div class="flex-1 flex items-center justify-center p-8 text-center text-amber-300">O RH está restrito ao proprietário ou operador da unidade.</div>
       } @else {
         @if (isSimulation()) {
-          <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: dados de RH reais estão protegidos e esta janela não envia alterações ao servidor.</div>
-        } @else {
+          <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: equipe e ponto ficam somente na memória desta sessão.</div>
+        }
         <form (ngSubmit)="addEmployee()" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-5 bg-[#180b04] border border-[#381c0c] rounded-2xl p-3 shrink-0">
           <input name="name" required maxlength="100" [ngModel]="draftName()" (ngModelChange)="draftName.set($event)" placeholder="Nome do colaborador" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" />
           <select name="role" [ngModel]="draftRole()" (ngModelChange)="draftRole.set($event)" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white"><option value="atendente">Atendente</option><option value="caixa">Caixa</option><option value="cozinheiro">Cozinheiro</option><option value="garçom">Garçom</option><option value="entregador">Entregador</option><option value="gerente">Gerente</option></select>
@@ -36,7 +36,6 @@ function localHireDateValue(): string {
           <input name="hireDate" type="date" [ngModel]="draftHireDate()" (ngModelChange)="draftHireDate.set($event)" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" />
           <button type="submit" [disabled]="isSaving()" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-stone-950 disabled:opacity-50">{{ isSaving() ? 'Salvando…' : 'Cadastrar' }}</button>
         </form>
-        }
         @if (loadError()) { <div role="alert" class="rounded-xl border border-rose-800 bg-rose-950/30 p-3 text-xs text-rose-200">{{ loadError() }} <button type="button" (click)="refresh()" class="ml-2 underline">Tentar novamente</button></div> }
         @if (actionError()) { <div role="alert" class="text-xs text-rose-300">{{ actionError() }}</div> }
         @if (isLoading()) { <div class="flex-1 flex items-center justify-center text-sm text-stone-400">Carregando equipe…</div> }
@@ -78,11 +77,12 @@ export class EAppRhWindow {
 
   constructor() {
     effect(() => {
+      this.isSimulation();
       const tenantId = this.ecosystem.resolveOperationalTenantId();
       const allowed = this.canManage();
-      const simulation = this.isSimulation();
       const generation = ++this.generation;
-      if (!tenantId || !allowed || simulation) {
+      this.draftName.set('');
+      if (!tenantId || !allowed) {
         this.hrService.employees.set([]);
         this.hrService.clockEvents.set([]);
         this.isLoading.set(false);
@@ -94,7 +94,7 @@ export class EAppRhWindow {
 
   async refresh(): Promise<void> {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    if (!tenantId || !this.canManage() || this.isSimulation()) return;
+    if (!tenantId || !this.canManage()) return;
     await this.load(tenantId, ++this.generation);
   }
 
@@ -106,7 +106,7 @@ export class EAppRhWindow {
   async addEmployee(): Promise<void> {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
     const name = this.draftName().trim();
-    if (!tenantId || !this.canManage() || !name || this.isSimulation()) return;
+    if (!tenantId || !this.canManage() || !name) return;
     this.isSaving.set(true);
     this.actionError.set(null);
     try {
@@ -120,7 +120,6 @@ export class EAppRhWindow {
   }
 
   async toggleClock(employee: Employee): Promise<void> {
-    if (this.isSimulation()) return;
     this.busyEmployeeId.set(employee.id);
     this.actionError.set(null);
     try {
@@ -133,7 +132,6 @@ export class EAppRhWindow {
   }
 
   async deactivate(employee: Employee): Promise<void> {
-    if (this.isSimulation()) return;
     this.busyEmployeeId.set(employee.id);
     this.actionError.set(null);
     try {

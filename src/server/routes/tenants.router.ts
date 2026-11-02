@@ -1,5 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { CompanyTenant, PublicStorefront } from '../../shared/models/ecosystem.model';
+import {
+  CompanyTenant,
+  ExternalPaymentTerminal,
+  ExternalTerminalMethod,
+  PublicStorefront
+} from '../../shared/models/ecosystem.model';
 import {
   isTenantStaffRole,
   requireHqAdmin,
@@ -44,6 +49,54 @@ interface TenantUpdatePayload extends Record<string, unknown> {
   plan?: unknown;
   devicesLimit?: unknown;
   deliveryRadiusKm?: unknown;
+  externalPaymentTerminals?: unknown;
+}
+
+function containsControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0) || 0;
+    return codePoint <= 31 || codePoint === 127;
+  });
+}
+
+function normalizeExternalPaymentTerminals(value: unknown): ExternalPaymentTerminal[] | null {
+  if (!Array.isArray(value) || value.length > 8) return null;
+  const ids = new Set<string>();
+  const allowedMethods = new Set<ExternalTerminalMethod>(['pix', 'credit_card', 'debit_card']);
+  const terminals: ExternalPaymentTerminal[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+    const terminal = entry as Record<string, unknown>;
+    if (Object.keys(terminal).some((key) => !['id', 'name', 'brand', 'enabled', 'methods'].includes(key))) return null;
+    if (typeof terminal['id'] !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(terminal['id'])) return null;
+    const id = terminal['id'];
+    if (ids.has(id)) return null;
+    ids.add(id);
+    if (typeof terminal['name'] !== 'string' || !terminal['name'].trim() || terminal['name'].trim().length > 80) return null;
+    if (containsControlCharacters(terminal['name'])) return null;
+    if (typeof terminal['enabled'] !== 'boolean' || !Array.isArray(terminal['methods']) || terminal['methods'].length > 3) return null;
+    if (terminal['methods'].some((method) => typeof method !== 'string' || !allowedMethods.has(method as ExternalTerminalMethod))) return null;
+    const methods = [...new Set(terminal['methods'] as ExternalTerminalMethod[])];
+    if (terminal['enabled'] && methods.length === 0) return null;
+    if (terminal['brand'] !== undefined && (
+      typeof terminal['brand'] !== 'string' ||
+      terminal['brand'].trim().length > 80 ||
+      containsControlCharacters(terminal['brand'])
+    )) return null;
+
+    terminals.push({
+      id,
+      name: terminal['name'].trim(),
+      ...(typeof terminal['brand'] === 'string' && terminal['brand'].trim()
+        ? { brand: terminal['brand'].trim() }
+        : {}),
+      enabled: terminal['enabled'],
+      methods
+    });
+  }
+
+  return terminals;
 }
 
 /**
@@ -512,14 +565,23 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
       ? req.body as Record<string, unknown>
       : {};
     const isHqAdmin = req.user?.role === 'hq_admin';
+    const isConfiguringExternalTerminals = Object.prototype.hasOwnProperty.call(body, 'externalPaymentTerminals');
+    if (isHqAdmin && isConfiguringExternalTerminals) {
+      res.status(403).json({
+        error: 'A configuração dos terminais externos pertence ao proprietário e aos operadores da loja.',
+        code: 'STORE_PERIPHERALS_STORE_ONLY'
+      });
+      return;
+    }
     const storeProfileFields = [
       'name', 'aboutText', 'deliveryFee', 'storeDeliveryContribution', 'minOrderValue', 'pixKey', 'isOpen',
       'supportsDelivery', 'supportsTakeout', 'openingHours'
     ];
+    const merchantOnlyFields = ['externalPaymentTerminals'];
     const hqGovernanceFields = ['status', 'plan', 'devicesLimit', 'deliveryRadiusKm'];
     const allowedFields = new Set(isHqAdmin
       ? [...storeProfileFields.filter((field) => field !== 'storeDeliveryContribution'), ...hqGovernanceFields]
-      : storeProfileFields);
+      : [...storeProfileFields, ...merchantOnlyFields]);
     const ignoredLegacyFields = new Set(['ownerUid', 'staffUids', 'serviceFeePercent', 'deliveryFleetType']);
     const rejectedFields = Object.keys(body).filter((field) => !allowedFields.has(field) && !ignoredLegacyFields.has(field));
     if (rejectedFields.length > 0) {
@@ -545,6 +607,17 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
     if ('plan' in updates && !validPlans.includes(updates.plan as CompanyTenant['plan'])) {
       res.status(400).json({ error: 'Plano inválido.', code: 'INVALID_TENANT_PLAN' });
       return;
+    }
+    if ('externalPaymentTerminals' in updates) {
+      const terminals = normalizeExternalPaymentTerminals(updates.externalPaymentTerminals);
+      if (!terminals) {
+        res.status(400).json({
+          error: 'Configure até 8 terminais, com nome, métodos válidos e ao menos um método em cada terminal ativo.',
+          code: 'INVALID_EXTERNAL_TERMINAL_CONFIGURATION'
+        });
+        return;
+      }
+      updates.externalPaymentTerminals = terminals;
     }
     if ('status' in updates && !validStatuses.includes(updates.status as CompanyTenant['status'])) {
       res.status(400).json({ error: 'Status de tenant inválido.', code: 'INVALID_TENANT_STATUS' });
@@ -653,6 +726,24 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
         });
       } catch {
         // The tenant update is authoritative even if the audit log is unavailable.
+      }
+    } else if ('externalPaymentTerminals' in updates) {
+      try {
+        const auditId = `aud-periph-${Date.now().toString(36)}`;
+        const terminalCount = Array.isArray(updates.externalPaymentTerminals)
+          ? updates.externalPaymentTerminals.filter((terminal) => (terminal as ExternalPaymentTerminal).enabled).length
+          : 0;
+        await adminDb.collection('audit_logs').doc(auditId).set({
+          id: auditId,
+          timestamp: new Date().toISOString(),
+          user: req.user?.email || 'Store operator',
+          action: 'Configuração de terminais externos',
+          module: 'OS',
+          severity: 'info',
+          details: `A loja [${id}] atualizou os perfis de terminais externos (${terminalCount} ativo(s)).`
+        });
+      } catch {
+        // Terminal configuration is authoritative even if the audit log is unavailable.
       }
     }
     res.json(updatedDoc.data());

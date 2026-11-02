@@ -21,12 +21,12 @@ import { ServiceOrder } from '../../models/ecosystem.model';
       @if (!canManage()) {
         <div class="flex-1 flex items-center justify-center p-8 text-center text-amber-300">Ordens de serviço estão restritas ao proprietário ou operador da unidade.</div>
       } @else {
-        @if (isSimulation()) { <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: O.S. reais estão protegidas; esta janela não envia alterações ao servidor.</div> }
+        @if (isSimulation()) { <div class="shrink-0 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">Modo de simulação: ordens e alterações ficam somente na memória desta sessão.</div> }
         <form (ngSubmit)="createOrder()" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_2fr_auto] bg-[#180b04] border border-[#381c0c] rounded-2xl p-3 shrink-0">
           <input name="customerName" required maxlength="100" [ngModel]="draftCustomer()" (ngModelChange)="draftCustomer.set($event)" placeholder="Cliente" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" />
           <input name="equipment" maxlength="120" [ngModel]="draftEquipment()" (ngModelChange)="draftEquipment.set($event)" placeholder="Equipamento ou veículo (opcional)" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" />
           <input name="description" required maxlength="1000" [ngModel]="draftDescription()" (ngModelChange)="draftDescription.set($event)" placeholder="Defeito relatado ou serviço solicitado" class="rounded-lg bg-[#100803] border border-[#593017] px-3 py-2 text-xs text-white" />
-          <button type="submit" [disabled]="isSimulation() || isSaving()" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-stone-950 disabled:opacity-50">{{ isSaving() ? 'Abrindo…' : 'Abrir O.S.' }}</button>
+          <button type="submit" [disabled]="isSaving()" class="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-stone-950 disabled:opacity-50">{{ isSaving() ? 'Abrindo…' : 'Abrir O.S.' }}</button>
         </form>
         @if (loadError()) { <div role="alert" class="rounded-xl border border-rose-800 bg-rose-950/30 p-3 text-xs text-rose-200">{{ loadError() }} <button type="button" (click)="refresh()" class="ml-2 underline">Tentar novamente</button></div> }
         @if (actionError()) { <div role="alert" class="text-xs text-rose-300">{{ actionError() }}</div> }
@@ -38,7 +38,7 @@ import { ServiceOrder } from '../../models/ecosystem.model';
               <thead class="bg-[#200e05] text-stone-400 border-b border-[#381c0c] sticky top-0"><tr><th class="p-3">O.S.</th><th class="p-3">Cliente / equipamento</th><th class="p-3">Descrição</th><th class="p-3">Status</th><th class="p-3">Ação</th></tr></thead>
               <tbody class="divide-y divide-[#2a1307]">
                 @for (order of orders(); track order.id) {
-                  <tr class="hover:bg-[#200e05]/60"><td class="p-3 font-bold text-amber-400">{{ order.osNumber }}</td><td class="p-3"><div class="font-bold text-white">{{ order.customerName }}</div><div class="text-[10px] text-stone-400">{{ order.equipment || order.vehicleInfo || 'Sem equipamento informado' }}</div></td><td class="max-w-sm p-3 text-stone-300">{{ order.description }}</td><td class="p-3 text-amber-300">{{ statusLabel(order.status) }}</td><td class="p-3"><button type="button" (click)="advance(order)" [disabled]="isSimulation() || !nextStatus(order) || busyOrderId() === order.id" class="rounded-lg border border-amber-800 px-2 py-1 text-amber-300 disabled:opacity-40">{{ nextStatus(order) ? 'Avançar: ' + statusLabel(nextStatus(order)!) : 'Encerrada' }}</button></td></tr>
+                  <tr class="hover:bg-[#200e05]/60"><td class="p-3 font-bold text-amber-400">{{ order.osNumber }}</td><td class="p-3"><div class="font-bold text-white">{{ order.customerName }}</div><div class="text-[10px] text-stone-400">{{ order.equipment || order.vehicleInfo || 'Sem equipamento informado' }}</div></td><td class="max-w-sm p-3 text-stone-300">{{ order.description }}</td><td class="p-3 text-amber-300">{{ statusLabel(order.status) }}</td><td class="p-3"><button type="button" (click)="advance(order)" [disabled]="!nextStatus(order) || busyOrderId() === order.id" class="rounded-lg border border-amber-800 px-2 py-1 text-amber-300 disabled:opacity-40">{{ nextStatus(order) ? 'Avançar: ' + statusLabel(nextStatus(order)!) : 'Encerrada' }}</button></td></tr>
                 }
               </tbody>
             </table>
@@ -66,11 +66,14 @@ export class EAppServicesWindow {
 
   constructor() {
     effect(() => {
+      this.isSimulation();
       const tenantId = this.ecosystem.resolveOperationalTenantId();
       const allowed = this.canManage();
-      const simulation = this.isSimulation();
       const generation = ++this.generation;
-      if (!tenantId || !allowed || simulation) {
+      this.draftCustomer.set('');
+      this.draftEquipment.set('');
+      this.draftDescription.set('');
+      if (!tenantId || !allowed) {
         this.serviceOrders.serviceOrders.set([]);
         this.isLoading.set(false);
         return;
@@ -81,7 +84,7 @@ export class EAppServicesWindow {
 
   async refresh(): Promise<void> {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
-    if (!tenantId || !this.canManage() || this.isSimulation()) return;
+    if (!tenantId || !this.canManage()) return;
     await this.load(tenantId, ++this.generation);
   }
 
@@ -104,7 +107,7 @@ export class EAppServicesWindow {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
     const customerName = this.draftCustomer().trim();
     const description = this.draftDescription().trim();
-    if (!tenantId || !this.canManage() || this.isSimulation() || !customerName || !description) return;
+    if (!tenantId || !this.canManage() || !customerName || !description) return;
     this.isSaving.set(true);
     this.actionError.set(null);
     try {
@@ -120,7 +123,6 @@ export class EAppServicesWindow {
   }
 
   async advance(order: ServiceOrder): Promise<void> {
-    if (this.isSimulation()) return;
     const status = this.nextStatus(order);
     if (!status) return;
     this.busyOrderId.set(order.id);

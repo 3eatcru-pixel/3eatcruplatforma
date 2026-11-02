@@ -284,7 +284,7 @@ export class MerchantAuthComponent implements OnInit {
   });
 
   onSimulateMerchant() {
-    this.ecosystem.loginAs('tenant_owner', 'lojista@3eatcru.com', 'Operador Homologação', 'Loja Modelo 3EAT', 'client');
+    this.ecosystem.loginAs('tenant_owner', 'lojista@3eatcru.com', 'Operador Homologação', 'Burger & Co Gourmet', 'tenant-1');
     this.ecosystem.notify('Sessão de simulação do Lojista ativada com sucesso.', 'info');
     this.router.navigate(['/os']);
   }

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { SecurityService } from '../../services/security.service';
 import type { HqTenantMetricsResponse } from '../../services/hq.service';
 import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
 
@@ -301,6 +302,7 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
 })
 export class HqTenantGovernanceModalComponent {
   readonly ecosystem = inject(EcosystemService);
+  private readonly security = inject(SecurityService);
   private readonly router = inject(Router);
   readonly platformCommissionStatus = computed(() => this.ecosystem.hqOverview()?.platformDeliveryCommissionStatus ?? 'coming_soon');
 
@@ -409,8 +411,13 @@ export class HqTenantGovernanceModalComponent {
     this.isLinkingOwner.set(true);
     this.ownerLinkError.set(null);
     this.ownerLinkSuccess.set(null);
+    const modeRevision = this.security.executionModeRevision();
     try {
       const result = await this.ecosystem.linkTenantOwner(tenantId, email);
+      if (modeRevision !== this.security.executionModeRevision()) {
+        this.ecosystem.notify('O vínculo começou no contexto anterior. Volte ao modo real para confirmar o resultado.', 'warning');
+        return;
+      }
       this.ownerEmail.set(result.ownerEmail);
       this.ownerEmailVerified.set(true);
       this.ownerLinkedUid.set(result.ownerUid);
@@ -438,6 +445,7 @@ export class HqTenantGovernanceModalComponent {
 
     this.isSaving.set(true);
     this.saveError.set(null);
+    const modeRevision = this.security.executionModeRevision();
     try {
       await this.ecosystem.updateTenant(t.id, {
         plan: this.currentPlan(),
@@ -446,6 +454,10 @@ export class HqTenantGovernanceModalComponent {
         status: this.currentStatus(),
         isOpen: this.currentStoreOpen()
       });
+      if (modeRevision !== this.security.executionModeRevision()) {
+        this.ecosystem.notify('A alteração começou no contexto anterior. Volte ao modo real para conferir o estado salvo.', 'warning');
+        return;
+      }
       this.ecosystem.notify(`Governança de "${t.name}" atualizada com sucesso.`, 'success');
       this.dismiss.emit();
     } catch {

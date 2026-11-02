@@ -650,8 +650,14 @@ export class EcosystemService {
   }
 
   async registerConsumer(consumer: Partial<ConsumerAccount>) {
-    await this.crmService.registerConsumer(consumer);
-    this.notify('Perfil de consumidor cadastrado com sucesso!', 'success');
+    const registered = await this.crmService.registerConsumer(consumer);
+    this.notify(
+      this.isSimulationMode()
+        ? 'Perfil de consumidor criado somente nesta demonstração.'
+        : 'Perfil de consumidor cadastrado com sucesso!',
+      this.isSimulationMode() ? 'info' : 'success'
+    );
+    return registered;
   }
 
   loginConsumer(consumer: ConsumerAccount | string) {
@@ -844,22 +850,24 @@ export class EcosystemService {
   }
 
   async toggleStoreOpenStatus(tenantId: string, isOpen: boolean): Promise<boolean> {
+    const modeRevision = this.security.executionModeRevision();
     try {
       await this.tenantsService.updateTenant(tenantId, { isOpen });
+      if (modeRevision !== this.security.executionModeRevision()) {
+        this.notify('A resposta chegou após a troca de contexto. Volte ao modo real para conferir o estado salvo.', 'warning');
+        return false;
+      }
       const storeName = this.tenants().find(t => t.id === tenantId)?.name || 'Estabelecimento';
-      this.notify(`${storeName} agora está ${isOpen ? 'ABERTO AGORA' : 'FECHADO'} para pedidos!`, 'success');
+      this.notify(
+        this.isSimulationMode()
+          ? `${storeName} foi marcado como ${isOpen ? 'aberto' : 'fechado'} somente na simulação.`
+          : `${storeName} agora está ${isOpen ? 'ABERTO AGORA' : 'FECHADO'} para pedidos!`,
+        this.isSimulationMode() ? 'info' : 'success'
+      );
       return true;
     } catch {
-      // Optimistic local update
-      this.tenantsService.tenants.update(cur =>
-        cur.map(t => t.id === tenantId ? { ...t, isOpen } : t)
-      );
-      this.tenantsService.publicStorefronts.update(cur =>
-        cur.map(t => t.id === tenantId ? { ...t, isOpen } : t)
-      );
-      const storeName = this.tenants().find(t => t.id === tenantId)?.name || 'Estabelecimento';
-      this.notify(`${storeName} marcado como ${isOpen ? 'ABERTO AGORA' : 'FECHADO'}.`, 'info');
-      return true;
+      this.notify('Não foi possível atualizar a disponibilidade da loja. O estado salvo não foi alterado.', 'error');
+      return false;
     }
   }
 

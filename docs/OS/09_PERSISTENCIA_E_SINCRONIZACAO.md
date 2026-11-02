@@ -12,6 +12,10 @@
 
 O IndexedDB usa o banco 3eatcru_commercial_os_db e os stores outbox_queue, conflicts, dead_letter e entity_cache. Se IndexedDB não estiver disponível, IndexedDbPersistenceService usa localStorage como fallback. Esse fluxo não mantém um cache offline de produtos usado pelo InventoryService.
 
+## Preferências de caixa e dispositivos externos
+
+`OsPreferencesService` escopa tema e preferências locais pelo identificador de usuário e tenant em `localStorage`. O nome da impressora e a largura de papel (58/80 mm) pertencem ao computador/caixa atual; não comprovam disponibilidade do dispositivo. Perfis de maquininhas externas ficam em `tenants/{tenantId}.externalPaymentTerminals`, persistidos pelo servidor e compartilhados pela loja. O cadastro não guarda token, senha ou credencial do adquirente. Nenhuma dessas preferências é sincronizada pela outbox offline.
+
 ## Comportamento de pagamento offline
 
 - Cartão e PIX são desabilitados e bloqueados no handler enquanto o navegador está offline, pois precisam de autorização conectada.
@@ -24,8 +28,8 @@ O IndexedDB usa o banco 3eatcru_commercial_os_db e os stores outbox_queue, confl
 
 ## Replay e conflitos
 
-OfflineSyncService executa a fila em sequência ao voltar a conexão, persiste conflitos e dead letters e notifica o aplicativo via handlers. O CommerceEngine revalida tenant, produtos, estoque e pagamento no servidor. Reenvios usam chave de idempotência para evitar repetição comercial. Uma rejeição determinística pode ocorrer por diferentes regras comerciais; a faixa do PDV mostra o motivo do primeiro conflito. “Marcar ciência” muda somente o estado local do conflito e não reenvia, corrige ou reativa a operação rejeitada.
+OfflineSyncService só executa replay com Firebase Auth real, papel de equipe permitido e tenant ativo compatível com cada item. Pedidos simulados não são enfileirados; itens de outra unidade ou usuário permanecem pendentes até uma sessão autorizada, e conflito/contagem ficam escopados e ocultos fora do contexto. O replay é tentado ao restaurar a conexão e pode ser acionado por **Sincronizar fila** no PDV. Falhas transitórias após o limite automático ficam na dead letter; o operador autenticado da mesma unidade e UID pode recolocá-las na fila, preservando a chave idempotente original. Conflitos determinísticos não entram nessa recuperação: “Marcar ciência” só altera seu estado local e não reenvia, corrige ou reativa a operação rejeitada. O movimento entre dead letter e fila usa transação IndexedDB quando disponível; o fallback localStorage grava os dois estados sequencialmente. O CommerceEngine revalida tenant, produtos, estoque e pagamento no servidor.
 
 ## Validação
 
-As specs `src/app/core/offline/offline-resilience.spec.ts` e `src/server/commerce_war_tests.spec.ts` foram executadas em `npm run test:ci`; a suíte passou com 100/100 testes e o build passou. Os testes usam mocks; rede, recuperação física e Firestore real ainda não foram homologados.
+Em validação anterior, as specs `src/app/core/offline/offline-resilience.spec.ts` e `src/server/commerce_war_tests.spec.ts` passaram em `npm run test:ci` (100/100 testes). Nesta continuação, lint e build passaram; os testes não foram reexecutados. As specs usam mocks; rede, recuperação física e Firestore real ainda não foram homologados.

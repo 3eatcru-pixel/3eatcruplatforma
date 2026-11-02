@@ -16,6 +16,7 @@ export class FinancialsService {
   readonly records = signal<FinancialRecord[]>([]);
   private lastModeIsSimulation = this.security.isSimulated();
   private lastTenantId = this.security.currentSession()?.tenantId;
+  private lastModeRevision = this.security.executionModeRevision();
   private modeGeneration = 0;
 
   constructor() {
@@ -66,10 +67,12 @@ export class FinancialsService {
   private syncExecutionMode() {
     const isSimulation = this.isSimulation();
     const tenantId = this.security.currentSession()?.tenantId;
-    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
+    const modeRevision = this.security.executionModeRevision();
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId && modeRevision === this.lastModeRevision) return;
 
     this.lastModeIsSimulation = isSimulation;
     this.lastTenantId = tenantId;
+    this.lastModeRevision = modeRevision;
     this.modeGeneration += 1;
     this.records.set([]);
   }

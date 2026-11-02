@@ -25,6 +25,8 @@ export class BillingServiceError extends Error {
   }
 }
 
+const CHECKOUT_CREATION_LEASE_MS = 60_000;
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -151,19 +153,47 @@ export async function createSubscriptionCheckout(tenantId: string, provider: Bil
       }
       throw new BillingServiceError('CHECKOUT_ALREADY_PENDING', 'Já existe uma cobrança pendente para esta loja; resolva ou cancele esse link antes de trocar plano ou provedor.', 409);
     }
-    if (previousStatus === 'pending_payment' || previousStatus === 'checkout_creating') {
+    if (previousStatus === 'checkout_creating') {
       if (!sameSelection) {
         throw new BillingServiceError('CHECKOUT_ALREADY_PENDING', 'Já existe uma cobrança pendente para esta loja; resolva ou cancele esse link antes de trocar plano ou provedor.', 409);
       }
+      const previousUpdatedAt = Date.parse(String(previous?.['updatedAt'] || ''));
+      const creationLeaseExpired = !Number.isFinite(previousUpdatedAt)
+        || Date.now() - previousUpdatedAt >= CHECKOUT_CREATION_LEASE_MS;
+      if (!creationLeaseExpired) {
+        throw new BillingServiceError('CHECKOUT_CREATION_IN_PROGRESS', 'A criação da cobrança ainda está em andamento. Aguarde alguns segundos e tente novamente.', 409);
+      }
     }
 
-    const attemptId = (previousStatus === 'failed' || previousStatus === 'checkout_creating') && sameSelection
+    const retryingSameAttempt = sameSelection && (
+      previousStatus === 'checkout_creating'
+      || (previousStatus === 'failed' && previous?.['providerStatus'] === 'checkout_failed')
+    );
+    const attemptId = retryingSameAttempt
       ? nonEmptyString(previous?.['checkoutAttemptId']) || randomUUID()
       : randomUUID();
+    const priorSubscriptionIds = Array.isArray(previous?.['supersededProviderSubscriptionIds'])
+      ? previous['supersededProviderSubscriptionIds'].filter((id): id is string => typeof id === 'string' && !!id.trim())
+      : [];
+    const priorCheckoutIds = Array.isArray(previous?.['supersededProviderCheckoutIds'])
+      ? previous['supersededProviderCheckoutIds'].filter((id): id is string => typeof id === 'string' && !!id.trim())
+      : [];
+    const supersededProviderSubscriptionIds = !retryingSameAttempt && nonEmptyString(previous?.['providerSubscriptionId'])
+      ? [...priorSubscriptionIds, String(previous?.['providerSubscriptionId'])].slice(-100)
+      : priorSubscriptionIds.slice(-100);
+    const supersededProviderCheckoutIds = !retryingSameAttempt && nonEmptyString(previous?.['providerCheckoutId'])
+      ? [...priorCheckoutIds, String(previous?.['providerCheckoutId'])].slice(-100)
+      : priorCheckoutIds.slice(-100);
     const createdAt = typeof previous?.['createdAt'] === 'string' && previousStatus !== 'cancelled'
       ? previous['createdAt']
       : now;
-    const draft: PlatformSubscriptionRecord & { checkoutAttemptId: string } = {
+    const checkoutLeaseId = randomUUID();
+    const draft: PlatformSubscriptionRecord & {
+      checkoutAttemptId: string;
+      checkoutLeaseId: string;
+      supersededProviderSubscriptionIds: string[];
+      supersededProviderCheckoutIds: string[];
+    } = {
       tenantId,
       tenantName: String(tenant.name || tenant.legalName || tenantId),
       contactEmail: email,
@@ -175,11 +205,14 @@ export async function createSubscriptionCheckout(tenantId: string, provider: Bil
       status: 'checkout_creating',
       providerStatus: 'checkout_creating',
       checkoutAttemptId: attemptId,
+      checkoutLeaseId,
+      supersededProviderSubscriptionIds,
+      supersededProviderCheckoutIds,
       createdAt,
       updatedAt: now
     };
     transaction.set(ref, draft);
-    return { reused: false as const, attemptId, record: safeSubscription(draft as unknown as Record<string, unknown>) };
+    return { reused: false as const, attemptId, checkoutLeaseId, record: safeSubscription(draft as unknown as Record<string, unknown>) };
   });
 
   if (reservation.reused) return { reused: true, subscription: reservation.record };
@@ -196,18 +229,42 @@ export async function createSubscriptionCheckout(tenantId: string, provider: Bil
       idempotencyKey: reservation.attemptId
     });
     const updatedAt = new Date().toISOString();
-    await ref.set({
-      status: 'pending_payment',
-      providerStatus: checkout.providerStatus,
-      providerSubscriptionId: checkout.subscriptionId,
-      providerCheckoutId: checkout.checkoutId,
-      checkoutUrl: checkout.checkoutUrl,
-      updatedAt
-    }, { merge: true });
-    const updated = await ref.get();
-    return { reused: false, subscription: safeSubscription(updated.data() || {}) };
+    const updated = await adminDb.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(ref);
+      const current = currentSnapshot.data() as Record<string, unknown> | undefined;
+      if (
+        !currentSnapshot.exists
+        || current?.['checkoutAttemptId'] !== reservation.attemptId
+        || current?.['checkoutLeaseId'] !== reservation.checkoutLeaseId
+        || current?.['status'] !== 'checkout_creating'
+      ) {
+        return safeSubscription(current || {});
+      }
+      const patch = {
+        status: 'pending_payment',
+        providerStatus: checkout.providerStatus,
+        ...(checkout.subscriptionId ? { providerSubscriptionId: checkout.subscriptionId } : {}),
+        providerCheckoutId: checkout.checkoutId,
+        checkoutUrl: checkout.checkoutUrl,
+        updatedAt
+      };
+      transaction.set(ref, patch, { merge: true });
+      return safeSubscription({ ...current, ...patch });
+    });
+    return { reused: false, subscription: updated };
   } catch (error) {
-    await ref.set({ status: 'failed', providerStatus: 'checkout_failed', updatedAt: new Date().toISOString() }, { merge: true });
+    await adminDb.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(ref);
+      const current = currentSnapshot.data();
+      if (
+        currentSnapshot.exists
+        && current?.['checkoutAttemptId'] === reservation.attemptId
+        && current?.['checkoutLeaseId'] === reservation.checkoutLeaseId
+        && current?.['status'] === 'checkout_creating'
+      ) {
+        transaction.set(ref, { status: 'failed', providerStatus: 'checkout_failed', updatedAt: new Date().toISOString() }, { merge: true });
+      }
+    });
     if (error instanceof BillingServiceError) throw error;
     if (error instanceof Error && error.message.startsWith('BILLING_')) {
       throw new BillingServiceError(error.message.split(':')[0], error.message.includes('NOT_CONFIGURED')
@@ -226,8 +283,23 @@ export async function cancelTenantSubscription(tenantId: string): Promise<Platfo
   if (!snapshot.exists) throw new BillingServiceError('SUBSCRIPTION_NOT_FOUND', 'A loja ainda não possui uma assinatura de plataforma.', 404);
   const record = safeSubscription(snapshot.data() || {});
   if (record.status === 'cancelled') return record;
+  if (record.status === 'checkout_creating') {
+    throw new BillingServiceError('CHECKOUT_CREATION_IN_PROGRESS', 'A cobrança ainda está sendo criada; aguarde a conclusão antes de cancelar.', 409);
+  }
   if (record.status === 'failed') {
-    await ref.set({ status: 'cancelled', providerStatus: 'cancelled', cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true });
+    const cancelled = await adminDb.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(ref);
+      const current = currentSnapshot.data();
+      if (
+        !currentSnapshot.exists
+        || current?.['status'] !== 'failed'
+        || current?.['checkoutAttemptId'] !== snapshot.data()?.['checkoutAttemptId']
+      ) return false;
+      const now = new Date().toISOString();
+      transaction.set(ref, { status: 'cancelled', providerStatus: 'cancelled', cancelledAt: now, updatedAt: now }, { merge: true });
+      return true;
+    });
+    if (!cancelled) throw new BillingServiceError('SUBSCRIPTION_CHANGED', 'A assinatura mudou durante o cancelamento. Atualize o painel e tente novamente.', 409);
   } else {
     let providerStatus: string;
     try {
@@ -235,18 +307,33 @@ export async function cancelTenantSubscription(tenantId: string): Promise<Platfo
     } catch {
       throw new BillingServiceError('PROVIDER_CANCELLATION_FAILED', 'O provedor não confirmou o cancelamento. A assinatura permanece sem alteração.', 502);
     }
-    await ref.set({ status: 'cancelled', providerStatus, cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true });
+    const cancelled = await adminDb.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(ref);
+      const current = currentSnapshot.data();
+      if (
+        !currentSnapshot.exists
+        || !current
+        || current?.['checkoutAttemptId'] !== snapshot.data()?.['checkoutAttemptId']
+        || current?.['providerSubscriptionId'] !== snapshot.data()?.['providerSubscriptionId']
+      ) return false;
+      if (current['status'] === 'cancelled') return true;
+      const now = new Date().toISOString();
+      transaction.set(ref, { status: 'cancelled', providerStatus, cancelledAt: now, updatedAt: now }, { merge: true });
+      return true;
+    });
+    if (!cancelled) throw new BillingServiceError('SUBSCRIPTION_CHANGED', 'A assinatura mudou durante o cancelamento. Atualize o painel e tente novamente.', 409);
   }
   const updated = await ref.get();
   return safeSubscription(updated.data() || {});
 }
 
 async function findTenantByProviderSubscription(provider: BillingProvider, providerSubscriptionId: string): Promise<string | undefined> {
-  const result = await adminDb.collection('platform_subscriptions')
-    .where('providerSubscriptionId', '==', providerSubscriptionId)
-    .limit(1)
-    .get();
-  const record = result.docs[0]?.data();
+  const collection = adminDb.collection('platform_subscriptions');
+  const [currentResult, supersededResult] = await Promise.all([
+    collection.where('providerSubscriptionId', '==', providerSubscriptionId).limit(1).get(),
+    collection.where('supersededProviderSubscriptionIds', 'array-contains', providerSubscriptionId).limit(1).get()
+  ]);
+  const record = currentResult.docs[0]?.data() || supersededResult.docs[0]?.data();
   return record?.['provider'] === provider ? record['tenantId'] as string | undefined : undefined;
 }
 
@@ -254,6 +341,8 @@ async function applyProviderEvent(input: {
   provider: BillingProvider;
   eventKey: string;
   tenantId: string;
+  providerSubscriptionId?: string;
+  providerCheckoutId?: string;
   subscriptionPatch?: Partial<PlatformSubscriptionRecord>;
   invoice?: Omit<PlatformBillingInvoiceRecord, 'id' | 'createdAt' | 'updatedAt'>;
 }): Promise<void> {
@@ -275,13 +364,26 @@ async function applyProviderEvent(input: {
       transaction.create(markerRef, { provider: input.provider, tenantId: input.tenantId, processedAt: now, ignored: true });
       return;
     }
-    const currentStatus = current.data()?.['status'];
-    const patch = { ...(input.subscriptionPatch || {}) };
-    if (currentStatus === 'cancelled' && (patch.status === 'active' || patch.status === 'past_due')) {
-      delete patch.status;
+    const currentData = current.data() || {};
+    const currentStatus = currentData['status'];
+    const supersededSubscriptionIds = Array.isArray(currentData['supersededProviderSubscriptionIds'])
+      ? currentData['supersededProviderSubscriptionIds'] as unknown[]
+      : [];
+    const supersededCheckoutIds = Array.isArray(currentData['supersededProviderCheckoutIds'])
+      ? currentData['supersededProviderCheckoutIds'] as unknown[]
+      : [];
+    const isSupersededEvent = Boolean(
+      (input.providerSubscriptionId && supersededSubscriptionIds.includes(input.providerSubscriptionId))
+      || (input.providerCheckoutId && supersededCheckoutIds.includes(input.providerCheckoutId))
+    );
+    const patch = currentData['provider'] === input.provider && !isSupersededEvent
+      ? { ...(input.subscriptionPatch || {}) }
+      : {};
+    if (currentStatus === 'cancelled' && patch.status !== 'cancelled') {
+      for (const key of Object.keys(patch)) delete patch[key as keyof typeof patch];
     }
     transaction.create(markerRef, { provider: input.provider, tenantId: input.tenantId, processedAt: now });
-    transaction.set(subscriptionRef, { ...patch, updatedAt: now }, { merge: true });
+    if (Object.keys(patch).length) transaction.set(subscriptionRef, { ...patch, updatedAt: now }, { merge: true });
     if (input.invoice && invoiceRef) {
       const invoice: PlatformBillingInvoiceRecord = {
         ...input.invoice,
@@ -398,7 +500,15 @@ export async function processStripeBillingEvent(event: Record<string, unknown>):
   }
 
   if (!Object.keys(subscriptionPatch).length && !invoice) return;
-  await applyProviderEvent({ provider: 'stripe', eventKey: eventId, tenantId, subscriptionPatch, invoice });
+  await applyProviderEvent({
+    provider: 'stripe',
+    eventKey: eventId,
+    tenantId,
+    providerSubscriptionId: subscriptionId,
+    providerCheckoutId: eventType.startsWith('checkout.session.') ? nonEmptyString(object['id']) : undefined,
+    subscriptionPatch,
+    invoice
+  });
 }
 
 function mercadoPagoSubscriptionStatus(providerStatus: unknown, firstPaidAt?: string): PlatformSubscriptionStatus | undefined {
@@ -430,6 +540,7 @@ export async function processMercadoPagoBillingNotification(input: {
       provider: 'mercadopago',
       eventKey: input.eventKey,
       tenantId,
+      providerSubscriptionId: String(resource['id'] || input.dataId),
       subscriptionPatch: {
         providerSubscriptionId: String(resource['id'] || input.dataId),
         providerStatus,
@@ -475,6 +586,7 @@ export async function processMercadoPagoBillingNotification(input: {
     provider: 'mercadopago',
     eventKey: input.eventKey,
     tenantId,
+    providerSubscriptionId,
     subscriptionPatch: status === 'paid'
       ? { status: 'active', providerStatus: 'authorized', firstPaidAt: paidAt || new Date().toISOString() }
       : status === 'failed' || status === 'refunded'

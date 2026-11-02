@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, computed, signal, effect } 
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { SecurityService } from '../../services/security.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -88,6 +89,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
 })
 export class HqSystemConfigComponent {
   readonly ecosystem = inject(EcosystemService);
+  private readonly security = inject(SecurityService);
   readonly canEditSettings = computed(() => this.ecosystem.isSimulationMode() || this.ecosystem.hqOverview() !== null);
   readonly platformCommissionStatus = computed(() => this.ecosystem.hqOverview()?.platformDeliveryCommissionStatus ?? 'coming_soon');
   readonly savingCommissionStatus = signal(false);
@@ -98,8 +100,12 @@ export class HqSystemConfigComponent {
 
   constructor() {
     effect(() => {
+      this.security.executionModeRevision();
       const savedMessage = this.ecosystem.globalBroadcastMessage() ?? '';
-      if (!this.broadcastDirty()) this.broadcastDraft.set(savedMessage);
+      this.broadcastDraft.set(savedMessage);
+      this.broadcastDirty.set(false);
+      this.savingBroadcast.set(false);
+      this.savingCommissionStatus.set(false);
     });
   }
 
@@ -110,9 +116,11 @@ export class HqSystemConfigComponent {
 
   async keepCommissionComingSoon() {
     if (!this.canEditSettings() || this.savingCommissionStatus()) return;
+    const modeRevision = this.security.executionModeRevision();
     this.savingCommissionStatus.set(true);
     try {
       await this.ecosystem.keepPlatformCommissionComingSoon();
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.ecosystem.notify(
         this.ecosystem.isSimulationMode()
           ? 'Em breve confirmado localmente; a simulação não grava no servidor.'
@@ -120,19 +128,23 @@ export class HqSystemConfigComponent {
         'success'
       );
     } catch {
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.ecosystem.notify('Não foi possível salvar o status Em breve. A configuração anterior continua ativa.', 'error');
     } finally {
-      this.savingCommissionStatus.set(false);
+      if (modeRevision === this.security.executionModeRevision()) this.savingCommissionStatus.set(false);
     }
   }
 
   async toggleMaintenanceMode() {
     if (!this.canEditSettings()) return;
     const next = !this.ecosystem.maintenanceMode();
+    const modeRevision = this.security.executionModeRevision();
     try {
       await this.ecosystem.setMaintenance(next);
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.ecosystem.notify(`Bloqueio do shell do Store OS ${next ? 'ativado' : 'desativado'}.`, 'success');
     } catch {
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.ecosystem.notify('Falha ao atualizar a flag de manutenção. O estado anterior continua ativo.', 'error');
     }
   }
@@ -144,30 +156,36 @@ export class HqSystemConfigComponent {
       this.ecosystem.notify('Digite um aviso antes de publicar.', 'warning');
       return;
     }
+    const modeRevision = this.security.executionModeRevision();
     this.savingBroadcast.set(true);
     try {
       await this.ecosystem.setBroadcast(message);
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.broadcastDirty.set(false);
       this.ecosystem.notify('Aviso publicado para o Store OS após a próxima sincronização.', 'success');
     } catch {
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.ecosystem.notify('Falha ao publicar o aviso. O texto foi mantido para nova tentativa.', 'error');
     } finally {
-      this.savingBroadcast.set(false);
+      if (modeRevision === this.security.executionModeRevision()) this.savingBroadcast.set(false);
     }
   }
 
   async clearBroadcast() {
     if (!this.canEditSettings() || this.savingBroadcast() || !this.ecosystem.globalBroadcastMessage()) return;
+    const modeRevision = this.security.executionModeRevision();
     this.savingBroadcast.set(true);
     try {
       await this.ecosystem.setBroadcast('');
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.broadcastDraft.set('');
       this.broadcastDirty.set(false);
       this.ecosystem.notify('Aviso global removido.', 'success');
     } catch {
+      if (modeRevision !== this.security.executionModeRevision()) return;
       this.ecosystem.notify('Falha ao remover o aviso. O aviso publicado continua ativo.', 'error');
     } finally {
-      this.savingBroadcast.set(false);
+      if (modeRevision === this.security.executionModeRevision()) this.savingBroadcast.set(false);
     }
   }
 }

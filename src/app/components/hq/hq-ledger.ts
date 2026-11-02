@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
 import { HqApiService, HqLedgerResponse } from '../../services/hq-api.service';
+import { SecurityService } from '../../services/security.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,43 +84,58 @@ import { HqApiService, HqLedgerResponse } from '../../services/hq-api.service';
     </div>
   `
 })
-export class HqLedgerComponent implements OnInit {
+export class HqLedgerComponent {
   readonly ecosystem = inject(EcosystemService);
   private readonly hqApi = inject(HqApiService);
+  private readonly security = inject(SecurityService);
 
   readonly ledger = signal<HqLedgerResponse | null>(null);
   readonly isLoading = signal(false);
   readonly loadError = signal('');
   readonly entries = computed(() => this.ledger()?.entries || []);
   readonly grossVolume = computed(() => this.entries().reduce((sum, entry) => sum + entry.orderTotal, 0));
+  private ledgerGeneration = 0;
 
-  ngOnInit() {
-    void this.loadLedger();
+  constructor() {
+    effect(() => {
+      const isSimulation = this.ecosystem.isSimulationMode();
+      const modeRevision = this.security.executionModeRevision();
+      this.ledgerGeneration += 1;
+      this.ledger.set(null);
+      this.loadError.set('');
+      this.isLoading.set(false);
+      if (isSimulation) {
+        this.setSimulatedLedger();
+        return;
+      }
+      queueMicrotask(() => {
+        if (!this.ecosystem.isSimulationMode() && modeRevision === this.security.executionModeRevision()) {
+          void this.loadLedger();
+        }
+      });
+    });
   }
 
   async loadLedger() {
     if (this.ecosystem.isSimulationMode()) {
-      this.ledger.set({
-        commissionStatus: 'coming_soon',
-        totalEligibleDeliveryVolume: null,
-        totalEstimatedCommission: null,
-        currentCommissionRatePercent: null,
-        recordsCount: 0,
-        entries: []
-      });
-      this.loadError.set('');
+      this.setSimulatedLedger();
       return;
     }
 
+    const generation = ++this.ledgerGeneration;
+    const modeRevision = this.security.executionModeRevision();
     this.isLoading.set(true);
     this.loadError.set('');
     try {
-      this.ledger.set(await this.hqApi.getLedger());
+      const result = await this.hqApi.getLedger();
+      if (!this.isCurrentRealContext(generation, modeRevision)) return;
+      this.ledger.set(result);
     } catch {
+      if (!this.isCurrentRealContext(generation, modeRevision)) return;
       this.ledger.set(null);
       this.loadError.set('Não foi possível carregar os dados financeiros do servidor.');
     } finally {
-      this.isLoading.set(false);
+      if (this.isCurrentRealContext(generation, modeRevision)) this.isLoading.set(false);
     }
   }
 
@@ -152,5 +168,22 @@ export class HqLedgerComponent implements OnInit {
     link.download = `hq-ledger-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  private setSimulatedLedger(): void {
+    this.ledger.set({
+      commissionStatus: 'coming_soon',
+      totalEligibleDeliveryVolume: null,
+      totalEstimatedCommission: null,
+      currentCommissionRatePercent: null,
+      recordsCount: 0,
+      entries: []
+    });
+  }
+
+  private isCurrentRealContext(generation: number, modeRevision: number): boolean {
+    return !this.ecosystem.isSimulationMode() &&
+      modeRevision === this.security.executionModeRevision() &&
+      generation === this.ledgerGeneration;
   }
 }

@@ -450,8 +450,8 @@ export class PillarHudComponent {
     await this.changeExecutionMode(
       targetMode,
       session?.role ?? 'tenant_owner',
-      session?.tenantId ?? (session?.role === 'hq_admin' ? 'hq' : 'tenant-sp-001'),
-      session?.tenantName ?? (session?.role === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co. Jardins')
+      targetMode === 'real' ? session?.tenantId : undefined,
+      targetMode === 'real' ? session?.tenantName : undefined
     );
   }
 
@@ -461,8 +461,8 @@ export class PillarHudComponent {
     await this.changeExecutionMode(
       mode,
       session?.role ?? 'tenant_owner',
-      session?.tenantId ?? (session?.role === 'hq_admin' ? 'hq' : 'tenant-sp-001'),
-      session?.tenantName ?? (session?.role === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co. Jardins')
+      mode === 'real' ? session?.tenantId : undefined,
+      mode === 'real' ? session?.tenantName : undefined
     );
   }
 
@@ -493,13 +493,20 @@ export class PillarHudComponent {
   private async changeExecutionMode(
     mode: SystemExecutionMode,
     role: AppRole,
-    tenantId: string,
-    tenantName: string
+    tenantId?: string,
+    tenantName?: string
   ) {
     if (this.isChangingExecutionMode()) return;
     this.isChangingExecutionMode.set(true);
     try {
-      const transition = this.security.setExecutionModeAndWait(mode, role, tenantId, tenantName);
+      const simulationTenantId = role === 'hq_admin' ? 'hq' : 'tenant-1';
+      const simulationTenantName = role === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co Gourmet';
+      const transition = this.security.setExecutionModeAndWait(
+        mode,
+        role,
+        mode === 'simulation' ? simulationTenantId : tenantId,
+        mode === 'simulation' ? simulationTenantName : tenantName
+      );
       this.ecosystem.resetForExecutionMode(mode === 'simulation');
       const session = await transition;
 

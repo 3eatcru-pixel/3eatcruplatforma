@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
 import { HqApiService } from '../../services/hq-api.service';
+import { SecurityService } from '../../services/security.service';
 import type { BillingProvider, HqBillingDashboard, PlatformBillingInvoiceRecord, PlatformSubscriptionRecord } from '../../../shared/models/billing.model';
 import type { CompanyTenant } from '../../models/ecosystem.model';
 
@@ -154,9 +155,10 @@ import type { CompanyTenant } from '../../models/ecosystem.model';
     </section>
   `
 })
-export class HqBillingComponent implements OnInit {
+export class HqBillingComponent {
   readonly ecosystem = inject(EcosystemService);
   private readonly hqApi = inject(HqApiService);
+  private readonly security = inject(SecurityService);
   readonly dashboard = signal<HqBillingDashboard | null>(null);
   readonly isLoading = signal(false);
   readonly loadError = signal('');
@@ -164,28 +166,50 @@ export class HqBillingComponent implements OnInit {
   readonly selectedProvider = signal<BillingProvider>('mercadopago');
   readonly checkoutUrl = signal('');
   readonly checkoutTenantName = signal('');
+  private dashboardGeneration = 0;
 
-  ngOnInit(): void {
-    void this.loadDashboard();
+  constructor() {
+    effect(() => {
+      const isSimulation = this.ecosystem.isSimulationMode();
+      const modeRevision = this.security.executionModeRevision();
+      this.dashboardGeneration += 1;
+      this.dashboard.set(null);
+      this.checkoutUrl.set('');
+      this.checkoutTenantName.set('');
+      this.loadError.set('');
+      this.isLoading.set(false);
+      this.busyTenantId.set(null);
+
+      if (isSimulation) return;
+      queueMicrotask(() => {
+        if (!this.ecosystem.isSimulationMode() && modeRevision === this.security.executionModeRevision()) {
+          void this.loadDashboard();
+        }
+      });
+    });
   }
 
   async loadDashboard(): Promise<void> {
     if (this.ecosystem.isSimulationMode()) return;
     if (this.isLoading()) return;
+    const generation = ++this.dashboardGeneration;
+    const modeRevision = this.security.executionModeRevision();
     this.isLoading.set(true);
     this.loadError.set('');
     try {
       const result = await this.hqApi.getBillingDashboard();
+      if (!this.isCurrentRealContext(generation, modeRevision)) return;
       this.dashboard.set(result);
       if (!result.providers.find((provider) => provider.provider === this.selectedProvider() && provider.configured)) {
         const firstReady = result.providers.find((provider) => provider.configured);
         if (firstReady) this.selectedProvider.set(firstReady.provider);
       }
     } catch {
+      if (!this.isCurrentRealContext(generation, modeRevision)) return;
       this.dashboard.set(null);
       this.loadError.set('Não foi possível carregar o gerenciamento de pagamentos do HQ.');
     } finally {
-      this.isLoading.set(false);
+      if (this.isCurrentRealContext(generation, modeRevision)) this.isLoading.set(false);
     }
   }
 
@@ -242,35 +266,50 @@ export class HqBillingComponent implements OnInit {
   }
 
   async createCheckout(tenant: CompanyTenant): Promise<void> {
+    if (this.ecosystem.isSimulationMode()) {
+      this.ecosystem.notify('Checkout de assinatura indisponível no modo de simulação.', 'warning');
+      return;
+    }
     if (this.busyTenantId()) return;
+    const modeRevision = this.security.executionModeRevision();
     this.busyTenantId.set(tenant.id);
     this.loadError.set('');
     this.checkoutUrl.set('');
     try {
       const result = await this.hqApi.createSubscriptionCheckout(tenant.id, this.selectedProvider());
+      if (!this.isCurrentRealContext(this.dashboardGeneration, modeRevision)) return;
       this.checkoutUrl.set(result.subscription.checkoutUrl || '');
       this.checkoutTenantName.set(tenant.name);
       await this.loadDashboard();
     } catch {
+      if (!this.isCurrentRealContext(this.dashboardGeneration, modeRevision)) return;
       this.loadError.set('Não foi possível gerar o checkout. Verifique o e-mail da loja, o preço do plano e as credenciais/webhook do provedor.');
     } finally {
-      this.busyTenantId.set(null);
+      if (modeRevision === this.security.executionModeRevision()) this.busyTenantId.set(null);
     }
   }
 
   async cancelSubscription(tenantId: string): Promise<void> {
+    if (this.ecosystem.isSimulationMode()) {
+      this.ecosystem.notify('Cancelamento de assinatura indisponível no modo de simulação.', 'warning');
+      return;
+    }
     if (this.busyTenantId()) return;
     const tenantName = this.ecosystem.tenants().find((tenant) => tenant.id === tenantId)?.name || tenantId;
     if (!window.confirm(`Cancelar a assinatura de ${tenantName} no provedor de pagamento?`)) return;
+    const modeRevision = this.security.executionModeRevision();
+    if (this.ecosystem.isSimulationMode()) return;
     this.busyTenantId.set(tenantId);
     this.loadError.set('');
     try {
       await this.hqApi.cancelSubscription(tenantId);
+      if (!this.isCurrentRealContext(this.dashboardGeneration, modeRevision)) return;
       await this.loadDashboard();
     } catch {
+      if (!this.isCurrentRealContext(this.dashboardGeneration, modeRevision)) return;
       this.loadError.set('O provedor não confirmou o cancelamento; a assinatura continua como estava.');
     } finally {
-      this.busyTenantId.set(null);
+      if (modeRevision === this.security.executionModeRevision()) this.busyTenantId.set(null);
     }
   }
 
@@ -282,5 +321,11 @@ export class HqBillingComponent implements OnInit {
     } catch {
       this.loadError.set('Não foi possível copiar o link. Selecione e copie o endereço exibido.');
     }
+  }
+
+  private isCurrentRealContext(generation: number, modeRevision: number): boolean {
+    return !this.ecosystem.isSimulationMode() &&
+      modeRevision === this.security.executionModeRevision() &&
+      generation === this.dashboardGeneration;
   }
 }

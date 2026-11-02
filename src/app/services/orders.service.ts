@@ -21,6 +21,7 @@ export class OrdersService {
   private ordersSubscription: Unsubscribe | null = null;
   private lastModeIsSimulation = this.security.isSimulated();
   private lastTenantId = this.security.currentSession()?.tenantId;
+  private lastModeRevision = this.security.executionModeRevision();
   private latestFetchId = 0;
   private latestExternalFetchId = 0;
   private modeGeneration = 0;
@@ -178,10 +179,12 @@ export class OrdersService {
   private syncExecutionMode() {
     const isSimulation = this.isSimulation();
     const tenantId = this.security.currentSession()?.tenantId;
-    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
+    const modeRevision = this.security.executionModeRevision();
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId && modeRevision === this.lastModeRevision) return;
 
     this.lastModeIsSimulation = isSimulation;
     this.lastTenantId = tenantId;
+    this.lastModeRevision = modeRevision;
     this.modeGeneration += 1;
     this.latestFetchId += 1;
     this.latestExternalFetchId += 1;

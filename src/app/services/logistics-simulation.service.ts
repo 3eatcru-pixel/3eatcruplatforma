@@ -14,7 +14,7 @@ export class LogisticsSimulationService {
     this.deliveryRoutes.set([]);
   }
 
-  seedForTenant(tenantId = this.security.currentSession()?.tenantId || 'tenant-sp-001') {
+  seedForTenant(tenantId = this.security.currentSession()?.tenantId || 'tenant-1') {
     if (!this.drivers().some((driver) => driver.id === 'drv-3')) {
       this.drivers.update((drivers) => [...drivers, {
         id: 'drv-3',

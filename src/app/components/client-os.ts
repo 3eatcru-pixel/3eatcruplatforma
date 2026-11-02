@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
@@ -336,6 +336,12 @@ export class ClientOsComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   readonly prefsService = inject(OsPreferencesService);
   readonly winManager = inject(EAppWindowManagerService);
+  private readonly prefsScopeEffect = effect(() => {
+    const session = this.security.currentSession();
+    const tenantId = this.ecosystem.currentTenantId();
+    const tenant = this.ecosystem.tenants().find((candidate) => candidate.id === tenantId);
+    untracked(() => this.prefsService.setScope(session?.id || session?.email, tenantId || undefined, tenant?.category));
+  });
 
   readonly bootstrapped = signal<boolean>(false);
   readonly currentTime = signal<string>('');

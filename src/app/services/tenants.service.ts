@@ -12,6 +12,8 @@ import { roundCurrencyAmount } from '../../shared/utils/money.util';
 export class TenantsService {
   private readonly http = inject(HttpClient);
   private readonly security = inject(SecurityService);
+  private contextGeneration = 0;
+  private latestPublicStorefrontFetchId = 0;
 
   readonly isSimulation = computed(() => this.security.isSimulated());
   
@@ -27,6 +29,8 @@ export class TenantsService {
   }
 
   resetForExecutionMode(simulation = this.isSimulation()): void {
+    this.contextGeneration += 1;
+    this.latestPublicStorefrontFetchId += 1;
     this.tenants.set(simulation ? MOCK_TENANTS : []);
     this.publicStorefronts.set(simulation
       ? MOCK_TENANTS.filter(tenant => tenant.status === 'active').map(tenant => this.toDemoStorefront(tenant))
@@ -40,6 +44,7 @@ export class TenantsService {
   });
 
   async fetchPublicStorefronts(): Promise<PublicStorefront[]> {
+    const requestId = ++this.latestPublicStorefrontFetchId;
     if (this.isSimulation()) {
       const storefronts = this.tenants().filter(tenant => tenant.status === 'active').map(tenant => this.toDemoStorefront(tenant));
       this.publicStorefronts.set(storefronts);
@@ -48,10 +53,11 @@ export class TenantsService {
     }
 
     const modeRevision = this.security.executionModeRevision();
+    const generation = this.contextGeneration;
     this.publicStorefrontsStatus.set('loading');
     try {
       const data = await firstValueFrom(this.http.get<PublicStorefront[]>('/api/tenants/public'));
-      if (modeRevision !== this.security.executionModeRevision()) return this.publicStorefronts();
+      if (!this.isCurrentPublicStorefrontRequest(requestId, generation, modeRevision)) return this.publicStorefronts();
       if (Array.isArray(data)) {
         this.publicStorefronts.set(data);
         this.publicStorefrontsStatus.set('loaded');
@@ -59,7 +65,7 @@ export class TenantsService {
       }
       throw new Error('Resposta inválida ao carregar vitrines públicas.');
     } catch {
-      if (modeRevision !== this.security.executionModeRevision()) return this.publicStorefronts();
+      if (!this.isCurrentPublicStorefrontRequest(requestId, generation, modeRevision)) return this.publicStorefronts();
       this.publicStorefronts.set([]);
       this.publicStorefrontsStatus.set('error');
       return [];
@@ -72,10 +78,11 @@ export class TenantsService {
 
   async fetchAllTenants(): Promise<CompanyTenant[]> {
     if (this.isSimulation()) return this.tenants();
+    const generation = this.contextGeneration;
     const modeRevision = this.security.executionModeRevision();
     try {
       const data = await firstValueFrom(this.http.get<CompanyTenant[]>('/api/tenants'));
-      if (modeRevision !== this.security.executionModeRevision()) return this.tenants();
+      if (!this.isCurrentRealContext(generation, modeRevision)) return this.tenants();
       if (Array.isArray(data)) {
         this.tenants.set(data);
         return data;
@@ -83,7 +90,7 @@ export class TenantsService {
       this.tenants.set([]);
       return [];
     } catch {
-      if (modeRevision !== this.security.executionModeRevision()) return this.tenants();
+      if (!this.isCurrentRealContext(generation, modeRevision)) return this.tenants();
       this.tenants.set([]);
       return [];
     }
@@ -95,7 +102,17 @@ export class TenantsService {
       if (found) return found;
       throw new Error('Simulated tenant not found');
     }
-    return firstValueFrom(this.http.get<CompanyTenant | PublicStorefront>(`/api/tenants/${id}`));
+    const generation = this.contextGeneration;
+    const modeRevision = this.security.executionModeRevision();
+    const tenant = await firstValueFrom(this.http.get<CompanyTenant | PublicStorefront>(`/api/tenants/${id}`));
+    if (!this.isCurrentRealContext(generation, modeRevision)) {
+      if (this.isSimulation()) {
+        const demoTenant = this.tenants().find((candidate) => candidate.id === id);
+        if (demoTenant) return demoTenant;
+      }
+      throw new Error('O contexto mudou durante a consulta da loja. Atualize a tela antes de continuar.');
+    }
+    return tenant;
   }
 
   async updateTenant(id: string, updates: TenantUpdate): Promise<CompanyTenant> {
@@ -130,8 +147,9 @@ export class TenantsService {
     }
 
     const modeRevision = this.security.executionModeRevision();
+    const generation = this.contextGeneration;
     const data = await firstValueFrom(this.http.patch<CompanyTenant>(`/api/tenants/${id}`, updates));
-    if (modeRevision !== this.security.executionModeRevision()) return data;
+    if (!this.isCurrentRealContext(generation, modeRevision)) return data;
     this.tenants.update(cur => cur.map(t => {
       if (t.id !== id) return t;
       const next = { ...t, ...data };
@@ -149,12 +167,16 @@ export class TenantsService {
       throw new Error('A vinculação de responsável exige o modo real e uma conta verificada no servidor.');
     }
 
+    const generation = this.contextGeneration;
+    const modeRevision = this.security.executionModeRevision();
     const data = await firstValueFrom(this.http.post<{
       tenantId: string;
       ownerUid: string;
       ownerEmail: string;
       role: 'tenant_owner';
     }>(`/api/tenants/${encodeURIComponent(id)}/owner`, { email }));
+
+    if (!this.isCurrentRealContext(generation, modeRevision)) return data;
 
     this.tenants.update(cur => cur.map(tenant => tenant.id === id
       ? { ...tenant, ownerUid: data.ownerUid, staffUids: [...new Set([...(tenant.staffUids || []), data.ownerUid])] }
@@ -173,12 +195,18 @@ export class TenantsService {
       };
     }
 
-    return firstValueFrom(this.http.get<{
+    const generation = this.contextGeneration;
+    const modeRevision = this.security.executionModeRevision();
+    const owner = await firstValueFrom(this.http.get<{
       tenantId: string;
       ownerUid: string | null;
       ownerEmail: string | null;
       emailVerified: boolean | null;
     }>(`/api/tenants/${encodeURIComponent(id)}/owner`));
+    if (!this.isCurrentRealContext(generation, modeRevision)) {
+      return { tenantId: id, ownerUid: null, ownerEmail: null, emailVerified: null };
+    }
+    return owner;
   }
 
   async createTenant(tenant: Partial<CompanyTenant>): Promise<CompanyTenant> {
@@ -201,9 +229,25 @@ export class TenantsService {
       return simTenant;
     }
 
+    const generation = this.contextGeneration;
+    const modeRevision = this.security.executionModeRevision();
     const data = await firstValueFrom(this.http.post<CompanyTenant>('/api/tenants', tenant));
+    if (!this.isCurrentRealContext(generation, modeRevision)) return data;
     this.tenants.update(cur => [...cur, data]);
     return data;
+  }
+
+  private isCurrentRealContext(generation: number, modeRevision: number): boolean {
+    return !this.isSimulation() &&
+      generation === this.contextGeneration &&
+      modeRevision === this.security.executionModeRevision();
+  }
+
+  private isCurrentPublicStorefrontRequest(requestId: number, generation: number, modeRevision: number): boolean {
+    return requestId === this.latestPublicStorefrontFetchId &&
+      generation === this.contextGeneration &&
+      modeRevision === this.security.executionModeRevision() &&
+      !this.isSimulation();
   }
 
   private toDemoStorefront(tenant: CompanyTenant): PublicStorefront {

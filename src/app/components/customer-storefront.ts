@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal, computed, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EcosystemService } from '../services/ecosystem.service';
-import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appointment, PublicStorefront } from '../models/ecosystem.model';
+import { ProductItem, PublicCatalogProduct, OrderTransaction, CartItem, Appointment, PublicStorefront } from '../models/ecosystem.model';
 import { PaymentTransactionResult } from '../core/engines/payment.engine';
 
 const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
@@ -35,6 +36,12 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
       }
 
       <div class="max-w-7xl mx-auto space-y-6 relative z-10" [class.hidden]="!isStoreReady()">
+
+        @if (ecosystem.isSimulationMode()) {
+          <div role="status" class="rounded-xl border border-amber-500/60 bg-amber-950/80 px-4 py-3 text-xs font-bold text-amber-100 shadow-lg">
+            Demonstração simulada: vitrine, catálogo e pedidos são de exemplo. Nenhum pedido ou pagamento será enviado à loja.
+          </div>
+        }
         
         <!-- TOP NAV: BACK TO REGIONAL & STORE SELECTOR -->
         <div class="bg-[#1d1008] border-2 border-[#4d2813] rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4 text-xs">
@@ -54,7 +61,8 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
               @for (tenant of ecosystem.publicStorefronts(); track tenant.id) {
                 <button
                   type="button"
-                  (click)="ecosystem.currentTenantId.set(tenant.id)"
+                  (click)="selectStorefront(tenant.id)"
+                  [disabled]="isSubmittingOrder()"
                   [class]="ecosystem.currentTenantId() === tenant.id ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-extrabold shadow' : 'bg-[#2b160b] text-stone-300 hover:text-white border border-[#482814]'"
                   class="px-2.5 py-1 rounded-lg transition-all text-xs font-bold shrink-0 cursor-pointer">
                   <span>{{ tenant.name }}</span>
@@ -415,7 +423,7 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                     <button
                       type="button"
                       (click)="orderType.set('dine-in')"
-                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder() || availableStoreTables().length === 0"
                       [class]="orderType() === 'dine-in' ? 'bg-amber-600 text-stone-950 font-black shadow' : 'text-stone-700 hover:text-stone-900 font-bold'"
                       class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer">
                       <mat-icon class="text-xs">table_bar</mat-icon>
@@ -445,10 +453,13 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                       [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
                       (change)="selectedTableNumber.set(+$any($event.target).value)"
                       class="w-full bg-white border border-[#d6c7b0] rounded-lg px-2.5 py-1.5 text-stone-900 font-bold outline-none cursor-pointer">
-                      @for (tbl of ecosystem.tables(); track tbl.id) {
+                      @for (tbl of availableStoreTables(); track tbl.id) {
                         <option [value]="tbl.number">Mesa {{ tbl.number }} ({{ tbl.zone || 'Salão Principal' }})</option>
                       }
                     </select>
+                    @if (availableStoreTables().length === 0) {
+                      <p class="mt-1 text-[10px] text-stone-600">Pedidos no salão só estarão disponíveis quando a loja habilitar uma mesa/QR pública.</p>
+                    }
                     <p class="text-[9px] text-stone-600 leading-snug">
                       Os pratos serão sincronizados com a comanda da mesa, com o <strong>App do Garçom</strong> e enviados à cozinha (KDS).
                     </p>
@@ -490,7 +501,11 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                   }
                   <p class="text-[10px] text-stone-500">Cartão fica em breve, até cada loja conectar sua própria conta de pagamento.</p>
                   @if (paymentTargetOrder(); as retryOrder) {
-                    <p role="status" class="text-[10px] text-amber-900">Pedido {{ retryOrder.orderNumber }} já foi criado. A sacola está travada enquanto o pagamento é repetido com segurança.</p>
+                    @if (retryOrder.tenantId === activeStore().id) {
+                      <p role="status" class="text-[10px] text-amber-900">Pedido {{ retryOrder.orderNumber }} já foi criado. A sacola está travada enquanto o pagamento é repetido com segurança.</p>
+                    } @else {
+                      <p role="status" class="text-[10px] text-amber-900">O pedido {{ retryOrder.orderNumber }} pertence a outra loja. Volte à vitrine dessa loja para continuar o pagamento.</p>
+                    }
                   }
                 </div>
 
@@ -518,11 +533,11 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                 Voltar
               </button>
 
-              @if (customerCart().length > 0) {
+              @if (customerCart().length > 0 || paymentTargetOrder()?.tenantId === activeStore().id) {
                 <button
                   type="button"
                   (click)="placeOnlineOrder()"
-                  [disabled]="!isStoreReady() || activeStore().isOpen !== true || (orderType() === 'delivery' && (activeStore().supportsDelivery !== true || deliveryFeeAmount() === null)) || (orderType() === 'takeout' && activeStore().supportsTakeout === false) || isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
+                  [disabled]="!isStoreReady() || (!paymentTargetOrder() && activeStore().isOpen !== true) || (!paymentTargetOrder() && orderType() === 'delivery' && (activeStore().supportsDelivery !== true || deliveryFeeAmount() === null)) || (!paymentTargetOrder() && orderType() === 'takeout' && activeStore().supportsTakeout === false) || !!paymentTargetOrder() && paymentTargetOrder()!.tenantId !== activeStore().id || isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
                   class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold py-2.5 px-5 rounded-xl shadow-lg border border-amber-400/50 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
                   <mat-icon class="text-sm">{{ isSubmittingOrder() ? 'hourglass_top' : 'check_circle' }}</mat-icon>
                   <span>{{ isSubmittingOrder() ? 'Enviando…' : paymentTargetOrder() ? 'Repetir pagamento' : 'Enviar pedido e pagar' }}</span>
@@ -535,13 +550,14 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
       }
 
       @if (pendingPayment(); as payment) {
+        @if (payment.tenantId === activeStore().id) {
         <div class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <section class="bg-[#faf7f0] border border-[#ded4c2] rounded-3xl max-w-md w-full p-6 text-stone-900 space-y-4 shadow-2xl">
             <header class="flex items-center gap-3 border-b border-[#e8dfce] pb-3">
               <mat-icon class="text-emerald-700">check_circle</mat-icon>
               <div>
                 <h3 class="font-serif font-black text-lg">Pedido {{ payment.orderNumber }} recebido</h3>
-                <p class="text-xs text-stone-600">Pagamento direcionado à loja {{ activeStore().name }}.</p>
+                <p class="text-xs text-stone-600">Pagamento direcionado à loja {{ payment.tenantName }}.</p>
               </div>
             </header>
             @if (payment.method === 'pix' && payment.result.qrCodePix) {
@@ -559,6 +575,7 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
             <button type="button" (click)="pendingPayment.set(null)" class="w-full rounded-xl bg-[#ebdcc7] px-4 py-2.5 text-xs font-bold text-stone-800">Fechar</button>
           </section>
         </div>
+        }
       }
 
       @if (showReservationModal()) {
@@ -685,6 +702,10 @@ export class CustomerStorefrontComponent {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly cartsByStore = new Map<string, CartItem[]>();
+  private activeStorefrontContextId: string | null = null;
+  private storefrontContextRevision = 0;
 
   readonly showReservationModal = signal<boolean>(false);
   readonly submittingReservation = signal<boolean>(false);
@@ -702,15 +723,14 @@ export class CustomerStorefrontComponent {
 
   constructor() {
     if (this.route) {
-      this.route.paramMap.subscribe(params => {
+      this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
         const id = params.get('id');
-        if (id) {
-          this.ecosystem.currentTenantId.set(id);
-          void this.ecosystem.tenantsService.fetchPublicTenants();
-          void this.ecosystem.inventoryService.fetchPublicCatalog(id);
-        }
+        if (id) this.loadStorefrontContext(id);
       });
     }
+
+    const initialStoreId = this.route?.snapshot.paramMap.get('id') || this.ecosystem.currentTenantId();
+    if (initialStoreId) this.loadStorefrontContext(initialStoreId);
 
     const cons = this.ecosystem.activeConsumer();
     if (cons) {
@@ -768,7 +788,13 @@ export class CustomerStorefrontComponent {
   readonly selectedPaymentMethod = signal<'pix' | 'cash'>('cash');
   readonly isSubmittingOrder = signal(false);
   readonly paymentTargetOrder = signal<OrderTransaction | null>(null);
-  readonly pendingPayment = signal<{ result: PaymentTransactionResult; method: 'pix' | 'cash'; orderNumber: string } | null>(null);
+  readonly pendingPayment = signal<{
+    result: PaymentTransactionResult;
+    method: 'pix' | 'cash';
+    orderNumber: string;
+    tenantId: string;
+    tenantName: string;
+  } | null>(null);
   private readonly orderIdempotencyKey = signal<string | null>(null);
 
   activeStore = computed(() => {
@@ -786,6 +812,9 @@ export class CustomerStorefrontComponent {
     return this.ecosystem.inventoryService.publicCatalog()
       .filter(product => product.tenantId === activeId && product.availableOnline);
   });
+  readonly availableStoreTables = computed(() => this.ecosystem.tables().filter(table =>
+    table.tenantId === this.activeStore().id && table.status === 'available'
+  ));
 
   totalCartCount = computed(() => this.customerCart().reduce((sum, i) => sum + i.quantity, 0));
   cartTotal = computed(() => this.customerCart().reduce((sum, i) => sum + i.product.price * i.quantity, 0));
@@ -794,6 +823,45 @@ export class CustomerStorefrontComponent {
     return typeof fee === 'number' && Number.isFinite(fee) && fee >= 0 ? fee : null;
   });
   finalTotal = computed(() => this.cartTotal() + (this.deliveryFeeAmount() ?? 0));
+
+  selectStorefront(tenantId: string): void {
+    if (!tenantId || this.isSubmittingOrder()) return;
+    if (this.route?.snapshot.paramMap.has('id')) {
+      void this.router.navigate(['/p', tenantId]);
+      return;
+    }
+    this.loadStorefrontContext(tenantId);
+  }
+
+  private loadStorefrontContext(tenantId: string): void {
+    if (!tenantId || tenantId === this.activeStorefrontContextId) return;
+
+    const currentCart = this.customerCart();
+    const previousTenantId = this.activeStorefrontContextId;
+    if (previousTenantId) {
+      if (currentCart.every(item => item.product.tenantId === previousTenantId)) {
+        this.cartsByStore.set(previousTenantId, [...currentCart]);
+      }
+    } else if (currentCart.every(item => item.product.tenantId === tenantId)) {
+      this.cartsByStore.set(tenantId, [...currentCart]);
+    }
+
+    this.activeStorefrontContextId = tenantId;
+    this.storefrontContextRevision += 1;
+    this.ecosystem.currentTenantId.set(tenantId);
+    this.customerCart.set([...(this.cartsByStore.get(tenantId) || [])]);
+    this.showCartModal.set(false);
+    this.showReservationModal.set(false);
+
+    if (this.lastPlacedOrder()?.tenantId !== tenantId) this.lastPlacedOrder.set(null);
+    if (this.lastPlacedReservation()?.tenantId !== tenantId) this.lastPlacedReservation.set(null);
+
+    const storefrontStatus = this.ecosystem.tenantsService.publicStorefrontsStatus();
+    if (storefrontStatus !== 'loaded' && storefrontStatus !== 'simulation') {
+      void this.ecosystem.tenantsService.fetchPublicStorefronts();
+    }
+    void this.ecosystem.inventoryService.fetchPublicCatalog(tenantId);
+  }
 
   addressLabel(store: PublicStorefront): string {
     const address = store.address;
@@ -847,30 +915,41 @@ export class CustomerStorefrontComponent {
   async placeOnlineOrder() {
     if (!this.isStoreReady()) return;
     if (this.isSubmittingOrder()) return;
+    const requestStoreId = this.activeStore().id;
+    const existingOrder = this.paymentTargetOrder();
+    if (existingOrder && existingOrder.tenantId !== requestStoreId) {
+      this.ecosystem.notify('Este pedido pertence a outra loja. Volte à vitrine correspondente para continuar o pagamento.', 'warning');
+      return;
+    }
+    const wasSimulation = this.ecosystem.isSimulationMode();
+    const operationRevision = this.ecosystem.security.executionModeRevision();
+    const consumerAtStart = this.ecosystem.activeConsumer();
     this.isSubmittingOrder.set(true);
 
     try {
-      if (!this.activeStore().isOpen) {
+      const store = this.activeStore();
+      if (!existingOrder && !store.isOpen) {
         this.ecosystem.notify('O status desta loja não permite confirmar pedidos online no momento.', 'warning');
         return;
       }
 
-      if (this.orderType() === 'delivery' && this.activeStore().supportsDelivery !== true) {
+      const modality = existingOrder?.type || this.orderType();
+      if (!existingOrder && modality === 'delivery' && store.supportsDelivery !== true) {
         this.ecosystem.notify('A loja não confirmou disponibilidade de entrega.', 'warning');
         return;
       }
 
-      if (this.orderType() === 'takeout' && this.activeStore().supportsTakeout === false) {
+      if (!existingOrder && modality === 'takeout' && store.supportsTakeout === false) {
         this.ecosystem.notify('Esta loja não está aceitando pedidos para retirada no balcão.', 'warning');
         return;
       }
 
-      if (this.orderType() === 'delivery' && this.deliveryFeeAmount() === null) {
+      if (!existingOrder && modality === 'delivery' && this.deliveryFeeAmount() === null) {
         this.ecosystem.notify('A loja ainda não informou a taxa de entrega.', 'warning');
         return;
       }
 
-      if (!this.ecosystem.activeConsumer()) {
+      if (!consumerAtStart) {
         this.ecosystem.notify('Para finalizar seu pedido, por favor faça login ou cadastre-se.', 'warning');
         this.showCartModal.set(false);
         this.router.navigate(['/consumer/login']);
@@ -882,19 +961,39 @@ export class CustomerStorefrontComponent {
         return;
       }
 
-      const paymentMethod = this.selectedPaymentMethod();
-      if (paymentMethod === 'pix' && !this.activeStore().pixAvailable && !this.ecosystem.isSimulationMode()) {
+      if (existingOrder && existingOrder.paymentMethod !== 'cash' && existingOrder.paymentMethod !== 'pix') {
+        this.ecosystem.notify('Este pedido usa uma forma de pagamento indisponível na vitrine.', 'error');
+        return;
+      }
+      const paymentMethod: 'cash' | 'pix' = existingOrder
+        ? existingOrder.paymentMethod as 'cash' | 'pix'
+        : this.selectedPaymentMethod();
+      if (paymentMethod === 'pix' && !store.pixAvailable && !wasSimulation) {
         this.ecosystem.notify('Esta loja ainda não configurou o recebimento PIX. Escolha dinheiro ou avise a loja.', 'warning');
         return;
       }
 
-      const modality = this.orderType();
       const isDineIn = modality === 'dine-in';
       const isDelivery = modality === 'delivery';
-      const subtotal = this.cartTotal();
+      if (!existingOrder && isDineIn && !this.availableStoreTables().some(table => table.number === this.selectedTableNumber())) {
+        this.ecosystem.notify('Nenhuma mesa pública disponível nesta vitrine. Escolha delivery ou retirada.', 'warning');
+        return;
+      }
+      const orderItems = [...this.customerCart()];
+      if (!existingOrder && orderItems.length === 0) {
+        this.ecosystem.notify('Adicione itens da loja à sacola antes de enviar o pedido.', 'warning');
+        return;
+      }
+      if (!existingOrder && orderItems.some(item => item.product.tenantId !== requestStoreId)) {
+        this.ecosystem.customerCart.set([]);
+        this.ecosystem.notify('A sacola continha itens de outra loja e foi limpa. Monte o pedido nesta vitrine.', 'warning');
+        return;
+      }
 
-      if (isDelivery) {
-        const minVal = this.activeStore().minOrderValue || 0;
+      const subtotal = existingOrder?.subtotal ?? orderItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+
+      if (!existingOrder && isDelivery) {
+        const minVal = store.minOrderValue || 0;
         if (minVal > 0 && subtotal < minVal) {
           const diff = minVal - subtotal;
           this.ecosystem.notify(`O pedido mínimo para entrega nesta loja é de R$ ${minVal.toFixed(2)}. Faltam R$ ${diff.toFixed(2)} na sua sacola!`, 'warning');
@@ -902,9 +1001,9 @@ export class CustomerStorefrontComponent {
         }
       }
 
-      const deliveryFee = isDelivery ? (this.deliveryFeeAmount() ?? 0) : 0;
-      const total = subtotal + deliveryFee;
-      let placedOrder = this.paymentTargetOrder();
+      const deliveryFee = existingOrder?.deliveryFee ?? (isDelivery ? (this.deliveryFeeAmount() ?? 0) : 0);
+      const total = existingOrder?.total ?? subtotal + deliveryFee;
+      let placedOrder = existingOrder;
 
       if (!placedOrder) {
         const prefix = isDineIn ? `#M${this.selectedTableNumber()}-` : modality === 'takeout' ? '#RET-' : '#';
@@ -921,7 +1020,8 @@ export class CustomerStorefrontComponent {
           tableNumber: isDineIn ? `Mesa ${this.selectedTableNumber()}` : undefined,
           customerName: this.customerName(),
           customerPhone: this.customerPhone().trim() || undefined,
-          items: [...this.customerCart()],
+          ...(wasSimulation && consumerAtStart?.id ? { customerId: consumerAtStart.id } : {}),
+          items: orderItems,
           subtotal,
           deliveryFee,
           tax: 0,
@@ -934,9 +1034,22 @@ export class CustomerStorefrontComponent {
         };
         placedOrder = await this.ecosystem.addOrder(orderPayload);
         this.paymentTargetOrder.set(placedOrder);
+        if (
+          this.ecosystem.isSimulationMode() !== wasSimulation ||
+          operationRevision !== this.ecosystem.security.executionModeRevision()
+        ) {
+          this.paymentTargetOrder.set(null);
+          this.orderIdempotencyKey.set(null);
+          this.ecosystem.notify('O modo mudou durante o envio. Confira a lista de pedidos antes de tentar novamente.', 'warning');
+          return;
+        }
+        if (this.activeStore().id !== placedOrder.tenantId) {
+          this.ecosystem.notify(`O pedido ${placedOrder.orderNumber} foi criado para ${store.name} e continua pendente. Volte a essa vitrine para continuar; não crie outro pedido.`, 'warning');
+          return;
+        }
       }
 
-      if (this.ecosystem.isSimulationMode()) {
+      if (wasSimulation) {
         this.lastPlacedOrder.set(placedOrder);
         this.ecosystem.notify('Pedido criado somente na simulação. Nenhum pagamento real foi processado.', 'info');
       } else {
@@ -944,10 +1057,26 @@ export class CustomerStorefrontComponent {
           orderId: placedOrder.id,
           amount: placedOrder.total,
           method: paymentMethod,
-          tenantId: this.activeStore().id
+          tenantId: placedOrder.tenantId
         });
+        if (
+          operationRevision !== this.ecosystem.security.executionModeRevision() ||
+          this.ecosystem.isSimulationMode()
+        ) {
+          this.paymentTargetOrder.set(null);
+          this.orderIdempotencyKey.set(null);
+          this.ecosystem.notify('A sessão mudou durante o pagamento. Confira o pedido na loja antes de tentar novamente.', 'warning');
+          return;
+        }
 
-        this.pendingPayment.set({ result: payment, method: paymentMethod, orderNumber: placedOrder.orderNumber });
+        const paymentStoreName = this.ecosystem.publicStorefronts().find(candidate => candidate.id === placedOrder.tenantId)?.name || store.name;
+        this.pendingPayment.set({
+          result: payment,
+          method: paymentMethod,
+          orderNumber: placedOrder.orderNumber,
+          tenantId: placedOrder.tenantId,
+          tenantName: paymentStoreName
+        });
         this.lastPlacedOrder.set({
           ...placedOrder,
           paymentTransactionId: payment.transactionId,
@@ -961,31 +1090,13 @@ export class CustomerStorefrontComponent {
         );
       }
 
-      if (isDineIn) {
-        const tblNum = this.selectedTableNumber();
-        const tbl = this.ecosystem.tables().find((t: TableInfo) => t.number === tblNum);
-        if (tbl) {
-          this.ecosystem.updateTable(tbl.id, {
-            status: 'occupied',
-            currentTotal: (tbl.currentTotal || 0) + placedOrder.total,
-            guests: tbl.guests || 2
-          });
-        }
-      }
-
-      const cons = this.ecosystem.activeConsumer();
-      if (cons) {
-        this.ecosystem.updateConsumerProfile(cons.id, {
-          totalOrders: cons.totalOrders + 1,
-          totalSpent: cons.totalSpent + placedOrder.total,
-          loyaltyPoints: (cons.loyaltyPoints || 50) + Math.max(1, Math.floor(placedOrder.total * 0.1))
-        });
-      }
-
       this.paymentTargetOrder.set(null);
       this.orderIdempotencyKey.set(null);
-      this.ecosystem.customerCart.set([]);
-      this.showCartModal.set(false);
+      this.cartsByStore.delete(placedOrder.tenantId);
+      if (this.ecosystem.currentTenantId() === placedOrder.tenantId) {
+        this.ecosystem.customerCart.set([]);
+        this.showCartModal.set(false);
+      }
     } catch (error: unknown) {
       const apiError = error as { error?: { error?: string; code?: string }; message?: string };
       this.ecosystem.notify(
@@ -1021,12 +1132,15 @@ export class CustomerStorefrontComponent {
 
   async submitPublicReservation() {
     if (!this.isStoreReady() || this.activeStore().supportsReservation !== true) return;
+    if (this.submittingReservation()) return;
     if (this.publicReservationForm.invalid) return;
+    const requestedStore = this.activeStore();
+    const requestContextRevision = this.storefrontContextRevision;
     const raw = this.publicReservationForm.getRawValue();
     this.submittingReservation.set(true);
     try {
       const created = await this.ecosystem.appointmentsService.createPublicReservation({
-        tenantId: this.activeStore().id,
+        tenantId: requestedStore.id,
         customerId: this.ecosystem.activeConsumer()?.id,
         customerName: raw.customerName.trim(),
         customerPhone: raw.customerPhone.trim(),
@@ -1036,10 +1150,20 @@ export class CustomerStorefrontComponent {
         zonePreference: raw.zonePreference as Appointment['zonePreference'],
         notes: raw.notes.trim()
       });
+      if (
+        requestContextRevision !== this.storefrontContextRevision ||
+        this.ecosystem.currentTenantId() !== requestedStore.id
+      ) {
+        this.ecosystem.notify(
+          `A solicitação de reserva foi enviada para ${requestedStore.name}. Confira com essa loja antes de enviar outra.`,
+          'warning'
+        );
+        return;
+      }
       this.lastPlacedReservation.set(created);
       this.showReservationModal.set(false);
       this.ecosystem.notify(
-        `Solicitação de reserva enviada para ${this.activeStore().name}!`,
+        `Solicitação de reserva enviada para ${requestedStore.name}!`,
         'success'
       );
     } catch (err: unknown) {

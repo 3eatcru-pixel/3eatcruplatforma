@@ -15,7 +15,9 @@ export class InventoryService {
   readonly isSimulation = computed(() => this.security.isSimulated());
   private lastModeIsSimulation = this.security.isSimulated();
   private lastTenantId = this.security.currentSession()?.tenantId;
+  private lastModeRevision = this.security.executionModeRevision();
   private latestFetchId = 0;
+  private latestSupplierFetchId = 0;
   private modeGeneration = 0;
 
   readonly products = signal<ProductItem[]>(
@@ -53,17 +55,23 @@ export class InventoryService {
   private syncExecutionMode() {
     const isSimulation = this.isSimulation();
     const tenantId = this.security.currentSession()?.tenantId;
-    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId) return;
+    const modeRevision = this.security.executionModeRevision();
+    if (isSimulation === this.lastModeIsSimulation && tenantId === this.lastTenantId && modeRevision === this.lastModeRevision) return;
 
     this.lastModeIsSimulation = isSimulation;
     this.lastTenantId = tenantId;
+    this.lastModeRevision = modeRevision;
     this.modeGeneration += 1;
     this.latestFetchId += 1;
+    this.latestSupplierFetchId += 1;
+    this.publicCatalogRequestId += 1;
     this.products.set(isSimulation ? this.getSimulationProducts() : []);
+    this.suppliers.set([]);
+    this.publicCatalog.set([]);
   }
 
   private getSimulationProducts(): ProductItem[] {
-    const tenantId = this.security.currentSession()?.tenantId || 'tenant-sp-001';
+    const tenantId = this.security.currentSession()?.tenantId || 'tenant-1';
     return MOCK_PRODUCTS.map((product) => ({
       ...product,
       tenantId,
@@ -141,28 +149,72 @@ export class InventoryService {
   }
 
   async fetchSuppliers(): Promise<Supplier[]> {
+    this.syncExecutionMode();
     const tenantId = this.security.currentSession()?.tenantId;
     if (!tenantId || this.lastModeIsSimulation) {
       this.suppliers.set([]);
       return [];
     }
+    const fetchId = ++this.latestSupplierFetchId;
+    const generation = this.modeGeneration;
     const data = await firstValueFrom(
       this.http.get<Supplier[]>(`/api/suppliers?tenantId=${encodeURIComponent(tenantId)}`)
     );
-    this.suppliers.set(data);
-    return data;
+    this.syncExecutionMode();
+    if (fetchId !== this.latestSupplierFetchId || generation !== this.modeGeneration || this.lastModeIsSimulation) {
+      return this.suppliers();
+    }
+    const scopedData = data.filter((supplier) => supplier.tenantId === tenantId);
+    this.suppliers.set(scopedData);
+    return scopedData;
   }
 
   async fetchPublicCatalog(tenantId: string): Promise<PublicCatalogProduct[]> {
+    this.syncExecutionMode();
     const requestId = ++this.publicCatalogRequestId;
+    const modeRevision = this.security.executionModeRevision();
     this.publicCatalog.set([]);
-    const data = await firstValueFrom(
-      this.http.get<PublicCatalogProduct[]>(`/api/products/public?tenantId=${tenantId}`)
-    );
-    if (requestId !== this.publicCatalogRequestId) return this.publicCatalog();
+    if (this.lastModeIsSimulation) {
+      const simulatedProducts = tenantId === 'tenant-1'
+        ? MOCK_PRODUCTS.filter((product) => product.availableOnline).map((product) => ({
+            id: product.id,
+            tenantId: 'tenant-1',
+            name: product.name,
+            category: product.category,
+            price: product.price,
+            image: product.image,
+            availableOnline: true,
+            inStock: product.stock > 0,
+            description: product.description,
+            isSimulated: true as const,
+            mode: 'simulation' as const
+          }))
+        : [];
+      if (requestId === this.publicCatalogRequestId && modeRevision === this.security.executionModeRevision()) {
+        this.publicCatalog.set(simulatedProducts);
+      }
+      return simulatedProducts;
+    }
 
-    const scopedData = data.filter(product => product.tenantId === tenantId);
-    this.publicCatalog.set(scopedData);
-    return scopedData;
+    try {
+      const data = await firstValueFrom(
+        this.http.get<PublicCatalogProduct[]>(`/api/products/public?tenantId=${encodeURIComponent(tenantId)}`)
+      );
+      this.syncExecutionMode();
+      if (requestId !== this.publicCatalogRequestId || modeRevision !== this.security.executionModeRevision() || this.lastModeIsSimulation) {
+        return this.publicCatalog();
+      }
+
+      const scopedData = data.filter(product => product.tenantId === tenantId);
+      this.publicCatalog.set(scopedData);
+      return scopedData;
+    } catch {
+      this.syncExecutionMode();
+      if (requestId !== this.publicCatalogRequestId || modeRevision !== this.security.executionModeRevision() || this.lastModeIsSimulation) {
+        return this.publicCatalog();
+      }
+      this.publicCatalog.set([]);
+      return [];
+    }
   }
 }

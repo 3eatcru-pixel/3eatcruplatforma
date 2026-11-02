@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, input, output, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -99,11 +99,15 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
             <!-- LOYALTY & SPENT SUMMARY -->
             <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-[#3d200f]">
               <div class="bg-[#140a04] border border-[#3b1e0d] px-3.5 py-2 rounded-xl text-center">
-                <div class="text-[9px] font-mono text-stone-400 uppercase font-bold">PONTOS FIDELIDADE</div>
-                <div class="text-amber-400 font-serif font-black text-sm flex items-center justify-center gap-1">
-                  <mat-icon class="text-xs text-amber-500">stars</mat-icon>
-                  <span>{{ consumer.loyaltyPoints || 50 }}</span>
-                </div>
+                <div class="text-[9px] font-mono text-stone-400 uppercase font-bold">{{ ecosystem.isSimulationMode() ? 'PONTOS DEMONSTRATIVOS' : 'FIDELIDADE' }}</div>
+                @if (ecosystem.isSimulationMode()) {
+                  <div class="text-amber-400 font-serif font-black text-sm flex items-center justify-center gap-1">
+                    <mat-icon class="text-xs text-amber-500">stars</mat-icon>
+                    <span>{{ consumer.loyaltyPoints || 50 }}</span>
+                  </div>
+                } @else {
+                  <div class="text-stone-400 font-mono text-xs">Indisponível</div>
+                }
               </div>
 
               <div class="bg-[#140a04] border border-[#3b1e0d] px-3.5 py-2 rounded-xl text-center">
@@ -179,6 +183,14 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
           @if (profileSubTab() === 'orders') {
             <div class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
               @if (consumerOrders().length === 0) {
+                @if (consumerOrdersStatus() === 'loading') {
+                  <div role="status" class="bg-[#241309] border border-[#482814] rounded-2xl p-6 text-center text-xs text-stone-300">Carregando seu histórico de pedidos…</div>
+                } @else if (consumerOrdersStatus() === 'error') {
+                  <div role="alert" class="bg-[#241309] border border-rose-800 rounded-2xl p-6 text-center space-y-2">
+                    <div class="text-xs text-rose-200">Não foi possível carregar seu histórico agora.</div>
+                    <button type="button" (click)="loadConsumerOrderHistory()" class="text-xs font-bold text-amber-300 underline">Tentar novamente</button>
+                  </div>
+                } @else {
                 <div class="bg-[#241309] border border-dashed border-[#482814] rounded-2xl p-6 text-center space-y-2">
                   <mat-icon class="text-3xl text-stone-500">shopping_bag</mat-icon>
                   <div class="text-xs text-stone-300 font-bold">Nenhum pedido realizado ainda</div>
@@ -191,6 +203,7 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
                     <mat-icon class="text-xs">arrow_forward</mat-icon>
                   </button>
                 </div>
+                }
               } @else {
                 @for (order of consumerOrders(); track order.id) {
                   <div class="bg-[#241309] border border-[#482814] rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
@@ -242,23 +255,13 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
                   class="w-full bg-[#120a05] border border-[#482814] rounded-xl px-3 py-2 text-stone-100 font-medium focus:outline-none focus:border-amber-500">
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+              <div>
                   <label for="editPhone" class="block font-bold text-stone-300 mb-1">Telefone / WhatsApp</label>
                   <input
                     id="editPhone"
                     type="text"
                     formControlName="phone"
                     class="w-full bg-[#120a05] border border-[#482814] rounded-xl px-3 py-2 text-stone-100 font-medium focus:outline-none focus:border-amber-500">
-                </div>
-                <div>
-                  <label for="editCpf" class="block font-bold text-stone-300 mb-1">CPF (Opcional)</label>
-                  <input
-                    id="editCpf"
-                    type="text"
-                    formControlName="cpf"
-                    class="w-full bg-[#120a05] border border-[#482814] rounded-xl px-3 py-2 text-stone-100 font-medium focus:outline-none focus:border-amber-500">
-                </div>
               </div>
 
               <div>
@@ -340,6 +343,7 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
       <!-- STATE 2: NOT LOGGED - LOGIN VIEW -->
       @if (!isLogged() && activeTab() === 'login') {
         <div class="space-y-4 text-xs">
+          @if (ecosystem.isSimulationMode()) {
           <div>
             <label for="consumerEmailLogin" class="block font-bold text-stone-300 mb-1">E-mail Cadastrado</label>
             <div class="flex gap-2">
@@ -363,7 +367,7 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
           <!-- FAST SELECTOR FOR REGISTERED PROFILES (DEMO & EXISTING) -->
           <div class="pt-2">
             <div class="text-[10px] font-mono text-stone-400 uppercase font-bold mb-2 flex items-center justify-between">
-              <span>Perfis Salvos neste Dispositivo:</span>
+              <span>Perfis desta demonstração:</span>
               <span class="text-amber-500">Acesso Direto</span>
             </div>
 
@@ -396,6 +400,18 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
               }
             </div>
           </div>
+          } @else {
+            <div role="status" class="rounded-2xl border border-emerald-600/40 bg-emerald-950/30 p-4 text-stone-300">
+              Entre com sua conta Google para acessar seu perfil e seus pedidos com segurança.
+            </div>
+            <button
+              type="button"
+              [disabled]="isSubmittingProfile()"
+              (click)="authenticateConsumerWithGoogle()"
+              class="w-full bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black px-5 py-3 rounded-xl shadow-md cursor-pointer disabled:opacity-50">
+              {{ isSubmittingProfile() ? 'Conectando…' : 'Continuar com Google' }}
+            </button>
+          }
 
           <div class="pt-2 text-center">
             <button
@@ -415,9 +431,23 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
           <div class="bg-amber-950/40 border border-amber-600/30 rounded-2xl p-3 flex items-center gap-2.5 text-amber-300">
             <mat-icon class="text-lg text-amber-400 shrink-0">redeem</mat-icon>
             <div class="text-[11px] leading-tight">
-              <strong>Bônus de Cadastro:</strong> Ganhe <strong>50 pontos de fidelidade</strong> imediatamente ao criar seu perfil no ecossistema 3EAT!
+              @if (ecosystem.isSimulationMode()) {
+                <strong>Demonstração:</strong> pontos e perfil ficam somente nesta sessão simulada.
+              } @else {
+                <strong>Perfil protegido:</strong> entre com Google. O programa de pontos ainda não está ativo.
+              }
             </div>
           </div>
+
+          @if (!ecosystem.isSimulationMode() && ecosystem.currentSession()?.role !== 'consumer') {
+            <button
+              type="button"
+              [disabled]="isSubmittingProfile()"
+              (click)="authenticateConsumerWithGoogle()"
+              class="w-full bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black px-5 py-2.5 rounded-xl shadow-md cursor-pointer disabled:opacity-50">
+              {{ isSubmittingProfile() ? 'Conectando…' : 'Autenticar com Google para continuar' }}
+            </button>
+          }
 
           <div>
             <label for="regName" class="block font-bold text-stone-300 mb-1">Nome Completo *</label>
@@ -436,6 +466,7 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
                 id="regEmail"
                 type="email"
                 formControlName="email"
+                [readonly]="!ecosystem.isSimulationMode() && ecosystem.currentSession()?.role === 'consumer'"
                 placeholder="mariana@exemplo.com"
                 class="w-full bg-[#120a05] border border-[#482814] rounded-xl px-3 py-2 text-stone-100 font-medium focus:outline-none focus:border-amber-500 placeholder:text-stone-600">
             </div>
@@ -452,16 +483,6 @@ import { ConsumerAccount, OrderTransaction } from '../models/ecosystem.model';
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label for="regCpf" class="block font-bold text-stone-300 mb-1">CPF (Opcional p/ Nota)</label>
-              <input
-                id="regCpf"
-                type="text"
-                formControlName="cpf"
-                placeholder="000.000.000-00"
-                class="w-full bg-[#120a05] border border-[#482814] rounded-xl px-3 py-2 text-stone-100 font-medium focus:outline-none focus:border-amber-500 placeholder:text-stone-600">
-            </div>
-
             <div>
               <label for="regCity" class="block font-bold text-stone-300 mb-1">Cidade *</label>
               <input
@@ -520,6 +541,8 @@ export class ConsumerProfileComponent {
   readonly ecosystem = inject(EcosystemService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private profileHydrationKey: string | null = null;
+  private consumerOrdersLoadGeneration = 0;
 
   // Inputs / Outputs for Modal and Reusable Integration
   readonly isModal = input<boolean>(true);
@@ -528,6 +551,8 @@ export class ConsumerProfileComponent {
   readonly activeTab = signal<'login' | 'register'>('login');
   readonly profileSubTab = signal<'addresses' | 'orders' | 'edit'>('addresses');
   readonly loginEmailInput = signal<string>('');
+  readonly isSubmittingProfile = signal(false);
+  readonly consumerOrdersStatus = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
 
   readonly activeConsumer = computed(() => this.ecosystem.activeConsumer());
   readonly isLogged = computed(() => !!this.ecosystem.activeConsumer());
@@ -535,18 +560,13 @@ export class ConsumerProfileComponent {
   readonly consumerOrders = computed(() => {
     const cons = this.ecosystem.activeConsumer();
     if (!cons) return [];
-    return this.ecosystem.orders().filter(o => 
-      o.customerName?.toLowerCase() === cons.name.toLowerCase() ||
-      o.customerPhone === cons.phone ||
-      (Boolean(o.address && cons.neighborhood) && (o.address?.toLowerCase().includes(cons.neighborhood.toLowerCase()) ?? false))
-    );
+    return this.ecosystem.orders().filter(order => order.customerId === cons.id);
   });
 
   readonly registerForm = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
     phone: ['', [Validators.required, Validators.minLength(8)]],
-    cpf: [''],
     primaryAddress: ['', [Validators.required, Validators.minLength(5)]],
     neighborhood: ['', [Validators.required]],
     city: ['São Paulo', [Validators.required]]
@@ -555,7 +575,6 @@ export class ConsumerProfileComponent {
   readonly editForm = this.fb.group({
     name: ['', [Validators.required]],
     phone: ['', [Validators.required]],
-    cpf: [''],
     primaryAddress: ['', [Validators.required]],
     neighborhood: ['', [Validators.required]],
     city: ['', [Validators.required]]
@@ -567,15 +586,34 @@ export class ConsumerProfileComponent {
       this.editForm.patchValue({
         name: cur.name,
         phone: cur.phone,
-        cpf: cur.cpf || '',
         primaryAddress: cur.primaryAddress,
         neighborhood: cur.neighborhood,
         city: cur.city
       });
     }
+    effect(() => {
+      const authReady = this.ecosystem.security.authInitialized();
+      const simulated = this.ecosystem.isSimulationMode();
+      const session = this.ecosystem.currentSession();
+      this.ecosystem.security.executionModeRevision();
+      if (!authReady) return;
+      if (simulated) {
+        this.consumerOrdersLoadGeneration += 1;
+        this.consumerOrdersStatus.set('loaded');
+      } else if (session?.role === 'consumer') {
+        void this.hydrateAuthenticatedConsumer();
+      } else {
+        this.consumerOrdersLoadGeneration += 1;
+        this.consumerOrdersStatus.set('idle');
+      }
+    });
   }
 
   submitEmailLogin() {
+    if (!this.ecosystem.isSimulationMode()) {
+      this.ecosystem.notify('Use Continuar com Google para autenticar e recuperar seu perfil.', 'info');
+      return;
+    }
     const email = this.loginEmailInput().trim();
     if (!email) {
       this.ecosystem.notify('Digite seu e-mail cadastrado.', 'warning');
@@ -584,44 +622,163 @@ export class ConsumerProfileComponent {
     const success = this.ecosystem.loginConsumer(email);
     if (success) {
       this.loginEmailInput.set('');
+      const consumer = this.ecosystem.activeConsumer();
+      if (consumer) this.patchProfileForms(consumer);
     }
   }
 
   selectAccount(account: ConsumerAccount) {
+    if (!this.ecosystem.isSimulationMode()) return;
     this.ecosystem.loginConsumer(account.id);
+    this.patchProfileForms(account);
   }
 
-  submitRegister() {
+  async authenticateConsumerWithGoogle() {
+    if (this.isSubmittingProfile()) return;
+    this.isSubmittingProfile.set(true);
+    try {
+      this.ecosystem.security.setPillar('consumer');
+      const session = await this.ecosystem.security.loginWithGoogle();
+      if (!session || session.role !== 'consumer') {
+        throw new Error('Não foi possível abrir uma sessão de consumidor. Tente novamente.');
+      }
+      const profile = await this.ecosystem.crmService.fetchOwnConsumerProfile();
+      if (profile) {
+        this.patchProfileForms(profile);
+        this.ecosystem.notify('Perfil de consumidor carregado.', 'success');
+      } else {
+        this.registerForm.patchValue({ name: session.name, email: session.email });
+        this.activeTab.set('register');
+        this.ecosystem.notify('Conta autenticada. Complete os dados do perfil para continuar.', 'info');
+      }
+      await this.loadConsumerOrderHistory(session);
+    } catch (error: unknown) {
+      const message = (error as { message?: string })?.message;
+      this.ecosystem.notify(message || 'Não foi possível autenticar com Google.', 'error');
+    } finally {
+      this.isSubmittingProfile.set(false);
+    }
+  }
+
+  async submitRegister() {
+    if (this.isSubmittingProfile()) return;
+    if (!this.ecosystem.isSimulationMode() && this.ecosystem.currentSession()?.role !== 'consumer') {
+      this.ecosystem.notify('Autentique-se com Google antes de cadastrar seu perfil.', 'warning');
+      return;
+    }
     if (this.registerForm.invalid) {
       this.registerForm.markAllAsTouched();
       return;
     }
     const val = this.registerForm.value;
-    this.ecosystem.registerConsumer({
-      name: val.name!,
-      email: val.email!,
-      phone: val.phone!,
-      cpf: val.cpf || '',
-      primaryAddress: val.primaryAddress!,
-      neighborhood: val.neighborhood!,
-      city: val.city!
-    });
-    this.registerForm.reset({ city: 'São Paulo' });
+    this.isSubmittingProfile.set(true);
+    try {
+      const registered = await this.ecosystem.registerConsumer({
+        name: val.name!,
+        email: val.email!,
+        phone: val.phone!,
+        primaryAddress: val.primaryAddress!,
+        neighborhood: val.neighborhood!,
+        city: val.city!
+      });
+      this.patchProfileForms(registered);
+      this.registerForm.reset({ city: 'São Paulo' });
+      await this.loadConsumerOrderHistory();
+    } catch (error: unknown) {
+      const message = (error as { message?: string })?.message;
+      this.ecosystem.notify(message || 'Não foi possível criar seu perfil agora.', 'error');
+    } finally {
+      this.isSubmittingProfile.set(false);
+    }
   }
 
-  saveProfileEdits() {
+  async saveProfileEdits() {
+    if (this.isSubmittingProfile()) return;
     const cur = this.ecosystem.activeConsumer();
     if (!cur || this.editForm.invalid) return;
     const val = this.editForm.value;
-    this.ecosystem.updateConsumerProfile(cur.id, {
-      name: val.name!,
-      phone: val.phone!,
-      cpf: val.cpf || '',
-      primaryAddress: val.primaryAddress!,
-      neighborhood: val.neighborhood!,
-      city: val.city!
+    this.isSubmittingProfile.set(true);
+    try {
+      await this.ecosystem.updateConsumerProfile(cur.id, {
+        name: val.name!,
+        phone: val.phone!,
+        primaryAddress: val.primaryAddress!,
+        neighborhood: val.neighborhood!,
+        city: val.city!
+      });
+      this.profileSubTab.set('addresses');
+    } catch (error: unknown) {
+      const message = (error as { message?: string })?.message;
+      this.ecosystem.notify(message || 'Não foi possível salvar seu perfil agora.', 'error');
+    } finally {
+      this.isSubmittingProfile.set(false);
+    }
+  }
+
+  private async hydrateAuthenticatedConsumer() {
+    try {
+      const session = await this.ecosystem.security.waitForAuth();
+      if (!session || session.role !== 'consumer' || this.ecosystem.isSimulationMode()) return;
+      const key = `${session.id || session.email}:${this.ecosystem.security.executionModeRevision()}`;
+      if (key === this.profileHydrationKey) return;
+      this.profileHydrationKey = key;
+      const profile = await this.ecosystem.crmService.fetchOwnConsumerProfile();
+      if (profile) {
+        this.patchProfileForms(profile);
+      } else {
+        this.registerForm.patchValue({ name: session.name, email: session.email });
+        this.activeTab.set('register');
+      }
+      await this.loadConsumerOrderHistory(session);
+    } catch (error: unknown) {
+      const message = (error as { message?: string })?.message;
+      this.ecosystem.notify(message || 'Não foi possível carregar seu perfil.', 'error');
+    }
+  }
+
+  async loadConsumerOrderHistory(session = this.ecosystem.currentSession()): Promise<void> {
+    if (this.ecosystem.isSimulationMode()) {
+      this.consumerOrdersLoadGeneration += 1;
+      this.consumerOrdersStatus.set('loaded');
+      return;
+    }
+    if (session?.role !== 'consumer') {
+      this.consumerOrdersStatus.set('idle');
+      return;
+    }
+
+    const revision = this.ecosystem.security.executionModeRevision();
+    const uid = session.id;
+    const requestId = ++this.consumerOrdersLoadGeneration;
+    this.consumerOrdersStatus.set('loading');
+    try {
+      await this.ecosystem.ordersService.fetchOrders(undefined, 200);
+      if (
+        requestId !== this.consumerOrdersLoadGeneration ||
+        revision !== this.ecosystem.security.executionModeRevision() ||
+        this.ecosystem.currentSession()?.id !== uid ||
+        this.ecosystem.isSimulationMode()
+      ) return;
+      this.consumerOrdersStatus.set('loaded');
+    } catch {
+      if (
+        requestId !== this.consumerOrdersLoadGeneration ||
+        revision !== this.ecosystem.security.executionModeRevision() ||
+        this.ecosystem.currentSession()?.id !== uid ||
+        this.ecosystem.isSimulationMode()
+      ) return;
+      this.consumerOrdersStatus.set('error');
+    }
+  }
+
+  private patchProfileForms(profile: ConsumerAccount): void {
+    this.editForm.patchValue({
+      name: profile.name,
+      phone: profile.phone,
+      primaryAddress: profile.primaryAddress,
+      neighborhood: profile.neighborhood,
+      city: profile.city
     });
-    this.profileSubTab.set('addresses');
   }
 
   setAsReferenceGps(consumer: ConsumerAccount) {
@@ -649,11 +806,24 @@ export class ConsumerProfileComponent {
   }
 
   switchAccount() {
+    if (!this.ecosystem.isSimulationMode()) {
+      void this.ecosystem.security.logout().catch(() => {
+        this.ecosystem.notify('Não foi possível encerrar a sessão agora.', 'error');
+      });
+      return;
+    }
     this.ecosystem.logoutConsumer();
     this.activeTab.set('login');
   }
 
   doLogout() {
+    if (!this.ecosystem.isSimulationMode()) {
+      this.closeProfile.emit();
+      void this.ecosystem.security.logout().catch(() => {
+        this.ecosystem.notify('Não foi possível encerrar a sessão agora.', 'error');
+      });
+      return;
+    }
     this.ecosystem.logoutConsumer();
     this.closeProfile.emit();
   }

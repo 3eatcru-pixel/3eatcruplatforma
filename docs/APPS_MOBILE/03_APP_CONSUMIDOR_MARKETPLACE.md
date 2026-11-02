@@ -26,4 +26,4 @@ O estado dos módulos e os limites operacionais estão em [Aplicativos e módulo
 - Não há integração de push nativo comprovada nesta documentação.
 - O KDS não está integrado como janela do Store OS; o pedido não deve ser descrito como aparecendo em uma estação KDS conectada.
 - A confirmação de PIX não é verificada por webhook de adquirente no servidor.
-- O build Angular de produção e a suíte geral passaram nesta revisão (96/96 testes). Não foi gerado pacote nativo nem feita homologação em dispositivo móvel.
+- O build Angular de produção e a suíte geral passaram nesta revisão (100/100 testes). Não foi gerado pacote nativo nem feita homologação em dispositivo móvel.

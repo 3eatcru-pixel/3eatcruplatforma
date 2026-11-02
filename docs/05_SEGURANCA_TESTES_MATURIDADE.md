@@ -1,6 +1,6 @@
 # Segurança, testes e maturidade — estado verificado
 
-Atualizado em 2026-11-01 por leitura estática e validação local. Nesta revisão, lint passou, a suíte passou com 96/96 testes e o build de produção passou. Os testes usam mocks; implantação e homologação real continuam pendentes.
+Atualizado em 2026-11-02 por leitura estática e validação local. Nesta revisão, `npm run check` passou, executando lint, 100/100 testes e build de produção em sequência. Os testes usam mocks; implantação e homologação real continuam pendentes.
 
 ## Controles encontrados
 
@@ -18,19 +18,19 @@ As regras Firestore impedem gravação direta do cliente em audit_logs. O backen
 
 ## Inventário de testes
 
-Existem arquivos de teste em src/app e src/server. Nesta revisão, `npm run test:ci` passou com 96/96 testes; essa contagem não comprova cobertura de todas as rotas nem integração real com Firebase, PSP ou hardware.
+Existem arquivos de teste em src/app e src/server. Nesta revisão, `npm run test:ci` passou com 100/100 testes; essa contagem não comprova cobertura de todas as rotas nem integração real com Firebase, PSP ou hardware.
 
 Comandos disponíveis no package.json:
 
 - npm run test:ci
 - npm run lint
-- npm run check
+- npm run check (lint, testes sem watch e build de produção)
 
 Use [Testes e recuperação](./INTEGRACAO/04_TESTES_E_RECUPERACAO.md) para o inventário e os critérios de validação.
 
 ## Critérios antes de declarar produção
 
-1. Automatizar lint, testes e build de produção como gate de CI; a execução local desta revisão passou, mas não substitui um pipeline contínuo.
+1. O gate local `npm run check` reúne lint, testes e build de produção. O workflow `.github/workflows/verify.yml` executa esse gate em pushes, pull requests e acionamento manual; o resultado no GitHub ainda depende do próximo envio desta alteração.
 2. Validar regras Firestore no emulador e verificar autorização nas rotas que usam Admin SDK.
 3. Homologar fluxos de pagamento, tenant, operador, consumidor e entregador com dados de teste.
 4. Registrar configuração de implantação, segredos, backup e procedimento de recuperação.

@@ -1,25 +1,26 @@
 # Público — 02: Vitrine da loja e cardápio
 
-Atualizado em 2026-11-01 por leitura estática. A rota de vitrine implementada é /p/:id, conforme src/app/app.routes.ts. A rota antiga /loja/:slug não está declarada no roteador atual.
+Atualizado em 2026-11-01 após auditoria do fluxo público. A rota publicada é `/p/:id`, conforme `src/app/app.routes.ts`. A rota antiga `/loja/:slug` não está declarada.
 
-## Catálogo público
+## Contratos públicos
 
-A vitrine Angular usa o identificador da rota para selecionar a loja. O catálogo público é consultado por tenant e deve permanecer separado dos dados internos de custo, fornecedor e estoque do ERP.
+- Interface: `src/app/components/customer-storefront.ts`.
+- Loja: `GET /api/tenants/public`; a tela só seleciona a loja ativa cujo identificador corresponde à rota. Falha ou ausência da loja exibe indisponibilidade e impede checkout.
+- Catálogo: `GET /api/products/public?tenantId=:id`, separado dos dados internos de custo, fornecedor e estoque.
+- Pedido: `POST /api/orders/channels/:channel` e validações do Commerce Engine.
+- Pagamento: `POST /api/payments/process`; veja [Checkout e pagamentos](./04_CHECKOUT_PAGAMENTO_E_PIX.md).
 
-- Interface: src/app/components/customer-storefront.ts.
-- Catálogo público: GET /api/products/public.
-- Pedido: rotas de /api/orders e regras do Commerce Engine.
-- Pagamento: POST /api/payments/process; consulte Checkout e pagamentos para os limites de confirmação.
+O servidor projeta apenas campos permitidos para a vitrine. Não publica CNPJ, nome legal, telefone privado, chave PIX, equipe, limite de dispositivos nem valores internos do ERP. WhatsApp e produtos em destaque são opcionais e só são expostos quando cadastrados como informações públicas.
 
-## Modalidades e valores
+## Disponibilidade e valores
 
-A interface possui seleção de modalidade e mesa. No checkout, deliveryFee é o valor fixo de entrega definido pela loja. Retirada não deve cobrar frete. O campo legado serviceFeePercent não é aplicado; a futura comissão de entregas da plataforma permanece em coming_soon.
+Horário, localização, taxa, pedido mínimo e estado de abertura não recebem valores fictícios quando faltam no cadastro. A vitrine informa quando esses dados são desconhecidos. Para pedidos, o status precisa estar explicitamente aberto; pedido com entrega também exige que a loja tenha habilitado entrega e definido a taxa. O endereço do cliente é textual; o aplicativo não geocodifica esse endereço nem atribui ao pedido coordenadas do GPS do consumidor.
 
-O motor do servidor valida pedido, loja, disponibilidade dos produtos e valores conforme as regras atuais. O KDS tem janela integrada para consultar pedidos e avançar o preparo; o Estoque tem janela para consultar e cadastrar produtos. Esses escopos não comprovam homologação operacional nem permitem ajuste auditável de saldo.
+O valor de entrega é definido pela loja. Retirada não cobra frete. O campo legado `serviceFeePercent` é ignorado. Os 8% da rede de entregadores da plataforma não se aplicam aos pedidos nem aos motoristas da loja; a rede e sua comissão estão em `coming_soon`.
 
-## Limites da vitrine
+PIX é direcionado à chave da loja e a confirmação é manual. Dinheiro pode ser selecionado para pagamento no recebimento. Cartão não está disponível até cada loja conectar sua própria conta de pagamento. O HQ recebe a assinatura do lojista, não o valor da venda.
 
-- A rota pública confirmada é /p/:id; não documentar /loja/:slug como rota atual.
-- A proteção do catálogo precisa ser avaliada no endpoint público; o navegador não deve receber dados internos do ERP.
-- O KDS tem janela integrada no Store OS para consultar pedidos e avançar o preparo até `ready`; isso não comprova estação física, hardware de cozinha ou homologação operacional. Consulte [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
-- O build de produção e a suíte geral passaram nesta revisão (96/96 testes). Não houve teste ponta a ponta nem homologação específica do catálogo e checkout com dados reais.
+## Limites verificados
+
+- KDS e estoque têm telas integradas no Store OS, mas isso não comprova homologação operacional ou hardware físico. Consulte [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
+- A suíte e o build local não equivalem a teste ponta a ponta nem homologação do catálogo e checkout com dados reais.

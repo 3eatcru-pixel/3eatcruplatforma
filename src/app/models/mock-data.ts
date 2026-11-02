@@ -1,4 +1,5 @@
 import { CompanyTenant, ProductItem, POSDevice, LicensePlan, MarketplaceAppModule } from './ecosystem.model';
+import { DEFAULT_SAAS_PLANS } from '../../shared/constants/saas-plans';
 
 export const MOCK_TENANTS: CompanyTenant[] = [
   {
@@ -148,16 +149,7 @@ export const MOCK_DEVICES: POSDevice[] = [
   }
 ];
 
-export const MOCK_PLANS: LicensePlan[] = [
-  {
-    id: 'Starter',
-    name: 'Starter (Até 2 Dispositivos)',
-    priceMonthly: 149.00,
-    maxDevices: 2,
-    includedModules: ['PDV Frente de Caixa', 'KDS Cozinha'],
-    description: 'Ideal para pequenos negócios.'
-  }
-];
+export const MOCK_PLANS: LicensePlan[] = DEFAULT_SAAS_PLANS.map((plan) => ({ ...plan, includedModules: [...plan.includedModules] }));
 
 export const MOCK_APPS: MarketplaceAppModule[] = [
   {

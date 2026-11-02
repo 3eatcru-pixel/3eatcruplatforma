@@ -3,11 +3,11 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { EcosystemService } from '../../services/ecosystem.service';
-import { CompanyTenant } from '../../models/ecosystem.model';
+import { PublicStorefront } from '../../models/ecosystem.model';
 import { ConsumerProfileComponent } from '../consumer-profile';
 
 type CategoryFilter = 'todos' | 'restaurant' | 'retail' | 'services' | 'outros';
-type SortBy = 'rating' | 'distance' | 'name' | 'fee';
+type SortBy = 'distance' | 'name' | 'fee';
 
 @Component({
   selector: 'app-regional-marketplace-mobile',
@@ -25,33 +25,14 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
           </div>
           <div>
             <div class="font-serif font-black text-amber-400 text-xs tracking-wider leading-tight">3EATCRU OS</div>
-            <div class="text-[8px] font-mono text-stone-400 font-bold uppercase tracking-widest leading-none">SÃO PAULO • SP</div>
+            <div class="text-[8px] font-mono text-stone-400 font-bold uppercase tracking-widest leading-none">MARKETPLACE PÚBLICO</div>
           </div>
         </div>
 
         <!-- Region Selector Pill -->
-        <div class="relative">
-          <button
-            type="button"
-            (click)="toggleRegionDropdown()"
-            class="bg-black/90 text-amber-300 border border-amber-600/60 rounded-full px-3 py-1 text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer">
-            <mat-icon class="text-[12px] text-amber-400">place</mat-icon>
-            <span>{{ selectedRegionName() }}</span>
-            <mat-icon class="text-[14px]">arrow_drop_down</mat-icon>
-          </button>
-
-          @if (showRegionDropdown()) {
-            <div class="absolute top-8 left-1/2 -translate-x-1/2 bg-[#1b0d06] border border-[#482814] rounded-2xl p-2 w-48 shadow-2xl z-50 text-xs space-y-1 animate-in fade-in zoom-in-95 font-sans">
-              @for (reg of availableRegions; track reg) {
-                <button
-                  type="button"
-                  (click)="selectRegion(reg)"
-                  class="w-full text-left px-3 py-1.5 rounded-xl hover:bg-amber-900/40 text-stone-200 hover:text-amber-300 transition-colors cursor-pointer text-[11px] font-bold">
-                  {{ reg }}
-                </button>
-              }
-            </div>
-          }
+        <div class="bg-black/90 text-amber-300 border border-amber-600/60 rounded-full px-3 py-1 text-[10px] font-bold flex items-center gap-1 shadow">
+          <mat-icon class="text-[12px] text-amber-400">place</mat-icon>
+          <span>{{ ecosystem.regionalConfig().activeRegionName || 'Região não informada' }}</span>
         </div>
 
         <!-- Admin & Menu Controls -->
@@ -164,7 +145,7 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
           @if (bussolaOpen()) {
             <div class="space-y-3 text-xs animate-in fade-in duration-200">
               <p class="text-[11px] text-stone-600 leading-snug">
-                Defina o ponto de referência para realizar a distância em quilometragem real de cada estabelecimento.
+                Ative a localização do navegador para calcular distâncias. Endereço digitado não é geocodificado.
               </p>
 
               <!-- Reference Point Box with GPS Trigger -->
@@ -181,16 +162,17 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
                   <button
                     type="button"
                     (click)="triggerGpsCalibration()"
+                    [disabled]="ecosystem.marketplaceService.geoStatus() === 'locating'"
                     class="sm:col-span-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black px-3 py-2 rounded-2xl text-[10px] uppercase flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer">
                     <mat-icon class="text-sm">my_location</mat-icon>
-                    <span>Usar Sinal de GPS Real</span>
+                    <span>{{ ecosystem.marketplaceService.geoStatus() === 'locating' ? 'Obtendo GPS…' : 'Usar localização GPS' }}</span>
                   </button>
                 </div>
               </div>
 
               <!-- Address Search Row -->
               <div class="space-y-1">
-                <span class="text-[9px] font-mono font-bold text-stone-500 uppercase tracking-wider block">Buscar Endereço no Mapa</span>
+                <span class="text-[9px] font-mono font-bold text-stone-500 uppercase tracking-wider block">Filtrar por loja, bairro ou cidade</span>
                 <div class="flex gap-2">
                   <div class="flex-1 bg-white border border-stone-300 rounded-2xl px-3 py-2 flex items-center gap-2 shadow-inner">
                     <mat-icon class="text-stone-400 text-base">search</mat-icon>
@@ -199,7 +181,7 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
                       [value]="searchAddressQuery()"
                       (input)="searchAddressQuery.set($any($event.target).value)"
                       (keydown.enter)="applyAddressSearch()"
-                      placeholder="Rua, Bairro, Cidade..."
+                      placeholder="Nome, bairro ou cidade..."
                       class="w-full text-xs text-stone-900 placeholder-stone-400 focus:outline-none bg-transparent">
                   </div>
 
@@ -217,11 +199,12 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
               <!-- Max Distance Slider -->
               <div class="space-y-1 pt-1 border-t border-stone-100">
                 <div class="flex justify-between items-center text-xs font-bold">
-                  <span class="text-blue-600 text-[11px]">Raio Máximo:</span>
+                  <span class="text-blue-600 text-[11px]">Raio máximo com GPS:</span>
                   <span class="text-orange-600 font-mono text-sm">{{ maxRadius() }} km</span>
                 </div>
                 <input
                   type="range"
+                  [disabled]="!ecosystem.marketplaceService.isRealLocationActive()"
                   min="1"
                   max="30"
                   step="1"
@@ -385,20 +368,13 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
               type="button"
               (click)="toggleSortMenu()"
               class="bg-white text-stone-900 border border-stone-300 rounded-2xl px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer">
-              <mat-icon class="text-amber-500 text-sm">star</mat-icon>
+              <mat-icon class="text-stone-500 text-sm">sort_by_alpha</mat-icon>
               <span>{{ sortLabel() }}</span>
               <mat-icon class="text-sm text-stone-500">expand_more</mat-icon>
             </button>
 
             @if (showSortMenu()) {
               <div class="absolute right-0 top-10 bg-white border border-stone-200 rounded-2xl p-1.5 shadow-2xl z-40 w-44 text-xs space-y-1 font-sans text-stone-900 animate-in fade-in">
-                <button
-                  type="button"
-                  (click)="setSort('rating')"
-                  class="w-full text-left px-3 py-1.5 rounded-xl hover:bg-stone-100 font-bold flex items-center gap-1.5">
-                  <mat-icon class="text-amber-500 text-xs">star</mat-icon>
-                  <span>Melhor Avaliação</span>
-                </button>
                 <button
                   type="button"
                   (click)="setSort('distance')"
@@ -427,6 +403,16 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
 
         <!-- STORES LIST -->
         <div id="storesList" class="space-y-3.5">
+          @if (ecosystem.publicStorefrontsStatus() === 'loading' || ecosystem.publicStorefrontsStatus() === 'idle') {
+            <div class="bg-white rounded-2xl p-4 text-xs text-stone-600">Carregando estabelecimentos publicados…</div>
+          } @else if (ecosystem.publicStorefrontsStatus() === 'error') {
+            <div role="alert" class="bg-amber-100 rounded-2xl p-4 text-xs text-amber-900">Não foi possível carregar as vitrines públicas.</div>
+          } @else if (totalStoresCount() === 0) {
+            <div class="bg-white rounded-2xl p-4 text-xs text-stone-600">Nenhum estabelecimento publicado no momento.</div>
+          } @else if (filteredStores().length === 0) {
+            <div class="bg-white rounded-2xl p-4 text-xs text-stone-600">Nenhuma loja corresponde aos filtros atuais.</div>
+          }
+
           @for (store of displayedStores(); track store.id) {
             <div class="bg-white rounded-3xl p-4 shadow-xl border border-stone-200 text-stone-950 space-y-3 transition-all hover:border-amber-400">
               
@@ -463,7 +449,7 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
                   <!-- Location Address -->
                   <div class="text-[10px] text-stone-500 flex items-center gap-1 truncate mt-0.5">
                     <mat-icon class="text-[11px] text-stone-400 shrink-0">place</mat-icon>
-                    <span class="truncate">{{ store.address.street }}, {{ store.address.number }} - {{ store.address.neighborhood }}</span>
+                    <span class="truncate">{{ addressLabel(store) }}</span>
                   </div>
 
                   <!-- Aberto Agora / Fechado Badge & Quick Operator Control -->
@@ -473,27 +459,27 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span>ABERTO AGORA</span>
                       </span>
-                    } @else {
+                    } @else if (store.isOpen === false) {
                       <span class="inline-flex items-center gap-1 bg-stone-200 text-stone-700 border border-stone-300 font-bold text-[8px] font-mono px-2 py-0.5 rounded-full shadow-xs">
                         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                         <span>FECHADO NO MOMENTO</span>
                       </span>
+                    } @else {
+                      <span class="text-stone-500 text-[8px]">STATUS NÃO INFORMADO</span>
                     }
                   </div>
 
                   <!-- Delivery Fee, Min Order & Fleet Type -->
                   <div class="flex flex-wrap items-center gap-1.5 mt-1 text-[9px] font-mono font-bold">
                     <span class="bg-amber-100 text-amber-950 px-1.5 py-0.2 rounded border border-amber-300">
-                      {{ (store.deliveryFee ?? 0) === 0 ? 'Entrega Grátis' : 'Entrega R$ ' + (store.deliveryFee || 0).toFixed(2) }}
+                      {{ store.deliveryFee === undefined ? 'Entrega não informada' : store.deliveryFee === 0 ? 'Entrega Grátis' : 'Entrega R$ ' + store.deliveryFee.toFixed(2) }}
                     </span>
                     @if (store.minOrderValue && store.minOrderValue > 0) {
                       <span class="bg-stone-100 text-stone-800 px-1.5 py-0.2 rounded border border-stone-300">
                         Min. R$ {{ store.minOrderValue.toFixed(2) }}
                       </span>
                     }
-                    <span [class]="store.deliveryFleetType === 'own' ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-purple-100 text-purple-900 border-purple-300'" class="px-1.5 py-0.2 rounded border">
-                      {{ store.deliveryFleetType === 'own' ? '🛵 Entrega pela loja' : '🛵 Entrega pela loja · 3EAT em breve' }}
-                    </span>
+                    @if (store.supportsDelivery) { <span class="bg-emerald-100 text-emerald-900 border-emerald-300 px-1.5 py-0.2 rounded border">🛵 Entrega gerenciada pela loja</span> }
                   </div>
                 </div>
 
@@ -603,7 +589,7 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
                 <img [src]="store.logo || store.coverImage" [alt]="store.name" class="w-12 h-12 rounded-2xl object-cover border border-[#d6c7b0]" referrerpolicy="no-referrer">
                 <div>
                   <span class="border border-dashed border-amber-700 text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[8px] font-bold font-mono uppercase">
-                    {{ store.badgeCategory || store.category }} • FICHA #{{ store.fichaCode || '001' }}
+                    {{ store.badgeCategory || store.category }}
                   </span>
                   <h3 class="font-serif font-black text-base text-stone-900 mt-0.5 leading-tight">{{ store.name }}</h3>
                   <div class="text-[10px] text-stone-500 font-medium">{{ store.tagline || (store.badgeCategory || store.category) }}</div>
@@ -616,9 +602,9 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
             <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-2xl p-3 flex items-center justify-between">
               <div>
                 <div class="text-[9px] font-mono uppercase font-bold text-amber-900">Expediente Operacional:</div>
-                <div class="flex items-center gap-1.5 mt-0.5 font-bold text-xs" [class]="store.isOpen ? 'text-emerald-800' : 'text-rose-800'">
-                  <span class="w-2 h-2 rounded-full" [class]="store.isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
-                  <span>{{ store.isOpen ? 'ABERTO AGORA' : 'FECHADO NO MOMENTO' }}</span>
+                <div class="flex items-center gap-1.5 mt-0.5 font-bold text-xs" [class]="store.isOpen ? 'text-emerald-800' : store.isOpen === false ? 'text-rose-800' : 'text-stone-600'">
+                  <span class="w-2 h-2 rounded-full" [class]="store.isOpen ? 'bg-emerald-500 animate-pulse' : store.isOpen === false ? 'bg-rose-500' : 'bg-stone-500'"></span>
+                  <span>{{ store.isOpen === undefined ? 'STATUS NÃO INFORMADO' : store.isOpen ? 'ABERTO AGORA' : 'FECHADO NO MOMENTO' }}</span>
                 </div>
               </div>
             </div>
@@ -626,14 +612,18 @@ type SortBy = 'rating' | 'distance' | 'name' | 'fee';
             <div class="space-y-2 text-xs">
               <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-xl p-2.5 space-y-0.5">
                 <div class="font-bold text-[10px] text-amber-900 uppercase font-mono">Endereço &amp; Localização:</div>
-                <div class="text-[11px] text-stone-800">{{ store.address.street }}, {{ store.address.number }} - {{ store.address.neighborhood }}</div>
-                <div class="text-[10px] text-stone-500">Distância calculada: {{ getDistanceKm(store) }} km</div>
+                <div class="text-[11px] text-stone-800">{{ addressLabel(store) }}</div>
+                @if (ecosystem.marketplaceService.isRealLocationActive()) {
+                  <div class="text-[10px] text-stone-500">Distância calculada: {{ getDistanceKm(store) }} km</div>
+                } @else {
+                  <div class="text-[10px] text-stone-500">Ative o GPS para calcular a distância.</div>
+                }
               </div>
 
               <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-xl p-2.5 space-y-0.5">
                 <div class="font-bold text-[10px] text-amber-900 uppercase font-mono">Atendimento &amp; Telefone:</div>
-                <div class="text-[11px] text-stone-800">Horário: {{ store.openingHours || 'Seg a Dom 11h às 23h' }}</div>
-                <div class="text-[11px] text-stone-800">Telefone: {{ store.phone }}</div>
+                <div class="text-[11px] text-stone-800">Horário: {{ store.openingHours || 'Não informado' }}</div>
+                <div class="text-[11px] text-stone-800">Entrega: {{ store.supportsDelivery ? 'Gerenciada pela loja' : 'Não informada' }}</div>
               </div>
             </div>
 
@@ -667,21 +657,16 @@ export class RegionalMarketplaceMobileComponent {
   toggleMenu = output<void>();
 
   readonly showConsumerModal = signal<boolean>(false);
-  readonly inspectedStore = signal<CompanyTenant | null>(null);
+  readonly inspectedStore = signal<PublicStorefront | null>(null);
   readonly statusFilter = signal<'all' | 'open' | 'closed'>('all');
 
-  readonly totalStoresCount = computed(() => this.ecosystem.tenants().filter(t => t.status === 'active').length);
-  readonly openStoresCount = computed(() => this.ecosystem.tenants().filter(t => t.status === 'active' && t.isOpen).length);
-  readonly closedStoresCount = computed(() => this.ecosystem.tenants().filter(t => t.status === 'active' && !t.isOpen).length);
+  readonly totalStoresCount = computed(() => this.ecosystem.publicStorefronts().filter(t => t.status === 'active').length);
+  readonly openStoresCount = computed(() => this.ecosystem.publicStorefronts().filter(t => t.status === 'active' && t.isOpen === true).length);
+  readonly closedStoresCount = computed(() => this.ecosystem.publicStorefronts().filter(t => t.status === 'active' && t.isOpen === false).length);
 
   readonly bussolaOpen = signal<boolean>(true);
   readonly modalidadesOpen = signal<boolean>(true);
-  readonly showRegionDropdown = signal<boolean>(false);
   readonly showSortMenu = signal<boolean>(false);
-
-  toggleRegionDropdown() {
-    this.showRegionDropdown.update(v => !v);
-  }
 
   toggleBussola() {
     this.bussolaOpen.update(v => !v);
@@ -695,26 +680,22 @@ export class RegionalMarketplaceMobileComponent {
     this.showSortMenu.update(v => !v);
   }
 
-  readonly availableRegions = ['Zona Sul - SP', 'Paulista & Centro', 'Zona Oeste - Pinheiros', 'Zona Leste', 'Zona Norte'];
-  readonly selectedRegionName = signal<string>('Zona Sul - SP');
-
   readonly referenceAddress = computed(() => this.ecosystem.userReferenceAddress());
   readonly searchAddressQuery = signal<string>('');
   readonly maxRadius = signal<number>(30);
 
-  readonly filterDelivery = signal<boolean>(true);
-  readonly filterTakeout = signal<boolean>(true);
-  readonly filterReservation = signal<boolean>(true);
-  readonly filterOpenNow = signal<boolean>(true);
+  readonly filterDelivery = signal<boolean>(false);
+  readonly filterTakeout = signal<boolean>(false);
+  readonly filterReservation = signal<boolean>(false);
+  readonly filterOpenNow = signal<boolean>(false);
 
   readonly activeCategory = signal<CategoryFilter>('todos');
-  readonly currentSort = signal<SortBy>('rating');
+  readonly currentSort = signal<SortBy>('name');
 
   readonly displayLimit = signal<number>(6);
 
   readonly sortLabel = computed(() => {
     switch (this.currentSort()) {
-      case 'rating': return 'Melhor Avaliação';
       case 'distance': return 'Menor Distância';
       case 'name': return 'Nome da Loja';
       case 'fee': return 'Menor Taxa';
@@ -722,14 +703,23 @@ export class RegionalMarketplaceMobileComponent {
   });
 
   readonly filteredStores = computed(() => {
-    let list = this.ecosystem.tenants().filter(t => t.status === 'active');
+    let list = this.ecosystem.publicStorefronts().filter(t => t.status === 'active');
+    const query = this.searchAddressQuery().trim().toLowerCase();
+    if (query) {
+      list = list.filter(store =>
+        store.name.toLowerCase().includes(query) ||
+        (store.tagline || '').toLowerCase().includes(query) ||
+        (store.address.neighborhood || '').toLowerCase().includes(query) ||
+        (store.address.city || '').toLowerCase().includes(query)
+      );
+    }
 
     // Status filter (Todos / Abertos / Fechados)
     const sFilter = this.statusFilter();
     if (sFilter === 'open') {
-      list = list.filter(t => t.isOpen);
+      list = list.filter(t => t.isOpen === true);
     } else if (sFilter === 'closed') {
-      list = list.filter(t => !t.isOpen);
+      list = list.filter(t => t.isOpen === false);
     }
 
     // Category filter
@@ -746,29 +736,37 @@ export class RegionalMarketplaceMobileComponent {
 
     // Modalidades filter
     if (this.filterDelivery()) {
-      list = list.filter(t => t.supportsDelivery !== false);
+      list = list.filter(t => t.supportsDelivery === true);
     }
     if (this.filterTakeout()) {
-      list = list.filter(t => t.supportsTakeout !== false);
+      list = list.filter(t => t.supportsTakeout === true);
     }
     if (this.filterOpenNow() && sFilter === 'all') {
-      list = list.filter(t => t.isOpen !== false);
+      list = list.filter(t => t.isOpen === true);
     }
 
     // Radius filter
     const maxR = this.maxRadius();
-    list = list.filter(t => this.ecosystem.calculateDistanceToUser(t.lat, t.lng) <= maxR);
+    if (this.ecosystem.marketplaceService.isRealLocationActive()) {
+      list = list.filter(t => {
+        if (t.lat === undefined || t.lng === undefined) return true;
+        const distance = this.ecosystem.calculateDistanceToUser(t.lat, t.lng);
+        return distance === null || distance <= maxR;
+      });
+    }
 
     // Sorting
     const sort = this.currentSort();
-    if (sort === 'rating') {
-      list = [...list].sort((a, b) => (b.rating || 4.5) - (a.rating || 4.5));
-    } else if (sort === 'distance') {
-      list = [...list].sort((a, b) => this.ecosystem.calculateDistanceToUser(a.lat, a.lng) - this.ecosystem.calculateDistanceToUser(b.lat, b.lng));
+    if (sort === 'distance') {
+      list = [...list].sort((a, b) => {
+        const aDistance = a.lat === undefined || a.lng === undefined ? Number.POSITIVE_INFINITY : this.ecosystem.calculateDistanceToUser(a.lat, a.lng) ?? Number.POSITIVE_INFINITY;
+        const bDistance = b.lat === undefined || b.lng === undefined ? Number.POSITIVE_INFINITY : this.ecosystem.calculateDistanceToUser(b.lat, b.lng) ?? Number.POSITIVE_INFINITY;
+        return aDistance - bDistance;
+      });
     } else if (sort === 'name') {
       list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     } else if (sort === 'fee') {
-      list = [...list].sort((a, b) => (a.deliveryFee || 0) - (b.deliveryFee || 0));
+      list = [...list].sort((a, b) => (a.deliveryFee ?? Number.POSITIVE_INFINITY) - (b.deliveryFee ?? Number.POSITIVE_INFINITY));
     }
 
     return list;
@@ -786,56 +784,43 @@ export class RegionalMarketplaceMobileComponent {
     this.displayLimit.update(l => l + 4);
   }
 
-  inspectStore(store: CompanyTenant) {
+  inspectStore(store: PublicStorefront) {
     this.inspectedStore.set(store);
   }
 
-  isHubChoice(store: CompanyTenant): boolean {
+  isHubChoice(store: PublicStorefront): boolean {
     const featured = this.ecosystem.regionalConfig().featuredTenantIds || [];
-    return featured.includes(store.id) || (store.rating || 4.5) >= 4.8;
+    return featured.includes(store.id);
   }
 
-  getCategoryDescription(store: CompanyTenant): string {
+  getCategoryDescription(store: PublicStorefront): string {
     if (store.specialties && store.specialties.length > 0) {
       return store.badgeCategory ? `${store.badgeCategory} • ${store.specialties.slice(0, 3).join(' • ')}` : store.specialties.slice(0, 3).join(' • ');
     }
     return store.tagline || (store.category === 'restaurant' ? 'Alimentação • Lanches • Artesanal' : 'Comércio & Serviços Locais');
   }
 
-  getDistanceKm(store: CompanyTenant): string {
+  getDistanceKm(store: PublicStorefront): string {
+    if (store.lat === undefined || store.lng === undefined) return 'Não informada';
     const d = this.ecosystem.calculateDistanceToUser(store.lat, store.lng);
+    if (d === null) return 'Ative o GPS';
     return d.toFixed(1).replace('.', ',');
   }
 
-  triggerGpsCalibration() {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          this.ecosystem.userReferenceCoords.set({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          this.ecosystem.notify('GPS calibrado em tempo real com precisão de satélite!', 'success');
-        },
-        () => {
-          this.ecosystem.userReferenceCoords.set({ lat: -23.5651, lng: -46.6521 });
-          this.ecosystem.notify('Coordenadas de referência GPS calibradas (Avenida Paulista).', 'success');
-        }
-      );
+  async triggerGpsCalibration() {
+    const success = await this.ecosystem.requestRealUserLocation();
+    if (success) {
+      this.ecosystem.notify('Localização do navegador ativada.', 'success');
     } else {
-      this.ecosystem.userReferenceCoords.set({ lat: -23.5651, lng: -46.6521 });
-      this.ecosystem.notify('Coordenadas de referência GPS calibradas.', 'success');
+      this.ecosystem.notify(this.ecosystem.marketplaceService.geoErrorMessage() || 'Não foi possível obter sua localização.', 'warning');
     }
   }
 
   applyAddressSearch() {
     const q = this.searchAddressQuery().trim();
     if (!q) return;
-    this.ecosystem.userReferenceAddress.set(q + ' - São Paulo, SP');
-    this.ecosystem.notify(`Ponto de referência atualizado para: ${q}`, 'info');
-  }
-
-  selectRegion(region: string) {
-    this.selectedRegionName.set(region);
-    this.showRegionDropdown.set(false);
-    this.ecosystem.notify(`Região alterada para: ${region}`, 'info');
+    this.displayLimit.set(6);
+    this.ecosystem.notify(`Filtro aplicado: ${q}`, 'info');
   }
 
   setSort(sort: SortBy) {
@@ -843,11 +828,17 @@ export class RegionalMarketplaceMobileComponent {
     this.showSortMenu.set(false);
   }
 
-  shareStore(store: CompanyTenant) {
-    this.ecosystem.sendWhatsAppMessage('Compartilhar', '999', `Confira esta loja no 3EAT: ${store.name}! Acesse: https://3eatcru.com.br/p/${store.id}`);
+  shareStore(store: PublicStorefront) {
+    const url = `${window.location.origin}/p/${encodeURIComponent(store.id)}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(url);
+      this.ecosystem.notify('Link da vitrine copiado.', 'success');
+    } else {
+      this.ecosystem.notify(url, 'info');
+    }
   }
 
-  toggleFavorite(store: CompanyTenant) {
+  toggleFavorite(store: PublicStorefront) {
     this.ecosystem.notify(`Loja "${store.name}" adicionada aos seus favoritos!`, 'success');
   }
 
@@ -860,5 +851,11 @@ export class RegionalMarketplaceMobileComponent {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
+  }
+
+  addressLabel(store: PublicStorefront): string {
+    const address = store.address;
+    const street = [address.street, address.number].filter(Boolean).join(', ');
+    return [street, address.neighborhood, address.city, address.state].filter(Boolean).join(' - ') || 'Endereço não informado';
   }
 }

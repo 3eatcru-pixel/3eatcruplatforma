@@ -17,6 +17,8 @@ import {
 } from './utils/platform-delivery-readiness';
 import { getPaymentConfirmationRejection } from './utils/payment-confirmation';
 import { CompanyTenant, ProductItem } from '../shared/models/ecosystem.model';
+import { DEFAULT_SAAS_PLANS } from '../shared/constants/saas-plans';
+import { hasCompletePlanCatalogValues, hasValidPlanCatalogValues, normalizePlanCatalogEntry } from './utils/plan-catalog';
 
 describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
   it('defines formal permission matrix for all 6 canonical platform roles plus guest', () => {
@@ -55,6 +57,38 @@ describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
     expect(resolvePlatformDeliveryCommissionStatus('active')).toBe('coming_soon');
     expect(resolvePlatformDeliveryCommissionStatus('coming_soon')).toBe('coming_soon');
     expect(resolvePlatformDeliveryCommissionStatus(undefined)).toBe('coming_soon');
+  });
+
+  it('keeps full Store OS access in every plan and only reads price and device quota from saved plan data', () => {
+    const starter = DEFAULT_SAAS_PLANS.find((plan) => plan.id === 'Starter')!;
+    const normalized = normalizePlanCatalogEntry(starter, {
+      name: 'Legacy Starter',
+      priceMonthly: 189,
+      maxDevices: 4,
+      includedModules: ['Only PDV'],
+      description: 'Legacy plan restriction',
+      privateField: 'must not be returned'
+    });
+
+    expect(normalized.priceMonthly).toBe(189);
+    expect(normalized.maxDevices).toBe(4);
+    expect(normalized.name).toBe(starter.name);
+    expect(normalized.description).toBe(starter.description);
+    expect(normalized.includedModules).toEqual(['Acesso completo ao Store OS']);
+    expect(normalized).not.toHaveProperty('privateField');
+  });
+
+  it('falls back to reference price and device quota when saved plan values are invalid', () => {
+    const starter = DEFAULT_SAAS_PLANS.find((plan) => plan.id === 'Starter')!;
+    const saved = { priceMonthly: Number.NaN, maxDevices: 1000 };
+    const normalized = normalizePlanCatalogEntry(starter, saved);
+
+    expect(normalized.priceMonthly).toBe(starter.priceMonthly);
+    expect(normalized.maxDevices).toBe(starter.maxDevices);
+    expect(hasValidPlanCatalogValues(saved)).toBe(false);
+    expect(hasCompletePlanCatalogValues(saved)).toBe(false);
+    expect(hasValidPlanCatalogValues({ priceMonthly: 0 })).toBe(true);
+    expect(hasCompletePlanCatalogValues({ priceMonthly: 0, maxDevices: 1 })).toBe(true);
   });
 
   it('only confirms a pending payment when its linked order still matches', () => {
@@ -137,8 +171,33 @@ describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
     expect(pubStore['name']).toBe('Bistrô Central');
     expect(pubStore['cnpj']).toBeUndefined();
     expect(pubStore['contactEmail']).toBeUndefined();
+    expect(pubStore['phone']).toBeUndefined();
+    expect(pubStore['legalName']).toBeUndefined();
     expect(pubStore['staffUids']).toBeUndefined();
     expect(pubStore['ownerUid']).toBeUndefined();
     expect(pubStore['serviceFeePercent']).toBeUndefined();
+    expect(pubStore['rating']).toBeUndefined();
+    expect(pubStore['reviewCount']).toBeUndefined();
+    expect(pubStore['isOpen']).toBeUndefined();
+    expect(pubStore['estimatedDeliveryMinutes']).toBeUndefined();
+    expect(pubStore['deliveryFee']).toBeUndefined();
+    expect(pubStore['deliveryRadiusKm']).toBe(6);
+    expect(pubStore['pixKey']).toBeUndefined();
+    expect(pubStore['address']).toEqual({
+      city: 'São Paulo',
+      neighborhood: 'Jardins',
+      state: 'SP',
+      street: 'Rua Oscar Freire',
+      number: '500',
+      zipCode: '01426-000'
+    });
+
+    const sparseStore = toPublicStorefront({
+      ...privateTenant,
+      deliveryRadiusKm: undefined,
+      openingHours: undefined
+    } as unknown as CompanyTenant);
+    expect(sparseStore.deliveryRadiusKm).toBeUndefined();
+    expect(sparseStore.openingHours).toBeUndefined();
   });
 });

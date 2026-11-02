@@ -25,7 +25,7 @@ import { LicensePlan } from '../../models/ecosystem.model';
                 EDIÇÃO LIMITADA AO CATÁLOGO
               </span>
             </div>
-            <p class="text-xs text-stone-400 mt-0.5">Edite o preço SaaS e a cota usada no provisionamento de novos lojistas. A cobrança recorrente não está integrada; mudanças no catálogo não atualizam automaticamente as cotas existentes. Entregadores da plataforma para lojas sem frota continuam em breve.</p>
+            <p class="text-xs text-stone-400 mt-0.5">Edite o preço SaaS e a cota usada no provisionamento de novos lojistas. O painel Pagamentos SaaS gera checkouts no provedor configurado; mudanças no catálogo não atualizam automaticamente assinaturas ou cotas existentes. A comissão de 8% para a futura rede de entregadores continua em breve.</p>
           </div>
         </div>
       </div>
@@ -35,7 +35,7 @@ import { LicensePlan } from '../../models/ecosystem.model';
         <mat-icon class="text-amber-400 text-xl shrink-0 mt-0.5">verified_user</mat-icon>
         <div class="space-y-1">
           <h4 class="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider">Metadados cadastrados no plano</h4>
-          <p class="text-[11px] text-stone-300 leading-relaxed font-sans">Os módulos listados são informativos; esta tela altera preço e cota, sem ativar ou bloquear módulos do OS. A cota cadastrada vale para novos lojistas; para tenants existentes, o HQ ajusta o limite na governança.</p>
+          <p class="text-[11px] text-stone-300 leading-relaxed font-sans">Todos os planos dão acesso ao Store OS completo; nenhum módulo é bloqueado pelo plano. A cota cadastrada vale para novos lojistas; para tenants existentes, o HQ ajusta o limite na governança. Funções ainda em desenvolvimento continuam pendentes para todos.</p>
         </div>
       </div>
 
@@ -115,7 +115,7 @@ import { LicensePlan } from '../../models/ecosystem.model';
                   </strong>
                 </div>
                 <p class="text-[10px] text-stone-500">Este valor do catálogo não sincroniza automaticamente a cota de tenants existentes.</p>
-                <span class="text-[10px] font-mono font-bold text-stone-400 uppercase block pt-1">Módulos descritos no cadastro:</span>
+                <span class="text-[10px] font-mono font-bold text-stone-400 uppercase block pt-1">Acesso incluído:</span>
                 <ul class="space-y-1.5 font-sans text-xs text-stone-300">
                   @for (mod of plan.includedModules; track mod) {
                     <li class="flex items-center gap-2">

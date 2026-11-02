@@ -30,4 +30,4 @@ As alterações administrativas não têm garantia uniforme de registro: algumas
 
 ## Validação desta documentação
 
-O texto foi conferido com `src/server/api.ts`, `src/server/middleware/auth.middleware.ts`, `src/server/routes/auth.router.ts`, `src/server/routes/hq.router.ts`, `src/server/routes/crm.router.ts` e `firestore.rules`. Nesta revisão, o build passou e a suíte geral passou com 96/96 testes; a cobertura usa mocks e não valida claims contra Firebase real.
+O texto foi conferido com `src/server/api.ts`, `src/server/middleware/auth.middleware.ts`, `src/server/routes/auth.router.ts`, `src/server/routes/hq.router.ts`, `src/server/routes/crm.router.ts` e `firestore.rules`. Nesta revisão, o build passou e a suíte geral passou com 100/100 testes; a cobertura usa mocks e não valida claims contra Firebase real.

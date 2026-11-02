@@ -19,7 +19,7 @@ A página pública inicia a sincronização de dados depois da primeira renderiz
 
 ## Regras de receita e entrega
 
-A loja administra seus motoristas próprios e decide quanto pagar a eles. A assinatura paga ao HQ pelo uso do Store OS e pela cota de dispositivos do plano; sua cobrança recorrente ainda não está automatizada. O acesso a entregadores da plataforma para lojas sem frota está em coming_soon, sem contratação ou cobrança implementadas. A comissão de referência de 8% fica separada e se aplica somente ao futuro processo de entregas da rede própria da plataforma.
+A loja administra seus motoristas próprios e decide quanto pagar a eles. A assinatura paga ao HQ pelo uso do Store OS e pela cota de dispositivos do plano tem checkout recorrente via Mercado Pago/Stripe, com status e faturas atualizados por webhooks assinados. O acesso à rede de entregadores da plataforma está em `coming_soon`; quando ativado, haverá comissão de 8% por entrega elegível, separada da assinatura e do caixa da loja.
 
 ## Pagamentos
 

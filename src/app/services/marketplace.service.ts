@@ -23,12 +23,12 @@ export class MarketplaceService {
     showHeroAnnouncement: true,
     featuredTenantIds: [],
     defaultSearchRadiusKm: 15,
-    activeRegionName: 'São Paulo'
+    activeRegionName: 'Região não configurada'
   });
 
   readonly maxDiscoveryRadiusKm = signal<number>(30);
-  readonly userReferenceAddress = signal<string>('Avenida Paulista, 1000, São Paulo');
-  readonly userReferenceCoords = signal<{ lat: number; lng: number }>({ lat: -23.5651, lng: -46.6521 });
+  readonly userReferenceAddress = signal<string>('Localização não informada');
+  readonly userReferenceCoords = signal<{ lat: number; lng: number } | null>(null);
   
   readonly geoStatus = signal<GeolocationStatus>('idle');
   readonly geoErrorMessage = signal<string | null>(null);
@@ -60,6 +60,8 @@ export class MarketplaceService {
         (error) => {
           this.geoStatus.set(error.code === error.PERMISSION_DENIED ? 'denied' : 'error');
           this.isRealLocationActive.set(false);
+          this.userReferenceCoords.set(null);
+          this.userReferenceAddress.set('Localização não informada');
           const msg = error.code === error.PERMISSION_DENIED
             ? 'Permissão de localização recusada pelo navegador.'
             : 'Não foi possível obter sua posição GPS real.';
@@ -71,9 +73,9 @@ export class MarketplaceService {
     });
   }
 
-  calculateDistanceKm(storeLat?: number, storeLng?: number): number {
-    if (storeLat === undefined || storeLng === undefined) return 2.5;
+  calculateDistanceKm(storeLat?: number, storeLng?: number): number | null {
     const user = this.userReferenceCoords();
+    if (storeLat === undefined || storeLng === undefined || !user) return null;
     const R = 6371; // Earth radius in kilometers
     const dLat = (storeLat - user.lat) * (Math.PI / 180);
     const dLng = (storeLng - user.lng) * (Math.PI / 180);
@@ -107,6 +109,6 @@ export class MarketplaceService {
   }
 
   openStorefront(tenantId: string) {
-    this.router.navigate(['/storefront', tenantId]);
+    this.router.navigate(['/p', tenantId]);
   }
 }

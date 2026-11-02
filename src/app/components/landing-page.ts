@@ -27,7 +27,7 @@ import { animate, inView } from "motion";
         <nav class="hidden md:flex items-center gap-8 text-sm font-bold text-slate-400">
           <a href="#features" (click)="smoothScroll($event, 'features')" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Funcionalidades</a>
           <a href="#sectors" (click)="smoothScroll($event, 'sectors')" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Ecossistema</a>
-          <a href="#proof" (click)="smoothScroll($event, 'proof')" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Impacto</a>
+          <a href="#proof" (click)="smoothScroll($event, 'proof')" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Como funciona</a>
           <a href="#contact" (click)="smoothScroll($event, 'contact')" class="hover:text-white transition-colors whitespace-nowrap shrink-0">Suporte</a>
         </nav>
 
@@ -68,7 +68,7 @@ import { animate, inView } from "motion";
           <div class="lg:col-span-8 space-y-8 animate-hero">
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-widest">
               <mat-icon class="text-xs text-amber-500">bolt</mat-icon>
-              <span>Protocolo Gastronômico V5.4</span>
+              <span>Gestão comercial para lojas</span>
             </div>
             
             <h1 class="text-6xl lg:text-[100px] font-black tracking-tighter text-white leading-[0.85] text-wrap-balance">
@@ -76,7 +76,7 @@ import { animate, inView } from "motion";
             </h1>
 
             <p class="text-xl lg:text-2xl text-slate-400 leading-relaxed font-medium max-w-2xl">
-              Integramos todas as esferas do seu negócio em um motor zoneless unificado. HQ Central, Store OS e Marketplace Regional trabalhando em simbiose absoluta.
+              Uma plataforma web com gestão central no HQ, ferramentas operacionais para a loja e uma vitrine pública para pedidos e descoberta.
             </p>
 
             <div class="flex flex-wrap items-center gap-4 pt-6">
@@ -100,32 +100,13 @@ import { animate, inView } from "motion";
           <!-- Tactical Side Card -->
           <div class="lg:col-span-4 hidden lg:block animate-hero-card">
             <div class="bg-white/5 border border-white/10 rounded-[3rem] p-8 backdrop-blur-2xl space-y-6">
-              <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                <span>Status da Infra</span>
-                <span class="text-emerald-500 flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  OPERACIONAL
-                </span>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Disponibilidade dos módulos</div>
+              <div class="space-y-3 text-sm">
+                <div class="flex justify-between gap-4"><span class="text-slate-300">Store OS e gestão da loja</span><span class="text-emerald-400">Disponível</span></div>
+                <div class="flex justify-between gap-4"><span class="text-slate-300">Vitrine e pedidos públicos</span><span class="text-emerald-400">Disponível</span></div>
+                <div class="flex justify-between gap-4"><span class="text-slate-300">Entregas da plataforma</span><span class="text-amber-400">Em breve</span></div>
               </div>
-              <div class="space-y-2">
-                <div class="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div class="h-full bg-amber-500 w-[94%]"></div>
-                </div>
-                <div class="flex justify-between text-[10px] font-mono text-slate-400">
-                  <span>Latência Rede</span>
-                  <span>12ms</span>
-                </div>
-              </div>
-              <div class="pt-4 grid grid-cols-2 gap-4">
-                <div class="bg-black/40 p-4 rounded-2xl border border-white/5">
-                  <div class="text-xl font-black text-white">1.4k</div>
-                  <div class="text-[8px] font-bold text-slate-500 uppercase">Tenants</div>
-                </div>
-                <div class="bg-black/40 p-4 rounded-2xl border border-white/5">
-                  <div class="text-xl font-black text-white">Em breve</div>
-                  <div class="text-[8px] font-bold text-slate-500 uppercase">Entregas da plataforma</div>
-                </div>
-              </div>
+              <p class="text-[10px] text-slate-500">Recursos dependem de configuração e disponibilidade do serviço.</p>
             </div>
           </div>
         </div>
@@ -135,22 +116,10 @@ import { animate, inView } from "motion";
       <section id="sectors" class="py-12 bg-[#0d0d0d] border-y border-white/5 overflow-hidden">
         <div class="container mx-auto px-6">
            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 items-center">
-             <div class="flex flex-col items-center gap-1 reveal-item opacity-0">
-               <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Sessões Ativas</span>
-               <span class="text-2xl font-black text-white tracking-tighter tabular-nums">{{ ecosystem.activeSessionsCount() }}</span>
-             </div>
-             <div class="flex flex-col items-center gap-1 reveal-item opacity-0">
-               <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Uptime Global</span>
-               <span class="text-2xl font-black text-emerald-500 tracking-tighter tabular-nums">{{ ecosystem.uptimePercent() }}%</span>
-             </div>
-             <div class="flex flex-col items-center gap-1 reveal-item opacity-0">
-               <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Latência Média</span>
-               <span class="text-2xl font-black text-amber-500 tracking-tighter tabular-nums">{{ ecosystem.avgLatencyMs() }}ms</span>
-             </div>
-             <div class="flex flex-col items-center gap-1 reveal-item opacity-0">
-               <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocolo OS</span>
-               <span class="text-2xl font-black text-white tracking-tighter">v5.4.0</span>
-             </div>
+             <div class="flex flex-col items-center gap-1"><span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Acesso ao OS</span><span class="text-lg font-black text-white">Completo em todos os planos</span></div>
+             <div class="flex flex-col items-center gap-1"><span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Planos HQ</span><span class="text-lg font-black text-white">Assinatura do lojista</span></div>
+             <div class="flex flex-col items-center gap-1"><span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Dispositivos</span><span class="text-lg font-black text-white">Cota por plano</span></div>
+             <div class="flex flex-col items-center gap-1"><span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Entregadores 3EAT</span><span class="text-lg font-black text-amber-400">Em breve</span></div>
            </div>
         </div>
       </section>
@@ -160,7 +129,7 @@ import { animate, inView } from "motion";
         <div class="container mx-auto px-6 space-y-20">
           <div class="max-w-3xl space-y-6">
             <h2 class="text-4xl lg:text-6xl font-black tracking-tighter text-white leading-none">Arquitetura de <br> <span class="text-amber-500 italic">Dominação Local</span></h2>
-            <p class="text-xl text-slate-400 font-medium leading-relaxed">Não é apenas um sistema de vendas. É um ecossistema completo que sincroniza hardware, logística e marketing em tempo real.</p>
+            <p class="text-xl text-slate-400 font-medium leading-relaxed">O HQ administra a plataforma, o lojista controla a operação da própria loja e o consumidor acessa as vitrines públicas.</p>
           </div>
 
           <div class="grid lg:grid-cols-12 gap-6 items-stretch">
@@ -200,7 +169,7 @@ import { animate, inView } from "motion";
                 </div>
                 <h3 class="text-3xl font-black text-white tracking-tighter">02. Store OS (Web App)</h3>
                 <p class="text-slate-400 font-medium leading-relaxed">
-                  Sistema Web operacional para o lojista via navegador. PDV de alto volume, KDS de cozinha, mapa de mesas e ERP de estoque otimizado para Desktop, Laptops e Tablets.
+                  Sistema web para o lojista operar vendas, pedidos, produtos e módulos disponíveis no Store OS. A disponibilidade de cada fluxo deve ser conferida no ambiente da loja.
                 </p>
                 <div class="inline-flex items-center gap-1.5 text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg w-fit font-bold">
                   <mat-icon class="text-xs">laptop_mac</mat-icon>
@@ -221,7 +190,7 @@ import { animate, inView } from "motion";
                 </div>
                 <h3 class="text-3xl font-black text-white tracking-tighter">03. Marketplace</h3>
                 <p class="text-slate-400 font-medium leading-relaxed">
-                  Conecte sua loja ao consumidor final com geolocalização geodésica e pagamentos integrados.
+                  Mostra lojas e catálogos públicos. O PIX é direcionado à loja com confirmação manual; cartão está indisponível até a integração de cada loja.
                 </p>
               </div>
             </div>
@@ -236,30 +205,30 @@ import { animate, inView } from "motion";
                   <div class="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-500 shadow-xl text-[0px]">
                     <mat-icon class="text-3xl">hub</mat-icon>
                   </div>
-                  <h3 class="text-4xl font-black text-white tracking-tighter">Integração Zoneless</h3>
+                  <h3 class="text-4xl font-black text-white tracking-tighter">Integrações por módulo</h3>
                   <p class="text-slate-400 font-medium leading-relaxed text-lg">
-                    Nossa tecnologia de sincronização de baixa latência elimina a necessidade de refreshes. Quando um pedido cai no marketplace, ele apita no KDS da cozinha em menos de 100ms.
+                    Os módulos compartilham contratos de API. A atualização de dados e a operação offline variam conforme o fluxo; não há garantia pública de latência ou disponibilidade.
                   </p>
                   <ul class="grid grid-cols-2 gap-4 pt-4">
                     <li class="flex items-center gap-2 text-xs font-bold text-slate-300">
-                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> Real-time Websockets
+                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> APIs por domínio
                     </li>
                     <li class="flex items-center gap-2 text-xs font-bold text-slate-300">
-                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> Offline Resilience
+                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> Fila offline no PDV
                     </li>
                     <li class="flex items-center gap-2 text-xs font-bold text-slate-300">
-                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> ACID Compliance
+                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> Validação de pedidos no servidor
                     </li>
                     <li class="flex items-center gap-2 text-xs font-bold text-slate-300">
-                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> PWA Support
+                      <mat-icon class="text-emerald-500 text-sm">check</mat-icon> Aplicação web responsiva
                     </li>
                   </ul>
                 </div>
                 <div class="hidden md:block w-px h-full bg-white/5"></div>
                 <div class="md:w-1/3 text-center md:text-left space-y-4">
-                  <div class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Global Telemetry</div>
-                  <div class="text-5xl font-black text-white tabular-nums">{{ ecosystem.avgLatencyMs() }}ms</div>
-                  <div class="text-xs text-slate-500 font-bold uppercase">Avg Latency</div>
+                  <div class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Operação da plataforma</div>
+                  <div class="text-2xl font-black text-white">Por módulo</div>
+                  <div class="text-xs text-slate-500 font-bold uppercase">Verifique os limites documentados</div>
                 </div>
               </div>
             </div>
@@ -273,22 +242,32 @@ import { animate, inView } from "motion";
           <div class="flex flex-col lg:flex-row justify-between items-end gap-8 reveal-item opacity-0">
             <div class="max-w-2xl space-y-6">
               <h2 class="text-4xl lg:text-6xl font-black tracking-tighter text-white leading-none">Presença <span class="text-emerald-500 italic">Regional</span></h2>
-              <p class="text-xl text-slate-400 font-medium leading-relaxed">Sua loja não está isolada. Ela faz parte de uma malha regional que compartilha logística e descoberta de novos clientes.</p>
+              <p class="text-xl text-slate-400 font-medium leading-relaxed">As vitrines públicas permitem descobrir lojas e consultar catálogos. A entrega do pedido é organizada e paga diretamente pela loja.</p>
             </div>
             <button (click)="router.navigate(['/regional'])" class="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
               Explorar Marketplace Completo
             </button>
           </div>
 
+          @if (ecosystem.tenantsService.isSimulation()) {
+            <p class="text-xs font-bold text-amber-400">Demonstração: os estabelecimentos abaixo são dados simulados.</p>
+          }
+          @if (ecosystem.publicStorefrontsStatus() === 'loading' || ecosystem.publicStorefrontsStatus() === 'idle') {
+            <p class="text-sm text-slate-400">Carregando estabelecimentos publicados…</p>
+          } @else if (ecosystem.publicStorefrontsStatus() === 'error') {
+            <p class="text-sm text-amber-300">Não foi possível carregar as vitrines públicas.</p>
+          } @else if (ecosystem.publicStorefronts().length === 0) {
+            <p class="text-sm text-slate-400">Nenhum estabelecimento publicado no momento.</p>
+          }
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            @for (tenant of ecosystem.tenants().slice(0, 3); track tenant.id) {
+            @for (tenant of ecosystem.publicStorefronts().slice(0, 3); track tenant.id) {
               <div class="group relative bg-[#111] border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-emerald-500/30 transition-all duration-500 reveal-item opacity-0">
                 <div class="h-48 overflow-hidden relative">
                   <img [src]="tenant.coverImage || tenant.logo" [alt]="tenant.name" class="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-1000" referrerpolicy="no-referrer">
                   <div class="absolute inset-0 bg-gradient-to-t from-[#111] via-transparent to-transparent"></div>
                   <div class="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Online
+                    {{ tenant.isOpen === undefined ? 'Status não informado' : tenant.isOpen ? 'Aberta' : 'Fechada' }}
                   </div>
                 </div>
                 <div class="p-8 space-y-4">
@@ -297,38 +276,28 @@ import { animate, inView } from "motion";
                     <p class="text-xs text-slate-500 font-bold leading-relaxed line-clamp-1">{{ tenant.tagline }}</p>
                   </div>
                   <div class="flex items-center gap-4 text-[10px] font-mono font-bold text-slate-400">
-                    <span class="flex items-center gap-1"><mat-icon class="text-sm text-amber-500">star</mat-icon> {{ tenant.rating }}</span>
-                    <span class="flex items-center gap-1"><mat-icon class="text-sm text-indigo-500">place</mat-icon> {{ tenant.address.neighborhood }}</span>
+                    <span class="flex items-center gap-1"><mat-icon class="text-sm text-indigo-500">place</mat-icon> {{ tenant.address.neighborhood || tenant.address.city || 'Localização não informada' }}</span>
                   </div>
                 </div>
               </div>
             }
           </div>
 
-          <!-- Live Activity Ticker -->
+          <!-- Marketplace status -->
           <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 reveal-item opacity-0">
              <div class="flex items-center gap-4">
                <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500">
                  <mat-icon>analytics</mat-icon>
                </div>
                <div class="space-y-0.5">
-                 <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Atividade em Tempo Real</div>
-                 <div class="text-sm font-bold text-white leading-none">Novos pedidos sendo processados agora</div>
+                 <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Entrega dos pedidos</div>
+                 <div class="text-sm font-bold text-white leading-none">Responsabilidade da loja</div>
                </div>
              </div>
              <div class="flex items-center gap-8 overflow-hidden max-w-lg">
-                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 whitespace-nowrap">
-                   <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
-                   Pedido #{{ (ecosystem.orders().length + 120) }} em preparo em Moema
-                </div>
-                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 whitespace-nowrap">
-                   <span class="w-1 h-1 rounded-full bg-amber-500"></span>
-                   Entrega iniciada para Al. Santos
-                </div>
-                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 whitespace-nowrap">
-                   <span class="w-1 h-1 rounded-full bg-indigo-500"></span>
-                   Mesa 4 aberta no Centro
-                </div>
+                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 whitespace-nowrap"><span class="w-1 h-1 rounded-full bg-emerald-500"></span>A loja define o motorista e a remuneração</div>
+                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 whitespace-nowrap"><span class="w-1 h-1 rounded-full bg-amber-500"></span>O entregador pode usar o app para acompanhar rotas</div>
+                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 whitespace-nowrap"><span class="w-1 h-1 rounded-full bg-indigo-500"></span>Rede de entregadores da plataforma: em breve</div>
              </div>
           </div>
         </div>
@@ -340,11 +309,17 @@ import { animate, inView } from "motion";
           <div class="text-center space-y-4 reveal-item opacity-0">
             <h2 class="text-4xl lg:text-6xl font-black tracking-tighter text-white">Planos de <span class="text-amber-500">Expansão</span></h2>
             <p class="text-slate-400 font-medium max-w-2xl mx-auto">
-              Todos os planos incluem <strong>100% dos aplicativos do ecossistema</strong> (PDV, KDS, Mesas, Estoque, Garçom, Entregas e Vitrine). Você só escolhe a quantidade de dispositivos e terminais necessários para a sua operação.
+              Todos os planos liberam acesso ao <strong>Store OS completo</strong>; a diferença comercial é a cota de dispositivos. Integrações e funções ainda em desenvolvimento permanecem pendentes para todos os lojistas.
             </p>
+            @if (ecosystem.hqService.licensePlansSource() === 'demo') {
+              <p class="text-xs font-bold text-amber-400">Valores de demonstração.</p>
+            } @else if (ecosystem.hqService.licensePlansSource() === 'defaults' || ecosystem.hqService.licensePlansSource() === 'mixed') {
+              <p class="text-xs font-bold text-amber-400">Catálogo publicado com valores padrão e/ou valores configurados no HQ.</p>
+            }
           </div>
 
           <div class="grid md:grid-cols-3 gap-8">
+            @if (ecosystem.hqService.licensePlansStatus() === 'loaded') {
             @for (plan of ecosystem.licensePlans(); track plan.id) {
               <div class="group relative bg-[#0f0f0f] border border-white/5 p-10 rounded-[3rem] hover:border-amber-500/40 transition-all duration-500 flex flex-col reveal-item opacity-0">
                 @if (plan.id === 'Professional') {
@@ -368,12 +343,10 @@ import { animate, inView } from "motion";
                       <mat-icon class="text-amber-500 text-base">devices</mat-icon>
                       Até {{ plan.maxDevices }} dispositivos
                     </div>
-                    @for (module of plan.includedModules; track module) {
-                      <div class="flex items-center gap-2 text-xs font-bold text-slate-400">
-                        <mat-icon class="text-emerald-500 text-sm">check_circle</mat-icon>
-                        {{ module }}
-                      </div>
-                    }
+                    <div class="flex items-center gap-2 text-xs font-bold text-slate-400">
+                      <mat-icon class="text-emerald-500 text-sm">check_circle</mat-icon>
+                      Acesso completo ao Store OS
+                    </div>
                   </div>
                 </div>
 
@@ -384,77 +357,40 @@ import { animate, inView } from "motion";
                 </div>
               </div>
             }
+            } @else if (ecosystem.hqService.licensePlansStatus() === 'loading' || ecosystem.hqService.licensePlansStatus() === 'idle') {
+              <p class="md:col-span-3 text-center text-sm text-slate-400">Carregando catálogo de planos…</p>
+            } @else {
+              <p class="md:col-span-3 text-center text-sm text-amber-300">Não foi possível carregar os valores dos planos. Tente novamente mais tarde.</p>
+            }
           </div>
         </div>
       </section>
 
-      <!-- PROOF SECTION -->
+      <!-- CURRENT OPERATING MODEL -->
       <section id="proof" class="py-32 bg-black/40">
         <div class="container mx-auto px-6 space-y-20">
           <div class="text-center max-w-2xl mx-auto space-y-4">
-             <h2 class="text-3xl lg:text-5xl font-black tracking-tighter text-white">Impacto Comprovado</h2>
-             <p class="text-slate-400 font-medium italic">Histórias reais de quem escalou com o 3EATCRU OS.</p>
+             <h2 class="text-3xl lg:text-5xl font-black tracking-tighter text-white">Como a plataforma opera</h2>
+             <p class="text-slate-400 font-medium">Responsabilidades e pagamentos seguem o modelo atual do ecossistema.</p>
           </div>
 
           <div class="grid md:grid-cols-3 gap-8">
             <div class="bg-[#111] border border-white/5 p-8 rounded-[2.5rem] space-y-6 reveal-item opacity-0">
-              <div class="flex gap-1 text-amber-500 text-[0px]">
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-              </div>
-              <p class="text-slate-300 font-medium leading-relaxed italic text-sm">
-                "A transição do nosso PDV antigo para o 3EATCRU foi o melhor investimento que fizemos em 2024. A integração com o marketplace regional trouxe +40% de vendas orgânicas."
-              </p>
-              <div class="pt-4 border-t border-white/5 flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-white">RM</div>
-                <div>
-                  <div class="text-xs font-black text-white uppercase tracking-tighter">Ricardo Mendes</div>
-                  <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">CEO, Burger Artisan Co.</div>
-                </div>
-              </div>
+              <mat-icon class="text-amber-500">store</mat-icon>
+              <h3 class="text-lg font-black text-white">Receita da loja</h3>
+              <p class="text-slate-300 text-sm leading-relaxed">O pagamento da venda é direcionado à conta de pagamento configurada pela própria loja. O HQ não recebe nem divide o valor do pedido.</p>
             </div>
 
             <div class="bg-[#111] border border-white/5 p-8 rounded-[2.5rem] space-y-6 reveal-item opacity-0">
-              <div class="flex gap-1 text-amber-500 text-[0px]">
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-              </div>
-              <p class="text-slate-300 font-medium leading-relaxed italic text-sm">
-                "O KDS zoneless mudou o ritmo da nossa cozinha. Zero erros de pedido e visibilidade total do tempo de preparação para os clientes no marketplace."
-              </p>
-              <div class="pt-4 border-t border-white/5 flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-white">AS</div>
-                <div>
-                  <div class="text-xs font-black text-white uppercase tracking-tighter">Ana Silva</div>
-                  <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chef, Sabor & Arte</div>
-                </div>
-              </div>
+              <mat-icon class="text-emerald-500">two_wheeler</mat-icon>
+              <h3 class="text-lg font-black text-white">Motoristas da loja</h3>
+              <p class="text-slate-300 text-sm leading-relaxed">A loja escolhe seus motoristas e combina diretamente com eles o pagamento. O app de motorista ajuda na operação e no acompanhamento de rotas.</p>
             </div>
 
             <div class="bg-[#111] border border-white/5 p-8 rounded-[2.5rem] space-y-6 reveal-item opacity-0">
-              <div class="flex gap-1 text-amber-500 text-[0px]">
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-                <mat-icon class="text-sm">star</mat-icon>
-              </div>
-              <p class="text-slate-300 font-medium leading-relaxed italic text-sm">
-                "A auditoria global e MDM nos permite gerenciar 12 unidades espalhadas pela capital com um time reduzido no HQ. Eficiência absoluta."
-              </p>
-              <div class="pt-4 border-t border-white/5 flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-white">ML</div>
-                <div>
-                  <div class="text-xs font-black text-white uppercase tracking-tighter">Marcos Lima</div>
-                  <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Franqueador, Rede Estrela</div>
-                </div>
-              </div>
+              <mat-icon class="text-indigo-400">hub</mat-icon>
+              <h3 class="text-lg font-black text-white">Assinatura HQ</h3>
+              <p class="text-slate-300 text-sm leading-relaxed">A loja paga a assinatura para usar o Store OS completo. Os planos diferem pela quantidade de dispositivos; a tarifa de 8% só se aplica à futura rede própria de entregadores, ainda em breve.</p>
             </div>
           </div>
         </div>
@@ -466,10 +402,10 @@ import { animate, inView } from "motion";
           <div class="space-y-12">
             <div class="space-y-6 reveal-item opacity-0">
               <h2 class="text-5xl lg:text-[80px] font-black tracking-tighter text-white leading-[0.85]">
-                Escala <br> <span class="text-amber-500">Ilimitada.</span>
+                Comece <br> <span class="text-amber-500">sua loja.</span>
               </h2>
               <p class="text-xl text-slate-400 leading-relaxed font-medium max-w-md">
-                Provisionamos sua infraestrutura em menos de 5 minutos. Sem taxas ocultas, sem hardware proprietário obrigatório.
+                O cadastro inicia a criação da loja e uma avaliação. Consulte os valores e limites do plano antes de contratar.
               </p>
             </div>
             
@@ -479,8 +415,8 @@ import { animate, inView } from "motion";
                   <mat-icon>cloud_done</mat-icon>
                 </div>
                 <div>
-                  <h4 class="font-black text-white uppercase tracking-tighter text-sm">Infraestrutura Soberana</h4>
-                  <p class="text-slate-500 text-xs font-bold leading-relaxed">Dados criptografados e backups geolocalizados automáticos a cada transação.</p>
+                  <h4 class="font-black text-white uppercase tracking-tighter text-sm">Conta da loja</h4>
+                  <p class="text-slate-500 text-xs font-bold leading-relaxed">A loja configura seus dados, meios de pagamento e disponibilidade de atendimento.</p>
                 </div>
               </div>
               <div class="flex items-start gap-5">
@@ -488,8 +424,8 @@ import { animate, inView } from "motion";
                   <mat-icon>support_agent</mat-icon>
                 </div>
                 <div>
-                  <h4 class="font-black text-white uppercase tracking-tighter text-sm">Setup HQ Assistido</h4>
-                  <p class="text-slate-500 text-xs font-bold leading-relaxed">Nosso time de implantação configura sua loja e migra seu estoque em tempo recorde.</p>
+                  <h4 class="font-black text-white uppercase tracking-tighter text-sm">Plano e dispositivos</h4>
+                  <p class="text-slate-500 text-xs font-bold leading-relaxed">Todos os planos incluem o Store OS completo; a cota de dispositivos varia por plano.</p>
                 </div>
               </div>
             </div>
@@ -591,7 +527,7 @@ import { animate, inView } from "motion";
                 </div>
 
                 <p class="text-center text-[10px] text-slate-600 leading-relaxed font-bold uppercase tracking-widest pt-4">
-                  Provisionamento instantâneo. <br> Ao clicar, você aceita o <a href="#" class="text-amber-500/60 hover:underline">Contrato de Serviço Global</a>.
+                  O cadastro não confirma a ativação de integrações ou serviços que ainda estejam em desenvolvimento.
                 </p>
               </form>
             </div>
@@ -611,16 +547,9 @@ import { animate, inView } from "motion";
                <div class="w-16 h-16 rounded-[2rem] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-xl text-[0px]">
                 <mat-icon class="text-3xl">support_agent</mat-icon>
               </div>
-              <h2 class="text-4xl lg:text-6xl font-black tracking-tighter text-white leading-none">Suporte <span class="italic text-amber-500">Mission-Critical</span></h2>
-              <p class="text-xl text-slate-400 font-medium leading-relaxed">Nosso time HQ está online 24/7 para garantir que sua operação nunca pare. Implementação tática, consultoria de performance e socorro técnico em tempo real.</p>
-              <div class="flex items-center gap-6">
-                <button (click)="ecosystem.sendWhatsAppMessage('Suporte HQ', '0800', 'Olá! Preciso de consultoria para minha loja.')" class="px-8 py-4 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-black text-xs uppercase tracking-widest rounded-2xl border border-emerald-500/30 transition-all flex items-center gap-2 cursor-pointer">
-                  <mat-icon>chat</mat-icon> Consultoria WhatsApp
-                </button>
-                <div class="hidden sm:block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest">
-                  Tempo Médio: 4min
-                </div>
-              </div>
+              <h2 class="text-4xl lg:text-6xl font-black tracking-tighter text-white leading-none">Fale com a <span class="italic text-amber-500">equipe</span></h2>
+              <p class="text-xl text-slate-400 font-medium leading-relaxed">Os canais oficiais de atendimento ainda não estão configurados nesta página.</p>
+              <p class="text-xs text-slate-500">Consulte os documentos e avisos disponíveis no ambiente do produto.</p>
             </div>
             <div class="flex-1 w-full lg:w-auto h-80 lg:h-96 rounded-[3rem] overflow-hidden border border-white/10 relative shadow-2xl text-[0px]">
                <img src="/src/assets/images/feature_support_hq_1793306671162.jpg" alt="Support" class="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-700" referrerpolicy="no-referrer">
@@ -642,7 +571,7 @@ import { animate, inView } from "motion";
                 <span>3EATCRU OS</span>
               </a>
               <p class="text-xs text-slate-500 font-bold leading-relaxed uppercase tracking-wider">
-                Desenvolvido para lojistas que operam no limite da excelência. Tecnologia zoneless, escalabilidade global, presença regional.
+                Ferramentas web para gestão da loja, administração central e descoberta pública de estabelecimentos.
               </p>
               <div class="flex items-center gap-4 text-slate-400">
                 <a href="#" class="hover:text-white transition-colors text-[0px]"><mat-icon>facebook</mat-icon></a>
@@ -655,10 +584,10 @@ import { animate, inView } from "motion";
               <div class="space-y-6">
                 <h4 class="text-[10px] font-black text-white uppercase tracking-[0.2em] opacity-50">Plataforma</h4>
                 <nav class="flex flex-col gap-4 text-xs text-slate-400 font-bold">
-                  <a href="/login" class="hover:text-amber-500 transition-colors">HQ Dashboard</a>
-                  <a href="/login" class="hover:text-amber-500 transition-colors">Store Operating System</a>
-                  <a href="/regional" class="hover:text-amber-500 transition-colors">Marketplace Engine</a>
-                  <a href="/login" class="hover:text-amber-500 transition-colors">MDM Fleet Control</a>
+                  <a href="/hq/login" class="hover:text-amber-500 transition-colors">HQ Dashboard</a>
+                  <a href="/os/login" class="hover:text-amber-500 transition-colors">Store Operating System</a>
+                  <a href="/home" class="hover:text-amber-500 transition-colors">Marketplace público</a>
+                  <a href="/hq/login" class="hover:text-amber-500 transition-colors">Dispositivos no HQ</a>
                 </nav>
               </div>
               <div class="space-y-6">
@@ -675,22 +604,14 @@ import { animate, inView } from "motion";
                 <nav class="flex flex-col gap-4 text-xs text-slate-400 font-bold">
                   <a href="#" class="hover:text-amber-500 transition-colors">Privacidade</a>
                   <a href="#" class="hover:text-amber-500 transition-colors">Termos de Uso</a>
-                  <a href="#" class="hover:text-amber-500 transition-colors">SLA de Serviço</a>
                 </nav>
               </div>
             </div>
           </div>
 
           <div class="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] font-mono text-slate-600 font-bold tracking-widest">
-            <div>© 2026 3EATCRU TECHNOLOGIES S.A. ALL RIGHTS RESERVED.</div>
-            <div class="flex items-center gap-8">
-              <span class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                STABLE RELEASE
-              </span>
-              <span>VER: 5.4.0-GA</span>
-              <span>NODE: LON-01-BR</span>
-            </div>
+            <div>© 2026 3EATCRU</div>
+            <div class="flex items-center gap-8"><span>Store OS • HQ • Marketplace</span></div>
           </div>
         </div>
       </footer>
@@ -730,6 +651,8 @@ export class LandingPageComponent {
     afterNextRender(() => {
       this.initAnimations();
       this.initHeaderScroll();
+      void this.ecosystem.syncMarketplaceFromBackend();
+      void this.ecosystem.hqService.fetchPlans();
     });
   }
 

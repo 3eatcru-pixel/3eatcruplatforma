@@ -5,6 +5,8 @@ import { Router } from '@angular/router';
 import { EcosystemService } from '../../services/ecosystem.service';
 import { OSAppId } from '../../models/os.model';
 
+type EAppReadiness = 'Beta' | 'Parcial' | 'Somente consulta' | 'Demonstração' | 'Em breve';
+
 export interface EAppMeta {
   id: OSAppId;
   label: string;
@@ -12,7 +14,7 @@ export interface EAppMeta {
   icon: string;
   colorClass: string;
   category: 'operacional' | 'financeiro' | 'integracao' | 'utilitarios' | 'gestao';
-  minPlan: 'Starter' | 'Professional' | 'Enterprise';
+  readiness: EAppReadiness;
 }
 
 @Component({
@@ -32,23 +34,23 @@ export interface EAppMeta {
         <div class="relative z-10 space-y-2">
           <div class="flex items-center gap-2 text-amber-500 font-serif font-black uppercase text-[10px] tracking-widest">
             <mat-icon class="text-sm text-amber-400">apps</mat-icon>
-            <span>Catálogo de referência de eApps</span>
+            <span>Catálogo de módulos e integrações</span>
             <span class="bg-amber-950 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded font-mono text-[9px]">METADADOS LOCAIS</span>
           </div>
 
           <h2 class="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
-            eApps Embutidos do Store OS
+            Módulos e integrações do Store OS
           </h2>
 
           <p class="text-stone-400 text-xs font-serif max-w-2xl leading-relaxed">
-            Os <strong>eApps</strong> listados são referências de módulos do <strong>Store OS</strong>. O plano mínimo exibido não aplica bloqueio de acesso, e a quantidade de instalações por tenant não é coletada nesta tela.
+            A assinatura dá acesso ao <strong>Store OS</strong> completo em todos os planos; a cota de dispositivos é o limite comercial. Integrações e funções ainda em desenvolvimento continuam pendentes para todos os lojistas.
           </p>
         </div>
 
         <div class="flex items-center gap-3 relative z-10 shrink-0">
           <div class="bg-[#2a160b] border border-[#482814] px-4 py-2.5 rounded-2xl text-center shadow">
-            <span class="text-[10px] text-stone-400 font-mono block uppercase">Total de eApps</span>
-            <span class="text-amber-400 font-black text-base font-serif">{{ totalEAppsCount() }} Módulos</span>
+            <span class="text-[10px] text-stone-400 font-mono block uppercase">Itens listados</span>
+            <span class="text-amber-400 font-black text-base font-serif">{{ totalEAppsCount() }} referências</span>
           </div>
         </div>
       </div>
@@ -100,9 +102,14 @@ export interface EAppMeta {
                   </div>
                 </div>
 
-                <span [class]="getPlanBadgeClass(app.minPlan)" class="text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border">
-                  {{ app.minPlan }}
-                </span>
+                <div class="flex flex-col items-end gap-1">
+                  <span class="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase">
+                    Todos os planos
+                  </span>
+                  <span [class]="getReadinessBadgeClass(app.readiness)" class="text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border">
+                    {{ app.readiness }}
+                  </span>
+                </div>
               </div>
 
               <p class="text-xs text-stone-300 font-sans leading-relaxed">
@@ -110,12 +117,7 @@ export interface EAppMeta {
               </p>
             </div>
 
-            <div class="pt-3 border-t border-[#2e170b] flex items-center justify-between text-[10px] font-mono">
-              <div class="flex items-center gap-2">
-                <span class="text-stone-400">Plano previsto:</span>
-                <strong class="text-amber-400 font-bold">{{ app.minPlan }}</strong>
-              </div>
-
+            <div class="pt-3 border-t border-[#2e170b] flex items-center justify-end text-[10px] font-mono">
               <button
                 type="button"
                 (click)="launchInStoreOs(app.id)"
@@ -157,21 +159,21 @@ export class HqEappsCatalogComponent {
   ];
 
   readonly eAppsList: EAppMeta[] = [
-    { id: 'pos', label: 'PDV Caixa', title: 'Ponto de Venda com atalhos rápidos e abertura de caixa', icon: 'point_of_sale', colorClass: 'from-amber-500 via-orange-600 to-amber-700', category: 'operacional', minPlan: 'Starter' },
-    { id: 'tables', label: 'Mesas & Salão', title: 'Mapa visual interativo de comandas e salão de atendimento', icon: 'table_restaurant', colorClass: 'from-amber-600 to-amber-800', category: 'operacional', minPlan: 'Starter' },
-    { id: 'kds', label: 'KDS Cozinha', title: 'Display de Cozinha com priorização e tempo de preparo', icon: 'soup_kitchen', colorClass: 'from-emerald-600 to-emerald-800', category: 'operacional', minPlan: 'Starter' },
-    { id: 'inventory', label: 'Estoque ERP', title: 'Ficha técnica, inventário de insumos e alerta de reposição', icon: 'inventory_2', colorClass: 'from-amber-500 to-amber-700', category: 'gestao', minPlan: 'Starter' },
-    { id: 'finance', label: 'Caixa & Finanças', title: 'Fechamento de caixa diário, sangrias, suprimentos e fluxo de caixa', icon: 'account_balance_wallet', colorClass: 'from-emerald-500 to-teal-700', category: 'financeiro', minPlan: 'Starter' },
-    { id: 'suppliers', label: 'Fornecedores', title: 'Cotações de compras, ordens de fornecimento e nota fiscal', icon: 'local_shipping', colorClass: 'from-amber-600 via-orange-600 to-amber-800', category: 'gestao', minPlan: 'Professional' },
-    { id: 'reconciliation', label: 'Reconciliação', title: 'Auditoria de maquininhas de cartão, taxas e adquirentes', icon: 'swap_horiz', colorClass: 'from-emerald-600 to-teal-800', category: 'financeiro', minPlan: 'Professional' },
-    { id: 'stock-audit', label: 'Inventário Cego', title: 'Contagem cega de insumos e balanço físico de estoque', icon: 'fact_check', colorClass: 'from-amber-500 to-orange-700', category: 'gestao', minPlan: 'Professional' },
-    { id: 'store-manager', label: 'Minha Loja', title: 'Configuração do cardápio público no marketplace regional', icon: 'storefront', colorClass: 'from-amber-400 via-orange-500 to-amber-600', category: 'gestao', minPlan: 'Starter' },
-    { id: 'whatsapp', label: 'WhatsApp Bot', title: 'Robô atendente para pedidos automáticos no WhatsApp', icon: 'chat', colorClass: 'from-emerald-600 to-emerald-800', category: 'integracao', minPlan: 'Professional' },
-    { id: 'ifood', label: 'iFood Sync', title: 'Integração bidirecional de pedidos e cardápio iFood', icon: 'delivery_dining', colorClass: 'from-rose-600 to-red-800', category: 'integracao', minPlan: 'Professional' },
-    { id: 'drivers', label: 'Hub Logística', title: 'Despacho e acompanhamento de entregadores', icon: 'alt_route', colorClass: 'from-emerald-500 via-teal-600 to-emerald-800', category: 'operacional', minPlan: 'Professional' },
-    { id: 'reports', label: 'Inteligência & KPIs', title: 'Relatórios analíticos, CMV teórico vs real e ticket médio', icon: 'analytics', colorClass: 'from-indigo-600 to-indigo-800', category: 'gestao', minPlan: 'Starter' },
-    { id: 'crm', label: 'Fidelidade & CRM', title: 'Programa de pontos, cashback e régua de relacionamento', icon: 'loyalty', colorClass: 'from-indigo-400 to-indigo-600', category: 'gestao', minPlan: 'Professional' },
-    { id: 'admin-hub', label: 'Gabinete da Loja', title: 'Configurações avançadas do proprietário da filial', icon: 'admin_panel_settings', colorClass: 'from-rose-600 via-amber-600 to-amber-800', category: 'gestao', minPlan: 'Enterprise' }
+    { id: 'pos', label: 'PDV Caixa', title: 'Rota de venda presencial; homologação de hardware e adquirentes continua pendente.', icon: 'point_of_sale', colorClass: 'from-amber-500 via-orange-600 to-amber-700', category: 'operacional', readiness: 'Beta' },
+    { id: 'tables', label: 'Mesas & Salão', title: 'Consulta e operação de mesas por unidade, integrada ao fluxo de reservas.', icon: 'table_restaurant', colorClass: 'from-amber-600 to-amber-800', category: 'operacional', readiness: 'Beta' },
+    { id: 'kds', label: 'KDS Cozinha', title: 'Consulta pedidos e avança o preparo até pronto; não liquida nem conclui o pedido.', icon: 'soup_kitchen', colorClass: 'from-emerald-600 to-emerald-800', category: 'operacional', readiness: 'Beta' },
+    { id: 'inventory', label: 'Estoque ERP', title: 'Consulta e cadastro de produtos; sem ajuste direto de saldo ou histórico de movimentos.', icon: 'inventory_2', colorClass: 'from-amber-500 to-amber-700', category: 'gestao', readiness: 'Parcial' },
+    { id: 'finance', label: 'Caixa & Finanças', title: 'Consulta lançamentos da unidade; sem DRE, conciliação ou criação de lançamentos nesta tela.', icon: 'account_balance_wallet', colorClass: 'from-emerald-500 to-teal-700', category: 'financeiro', readiness: 'Somente consulta' },
+    { id: 'suppliers', label: 'Fornecedores', title: 'Cadastro de contatos por unidade; compras e recebimento de mercadorias ainda não disponíveis.', icon: 'local_shipping', colorClass: 'from-amber-600 via-orange-600 to-amber-800', category: 'gestao', readiness: 'Parcial' },
+    { id: 'reconciliation', label: 'Reconciliação', title: 'Importação de extratos e conciliação de adquirentes ainda não estão integradas.', icon: 'swap_horiz', colorClass: 'from-emerald-600 to-teal-800', category: 'financeiro', readiness: 'Em breve' },
+    { id: 'stock-audit', label: 'Inventário', title: 'Registra contagens e divergências; não ajusta automaticamente o saldo do estoque.', icon: 'fact_check', colorClass: 'from-amber-500 to-orange-700', category: 'gestao', readiness: 'Parcial' },
+    { id: 'store-manager', label: 'Minha Loja', title: 'Edita dados da vitrine, taxa de entrega, pedido mínimo e chave PIX; não verifica titularidade.', icon: 'storefront', colorClass: 'from-amber-400 via-orange-500 to-amber-600', category: 'gestao', readiness: 'Beta' },
+    { id: 'whatsapp', label: 'WhatsApp', title: 'Protótipo visual; não envia mensagens por um provedor externo.', icon: 'chat', colorClass: 'from-emerald-600 to-emerald-800', category: 'integracao', readiness: 'Demonstração' },
+    { id: 'ifood', label: 'iFood', title: 'Demonstração com estado local; não recebe nem despacha pedidos ao iFood.', icon: 'delivery_dining', colorClass: 'from-rose-600 to-red-800', category: 'integracao', readiness: 'Demonstração' },
+    { id: 'drivers', label: 'Hub Logística', title: 'Rotas manuais e frota própria da loja; sem GPS ou processamento da remuneração.', icon: 'alt_route', colorClass: 'from-emerald-500 via-teal-600 to-emerald-800', category: 'operacional', readiness: 'Beta' },
+    { id: 'reports', label: 'Relatórios', title: 'Resumo comercial dos 200 pedidos recentes; sem DRE, margem ou CMV.', icon: 'analytics', colorClass: 'from-indigo-600 to-indigo-800', category: 'gestao', readiness: 'Somente consulta' },
+    { id: 'crm', label: 'CRM', title: 'Resumo de clientes identificados em pedidos pagos; pontos e campanhas externas pendentes.', icon: 'loyalty', colorClass: 'from-indigo-400 to-indigo-600', category: 'gestao', readiness: 'Somente consulta' },
+    { id: 'admin-hub', label: 'Gabinete da Loja', title: 'Área administrativa avançada ainda sem fluxo integrado.', icon: 'admin_panel_settings', colorClass: 'from-rose-600 via-amber-600 to-amber-800', category: 'gestao', readiness: 'Em breve' }
   ];
 
   readonly totalEAppsCount = computed(() => this.eAppsList.length);
@@ -187,13 +189,14 @@ export class HqEappsCatalogComponent {
     });
   });
 
-  getPlanBadgeClass(plan: string): string {
-    switch (plan) {
-      case 'Starter': return 'bg-amber-950/80 text-amber-300 border-amber-700/60';
-      case 'Professional': return 'bg-cyan-950/80 text-cyan-300 border-cyan-700/60';
-      case 'Enterprise': return 'bg-purple-950/80 text-purple-300 border-purple-700/60';
-      default: return 'bg-stone-800 text-stone-300 border-stone-600';
+  getReadinessBadgeClass(readiness: EAppReadiness): string {
+    if (readiness === 'Em breve' || readiness === 'Demonstração') {
+      return 'bg-amber-950/80 text-amber-300 border-amber-700/60';
     }
+    if (readiness === 'Parcial' || readiness === 'Somente consulta') {
+      return 'bg-cyan-950/80 text-cyan-300 border-cyan-700/60';
+    }
+    return 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60';
   }
 
   launchInStoreOs(appId: OSAppId) {

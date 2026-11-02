@@ -162,8 +162,6 @@ export interface PublicStorefront {
   name: string;
   category: string;
   status: 'active' | 'suspended' | 'trial';
-  rating?: number;
-  reviewCount?: number;
   tagline?: string;
   badgeCategory?: string;
   supportsDelivery?: boolean;
@@ -174,12 +172,12 @@ export interface PublicStorefront {
   estimatedDeliveryMinutes?: string;
   deliveryFee?: number;
   minOrderValue?: number;
-  deliveryRadiusKm: number;
-  openingHours: string;
+  deliveryRadiusKm?: number;
+  openingHours?: string;
   address: {
-    city: string;
-    neighborhood: string;
-    state: string;
+    city?: string;
+    neighborhood?: string;
+    state?: string;
     street?: string;
     number?: string;
     zipCode?: string;
@@ -193,6 +191,9 @@ export interface PublicStorefront {
   themeColor?: 'amber' | 'emerald' | 'indigo' | 'rose' | 'orange' | 'cyan';
   announcementText?: string;
   showAnnouncement?: boolean;
+  announcementType?: 'promo' | 'alert' | 'news';
+  whatsappNumber?: string;
+  highlightedProductIds?: string[];
 }
 
 export interface StoreAddress {
@@ -543,7 +544,7 @@ export interface StoreDriver {
   licensePlate?: string;
   status: 'available' | 'delivering' | 'offline';
   activeDeliveriesCount: number;
-  rating: number;
+  rating?: number;
   completedTodayCount: number;
   driverType: 'private' | 'platform';
   deviceName?: string;
@@ -551,6 +552,11 @@ export interface StoreDriver {
   batteryLevel?: number;
   lastGpsPing?: string;
   currentLocationName?: string;
+  locationSharing?: boolean;
+  gpsRouteId?: string;
+  lat?: number;
+  lng?: number;
+  gpsAccuracyMeters?: number;
   complianceVerified?: boolean;
   cnhNumber?: string;
   isSimulated?: boolean;

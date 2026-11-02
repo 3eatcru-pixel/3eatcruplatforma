@@ -5,7 +5,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { SecurityService } from '../services/security.service';
 import { EcosystemService } from '../services/ecosystem.service';
-import { DeliveryRoute, DeliveryWaypoint } from '../models/ecosystem.model';
+import { DeliveryRoute, DeliveryWaypoint, StoreDriver } from '../models/ecosystem.model';
+import { MapProviderService } from '../services/map-provider.service';
 
 type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' | 'financial' | 'profile' | 'proof_summary';
 
@@ -136,11 +137,11 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                         <div class="flex items-center gap-4 mt-3">
                           <div class="flex items-center gap-1">
                             <mat-icon class="text-[10px] text-slate-500">near_me</mat-icon>
-                            <span class="text-[10px] font-black text-slate-300 uppercase">{{ wp.distanceKm }} km</span>
+                            <span class="text-[10px] font-black text-slate-300 uppercase">{{ wp.distanceKm > 0 ? wp.distanceKm.toFixed(1) + ' km' : 'Não informada' }}</span>
                           </div>
                           <div class="flex items-center gap-1">
                             <mat-icon class="text-[10px] text-slate-500">schedule</mat-icon>
-                            <span class="text-[10px] font-black text-slate-300 uppercase">{{ wp.etaMinutes }} min</span>
+                            <span class="text-[10px] font-black text-slate-300 uppercase">{{ wp.etaMinutes > 0 ? wp.etaMinutes + ' min' : 'Não informado' }}</span>
                           </div>
                         </div>
                       </div>
@@ -148,42 +149,60 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                   </button>
                 }
 
-                <!-- Real Map Container -->
-                <div class="relative h-[320px] rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl bg-slate-900 group">
-                   <div #mapContainer class="w-full h-full grayscale-[0.8] contrast-[1.2] invert-[0.9] hue-rotate-[180deg]"></div>
-                   
-                   <!-- Route Preview Overlay -->
-                   <div class="absolute top-4 left-4 z-[1000] bg-slate-950/80 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <span class="text-[9px] font-black uppercase text-white tracking-widest">Prévia visual da rota</span>
-                   </div>
+                @if (ecosystem.isSimulationMode() || route.status === 'in_progress') {
+                  <div class="relative h-[320px] rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl bg-slate-900 group">
+                     <div #mapContainer class="w-full h-full" [class.grayscale]="ecosystem.isSimulationMode()" [class.contrast-125]="ecosystem.isSimulationMode()" [class.invert]="ecosystem.isSimulationMode()" [class.hue-rotate-180]="ecosystem.isSimulationMode()"></div>
+                     @if (ecosystem.isSimulationMode()) {
+                       <div class="absolute top-4 left-4 z-[1000] bg-slate-950/90 backdrop-blur-md border border-amber-400/30 px-3 py-1.5 rounded-xl">
+                          <span class="text-[9px] font-black uppercase text-amber-200 tracking-widest">Demonstração simulada · sem GPS ou navegação real</span>
+                       </div>
+                     } @else {
+                       <div class="absolute top-4 left-4 z-[1000] max-w-[85%] bg-slate-950/95 backdrop-blur-md border border-white/15 px-3 py-2 rounded-xl space-y-2">
+                         @if (canShareGps()) {
+                           <button type="button" (click)="toggleGpsSharing()" [disabled]="isGpsStarting()" class="px-3 py-2 rounded-lg bg-purple-600 text-white text-[9px] font-black uppercase tracking-widest disabled:opacity-60">
+                             {{ isGpsStarting() ? 'Obtendo GPS…' : isGpsSharing() ? 'Parar compartilhamento' : 'Compartilhar minha localização' }}
+                           </button>
+                           <p class="text-[9px] text-slate-300">A posição atual será enviada à sua loja enquanto esta tela estiver aberta. Não guardamos histórico.</p>
+                           @if (gpsAccuracyMeters() !== null) { <p class="text-[9px] text-slate-400">Precisão informada pelo aparelho: {{ gpsAccuracyMeters() | number:'1.0-0' }} m</p> }
+                           @if (gpsError()) { <p role="alert" class="text-[9px] text-rose-300">{{ gpsError() }}</p> }
+                         } @else {
+                           <p class="text-[9px] font-bold text-slate-300">O mapa do entregador aparece durante uma rota ativa. O compartilhamento exige o aparelho do entregador autenticado.</p>
+                         }
+                       </div>
+                     }
+                     @if (route.status === 'in_progress') {
+                       @if (ecosystem.isSimulationMode()) { <button
+                         (click)="toggleRoutePreview()"
+                         class="absolute bottom-4 left-4 z-[1000] px-3 py-2 rounded-xl bg-purple-600 text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-purple-500 transition-all cursor-pointer">
+                         {{ isRoutePreviewActive() ? '⏸️ Pausar prévia' : '▶️ Iniciar prévia' }}
+                       </button> }
+                     }
+                  </div>
+                } @else {
+                  <div class="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 flex items-start gap-4">
+                    <mat-icon class="text-amber-300">map_off</mat-icon>
+                    <div>
+                      <h4 class="text-xs font-black text-white uppercase">GPS disponível durante a entrega</h4>
+                      <p class="text-[10px] text-slate-400 mt-1">Quando a rota estiver em andamento, o entregador poderá compartilhar sua posição atual com a loja. Endereços ainda não são geocodificados.</p>
+                    </div>
+                  </div>
+                }
 
-                   <!-- Route Preview Controls -->
-                   <div class="absolute bottom-4 left-4 z-[1000] flex gap-2">
-                      @if (route.status === 'in_progress') {
-                        <button
-                          (click)="toggleRoutePreview()"
-                          [disabled]="!ecosystem.isSimulationMode()"
-                          class="px-3 py-2 rounded-xl bg-purple-600 text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-                          {{ ecosystem.isSimulationMode() ? (isRoutePreviewActive() ? '⏸️ Pausar prévia' : '▶️ Iniciar prévia') : 'Prévia só na simulação' }}
-                        </button>
-                      } @else if (route.status === 'accepted') {
-                        <button (click)="arriveAtStore(route.id)" class="px-3 py-2 rounded-xl bg-amber-600 text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-amber-500 transition-all cursor-pointer">
-                          📍 Já cheguei na Loja
-                        </button>
-                      }
-                   </div>
-                </div>
+                @if (route.status === 'accepted') {
+                  <button (click)="arriveAtStore(route.id)" class="w-full px-3 py-3 rounded-xl bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-amber-500 transition-all cursor-pointer">
+                    📍 Registrar chegada à loja
+                  </button>
+                }
 
                 <!-- Bottom Stats -->
                 <div class="grid grid-cols-3 gap-3">
                    <div class="bg-white/5 border border-white/10 rounded-3xl p-4 text-center">
                     <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Distância</span>
-                    <strong class="text-sm font-black text-white">{{ route.totalDistanceKm }} km</strong>
+                    <strong class="text-sm font-black text-white">{{ route.totalDistanceKm > 0 ? route.totalDistanceKm.toFixed(1) + ' km' : 'Não informada' }}</strong>
                   </div>
                   <div class="bg-white/5 border border-white/10 rounded-3xl p-4 text-center">
                     <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Tempo Total</span>
-                    <strong class="text-sm font-black text-white">{{ route.estimatedDuration }}</strong>
+                    <strong class="text-sm font-black text-white">{{ route.estimatedDuration && route.estimatedDuration !== 'Não informado' ? route.estimatedDuration : 'Não informado' }}</strong>
                   </div>
                   <div class="bg-white/5 border border-white/10 rounded-3xl p-4 text-center">
                     <span class="text-[8px] font-black text-purple-400 uppercase tracking-widest block mb-1">Valor indicado pela loja</span>
@@ -231,7 +250,7 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                     <div class="flex justify-between items-start">
                       <div>
                         <h4 class="text-sm font-black text-white uppercase">{{ route.routeCode }}</h4>
-                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{{ route.totalDistanceKm }} km • {{ route.estimatedDuration }}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{{ route.totalDistanceKm > 0 ? route.totalDistanceKm.toFixed(1) + ' km' : 'Distância não informada' }} • {{ route.estimatedDuration && route.estimatedDuration !== 'Não informado' ? route.estimatedDuration : 'Tempo não informado' }}</div>
                         <div class="text-[10px] text-purple-400 font-black uppercase tracking-widest mt-1">{{ route.waypoints.length }} Entregas</div>
                       </div>
                       <div class="text-right">
@@ -281,11 +300,11 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                       <div class="flex items-center gap-8 pl-9">
                          <div class="flex items-center gap-2">
                             <mat-icon class="text-sm text-slate-500">near_me</mat-icon>
-                            <span class="text-xs font-black text-white">{{ wp.distanceKm }} km</span>
+                            <span class="text-xs font-black text-white">{{ wp.distanceKm > 0 ? wp.distanceKm.toFixed(1) + ' km' : 'Não informada' }}</span>
                          </div>
                          <div class="flex items-center gap-2">
                             <mat-icon class="text-sm text-slate-500">schedule</mat-icon>
-                            <span class="text-xs font-black text-white">{{ wp.etaMinutes }} min</span>
+                            <span class="text-xs font-black text-white">{{ wp.etaMinutes > 0 ? wp.etaMinutes + ' min' : 'Não informado' }}</span>
                          </div>
                       </div>
                    </div>
@@ -376,7 +395,7 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                          </div>
                          <div>
                             <h5 class="text-xs font-black text-white uppercase">{{ route.routeCode }}</h5>
-                            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{{ route.totalDeliveredCount }} Entregas • {{ route.totalDistanceKm }} km</p>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{{ route.totalDeliveredCount }} Entregas • {{ route.totalDistanceKm > 0 ? route.totalDistanceKm.toFixed(1) + ' km' : 'Distância não informada' }}</p>
                          </div>
                       </div>
                       <div class="text-right">
@@ -418,31 +437,32 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
 
                   <div class="flex flex-col items-center py-6">
                      <div class="relative">
-                        <img src="https://i.pravatar.cc/150?u=carlos" class="w-24 h-24 rounded-[2rem] border-4 border-purple-600 shadow-[0_0_30px_rgba(168,85,247,0.4)]" alt="avatar" referrerpolicy="no-referrer">
-                        <div class="absolute -bottom-2 -right-2 bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border-2 border-slate-950 flex items-center gap-1">
-                           <mat-icon class="text-[10px] w-3 h-3">verified</mat-icon> Verificado
+                        <div class="w-24 h-24 rounded-[2rem] border-4 border-purple-600 shadow-[0_0_30px_rgba(168,85,247,0.4)] bg-slate-900 flex items-center justify-center text-2xl font-black text-white" aria-label="Iniciais do motorista">
+                           {{ driverInitials(drv.name) }}
+                        </div>
+                        <div class="absolute -bottom-2 -right-2 text-slate-950 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border-2 border-slate-950 flex items-center gap-1"
+                          [class.bg-emerald-500]="drv.complianceVerified"
+                          [class.bg-amber-400]="!drv.complianceVerified">
+                           <mat-icon class="text-[10px] w-3 h-3">{{ drv.complianceVerified ? 'fact_check' : 'pending' }}</mat-icon>
+                           {{ drv.complianceVerified ? 'Conferência registrada' : 'Conferência não registrada' }}
                         </div>
                      </div>
                      <h4 class="text-xl font-black text-white uppercase mt-4">{{ drv.name }}</h4>
-                     <div class="flex items-center gap-1 mt-1">
-                        <mat-icon class="text-sm text-yellow-500">star</mat-icon>
-                        <span class="text-sm font-black text-white">{{ drv.rating }}</span>
-                        <span class="text-[10px] text-slate-500 font-bold uppercase ml-1">(124 avaliações)</span>
-                     </div>
+                     <p class="text-[10px] text-slate-500 font-bold uppercase mt-1">Avaliações ainda não disponíveis</p>
                   </div>
 
                   <div class="grid grid-cols-3 gap-3">
                      <div class="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
-                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Concluídas</span>
-                        <strong class="text-sm font-black text-white">48</strong>
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Entregas registradas</span>
+                        <strong class="text-sm font-black text-white">{{ driverCompletedCount() }}</strong>
                      </div>
                      <div class="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
-                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Km rodados</span>
-                        <strong class="text-sm font-black text-white">1.248</strong>
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Rotas concluídas</span>
+                        <strong class="text-sm font-black text-white">{{ driverCompletedRouteCount() }}</strong>
                      </div>
                      <div class="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
-                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Atividade</span>
-                        <strong class="text-sm font-black text-white">12 dias</strong>
+                        <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Status</span>
+                        <strong class="text-sm font-black text-white">{{ driverStatusLabel(drv.status) }}</strong>
                      </div>
                   </div>
 
@@ -452,11 +472,11 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                         <div class="flex items-center gap-3">
                            <mat-icon class="text-purple-500">two_wheeler</mat-icon>
                            <div>
-                              <p class="text-xs font-black text-white uppercase">Honda CG 160</p>
-                              <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest">Placa: FGH-7J23</p>
+                              <p class="text-xs font-black text-white uppercase">{{ vehicleLabel(drv.vehicleType) }}</p>
+                              <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest">{{ drv.licensePlate ? 'Placa: ' + drv.licensePlate : 'Placa não cadastrada' }}</p>
                            </div>
                         </div>
-                        <span class="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Ativo</span>
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">{{ driverStatusLabel(drv.status) }}</span>
                      </div>
                   </div>
 
@@ -517,12 +537,12 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
 
                    <div class="grid grid-cols-2 gap-4">
                       <div class="space-y-1">
-                         <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Distância total</span>
-                         <p class="text-sm font-black text-white">{{ completedRoute.totalDistanceKm || 0 }} km</p>
+                         <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Distância informada</span>
+                         <p class="text-sm font-black text-white">{{ completedRoute.totalDistanceKm > 0 ? completedRoute.totalDistanceKm.toFixed(1) + ' km' : 'Não informada' }}</p>
                       </div>
                       <div class="space-y-1">
-                         <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Tempo total</span>
-                         <p class="text-sm font-black text-white">{{ completedRoute.estimatedDuration || '--' }}</p>
+                         <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Tempo informado</span>
+                         <p class="text-sm font-black text-white">{{ completedRoute.estimatedDuration && completedRoute.estimatedDuration !== 'Não informado' ? completedRoute.estimatedDuration : 'Não informado' }}</p>
                       </div>
                    </div>
 
@@ -712,6 +732,7 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   readonly ecosystem = inject(EcosystemService);
   private readonly security = inject(SecurityService);
   private readonly router = inject(Router);
+  private readonly mapProvider = inject(MapProviderService);
 
   readonly currentTime = computed(() => {
     const now = new Date();
@@ -738,6 +759,22 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   private markersLayer: any = null;
   private driverMarker: any = null;
   private L: any = null;
+  private maplibreGL: any = null;
+  private readonly leafletReady = signal(false);
+  readonly isGpsStarting = signal(false);
+  readonly isGpsSharing = signal(false);
+  readonly gpsError = signal<string | null>(null);
+  readonly gpsAccuracyMeters = signal<number | null>(null);
+  readonly liveLocation = signal<{ lat: number; lng: number } | null>(null);
+  private gpsWatchId: number | null = null;
+  private gpsWatchGeneration = 0;
+  private gpsRouteId: string | null = null;
+  private lastGpsSentAt = 0;
+  private gpsPingInFlight = false;
+  private gpsPingPromise: Promise<void> | null = null;
+  private readonly onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') void this.stopGpsSharing();
+  };
 
   readonly canSwitchDriverPreview = computed(() => {
     const session = this.ecosystem.currentSession();
@@ -746,6 +783,15 @@ export class DriverAppComponent implements OnInit, OnDestroy {
 
   readonly activeDriverProfile = computed(() => {
     return this.ecosystem.drivers().find(d => d.id === this.selectedDriverId());
+  });
+
+  readonly canShareGps = computed(() => {
+    const session = this.ecosystem.currentSession();
+    const driver = this.activeDriverProfile();
+    const route = this.currentActiveRoute();
+    return this.activeTab() === 'active_route' && session?.role === 'driver' &&
+      session.id === driver?.id && driver?.driverType === 'private' &&
+      Boolean(driver.tenantId && route?.tenantId === driver.tenantId && route.status === 'in_progress' && route.driverId === driver.id);
   });
 
   readonly routesForSelectedDriver = computed(() => {
@@ -780,6 +826,10 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     return this.routesForSelectedDriver().filter(r => r.status === 'completed').reduce((sum, r) => sum + r.totalDeliveredCount, 0);
   });
 
+  readonly driverCompletedRouteCount = computed(() =>
+    this.routesForSelectedDriver().filter((route) => route.status === 'completed').length
+  );
+
   readonly avgStoreDefinedValuePerRoute = computed(() => {
     const routes = this.routesForSelectedDriver().filter((route) => route.status === 'completed');
     return routes.length > 0 ? this.driverDefinedRouteAmountTotal() / routes.length : 0;
@@ -800,6 +850,28 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   });
 
   readonly activeWaypoint = computed(() => this.selectedWaypoint());
+
+  driverInitials(name: string): string {
+    return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'EN';
+  }
+
+  vehicleLabel(vehicleType: StoreDriver['vehicleType']): string {
+    const labels: Record<StoreDriver['vehicleType'], string> = {
+      moto: 'Moto',
+      bike: 'Bicicleta',
+      carro: 'Carro'
+    };
+    return labels[vehicleType] || 'Veículo não informado';
+  }
+
+  driverStatusLabel(status: StoreDriver['status']): string {
+    const labels: Record<StoreDriver['status'], string> = {
+      available: 'Disponível',
+      delivering: 'Em rota',
+      offline: 'Offline'
+    };
+    return labels[status] || 'Status indisponível';
+  }
 
   ngOnInit() {
     this.security.setPillar('driver');
@@ -824,21 +896,58 @@ export class DriverAppComponent implements OnInit, OnDestroy {
       }
     });
 
-    // Invalidate map size and update markers when active route tab is selected
+    // Mount the demonstration map only while the simulated route screen exists.
     effect(() => {
       const tab = this.activeTab();
-      if (tab === 'active_route' && this.map) {
-        setTimeout(() => {
-          this.map?.invalidateSize();
-          this.updateMarkers();
-        }, 150);
+      const simulationMode = this.ecosystem.isSimulationMode();
+      const route = this.currentActiveRoute();
+      const container = this.mapContainer()?.nativeElement;
+      const leafletReady = this.leafletReady();
+      this.liveLocation();
+      const routeMapReady = Boolean(route && (simulationMode || route.status === 'in_progress'));
+      if (tab !== 'active_route' || !routeMapReady || !container || !leafletReady) {
+        if (this.map) {
+          this.map.remove();
+          this.map = null;
+          this.markersLayer = null;
+          this.driverMarker = null;
+        }
+        if (this.routePreviewTimer) {
+          clearInterval(this.routePreviewTimer);
+          this.routePreviewTimer = null;
+          this.isRoutePreviewActive.set(false);
+        }
+        return;
       }
+
+      if (!this.map) {
+        this.initMap();
+        return;
+      }
+      setTimeout(() => {
+        this.map?.invalidateSize();
+        this.updateMarkers();
+      }, 150);
     });
 
-    // React to route changes for markers
+    effect(() => {
+      const sharing = this.isGpsSharing() || this.isGpsStarting();
+      const canShare = this.canShareGps();
+      const routeId = this.currentActiveRoute()?.id || null;
+      if (sharing && (!canShare || this.gpsRouteId !== routeId)) void this.stopGpsSharing();
+    });
+
+    // Load map code only in the browser; live GPS is opt-in and foreground only.
     afterNextRender(async () => {
-      this.L = (await import('leaflet')).default;
-      this.initMap();
+      try {
+        const libraries = await this.mapProvider.load();
+        this.L = libraries.leaflet;
+        this.maplibreGL = libraries.maplibreGL;
+        this.leafletReady.set(true);
+        document.addEventListener('visibilitychange', this.onVisibilityChange);
+      } catch {
+        this.gpsError.set('Não foi possível carregar o mapa. O compartilhamento GPS continua indisponível.');
+      }
     });
   }
 
@@ -847,6 +956,8 @@ export class DriverAppComponent implements OnInit, OnDestroy {
       clearInterval(this.routePreviewTimer);
       this.routePreviewTimer = null;
     }
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    void this.stopGpsSharing();
     if (this.map) {
       this.map.remove();
       this.map = null;
@@ -863,19 +974,20 @@ export class DriverAppComponent implements OnInit, OnDestroy {
 
   private initMap() {
     const container = this.mapContainer()?.nativeElement;
-    if (!container || !this.L) return;
+    if (!container || !this.L || !this.maplibreGL || this.map) return;
 
-    // Use OpenFreeMap public tiles
-    const tileUrl = 'https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png';
+    const simulationMode = this.ecosystem.isSimulationMode();
+    const location = this.liveLocation();
     
     this.map = this.L.map(container, {
-      center: [-23.5651, -46.6521], // São Paulo center
-      zoom: 14,
+      center: simulationMode ? [-23.5651, -46.6521] : location ? [location.lat, location.lng] : [0, 0],
+      zoom: simulationMode ? 14 : location ? 15 : 2,
       zoomControl: false,
-      attributionControl: false
+      attributionControl: true,
+      minZoom: 1
     });
 
-    this.L.tileLayer(tileUrl).addTo(this.map);
+    this.mapProvider.addBaseLayer(this.maplibreGL, this.map);
     this.markersLayer = this.L.layerGroup().addTo(this.map);
 
     this.updateMarkers();
@@ -891,9 +1003,9 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     const bounds: any[] = [];
 
     // Add Store Marker if in pickup phase
-    if (route.status === 'at_store') {
+    if (route.status === 'at_store' || (this.ecosystem.isSimulationMode() && route.status === 'in_progress')) {
       const tenant = this.ecosystem.tenants().find(t => t.id === route.tenantId);
-      if (tenant && tenant.lat && tenant.lng) {
+      if (tenant && this.isValidCoordinate(tenant.lat, tenant.lng)) {
         const storeIcon = this.L.divIcon({
           className: 'store-pickup-icon',
           html: `<div class="w-10 h-10 rounded-2xl bg-white border-4 border-amber-600 flex items-center justify-center text-amber-600 shadow-xl"><i class="material-icons text-xl">store</i></div>`,
@@ -907,8 +1019,10 @@ export class DriverAppComponent implements OnInit, OnDestroy {
 
     // Add Waypoint markers
     route.waypoints.forEach(wp => {
-      const lat = wp.lat || -23.56 + (wp.sequenceNumber * 0.005);
-      const lng = wp.lng || -46.65 + (wp.sequenceNumber * 0.005);
+      const hasCoordinate = this.isValidCoordinate(wp.lat, wp.lng);
+      if (!hasCoordinate && !this.ecosystem.isSimulationMode()) return;
+      const lat = hasCoordinate ? wp.lat! : -23.56 + (wp.sequenceNumber * 0.005);
+      const lng = hasCoordinate ? wp.lng! : -46.65 + (wp.sequenceNumber * 0.005);
       
       const icon = this.L.divIcon({
         className: 'custom-div-icon',
@@ -922,18 +1036,126 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     });
 
     // Add Driver marker
-    const driverIcon = this.L.divIcon({
-      className: 'driver-icon',
-      html: `<div class="w-8 h-8 rounded-full bg-white border-4 border-purple-600 flex items-center justify-center text-purple-600 shadow-xl animate-pulse"><i class="material-icons text-sm">navigation</i></div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
-    });
-
-    this.driverMarker = this.L.marker([-23.5651, -46.6521], { icon: driverIcon }).addTo(this.markersLayer);
-    bounds.push([-23.5651, -46.6521]);
+    const driverLocation = this.ecosystem.isSimulationMode()
+      ? { lat: -23.5651, lng: -46.6521 }
+      : this.liveLocation();
+    if (driverLocation) {
+      const driverIcon = this.L.divIcon({
+        className: 'driver-icon',
+        html: `<div class="w-8 h-8 rounded-full bg-white border-4 border-purple-600 flex items-center justify-center text-purple-600 shadow-xl animate-pulse"><i class="material-icons text-sm">navigation</i></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      this.driverMarker = this.L.marker([driverLocation.lat, driverLocation.lng], { icon: driverIcon }).addTo(this.markersLayer);
+      bounds.push([driverLocation.lat, driverLocation.lng]);
+    }
 
     if (bounds.length > 0) {
       this.map.fitBounds(bounds as any, { padding: [40, 40] });
+    }
+  }
+
+  private isValidCoordinate(lat: number | undefined, lng: number | undefined): boolean {
+    return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
+      typeof lng === 'number' && Number.isFinite(lng) && lng >= -180 && lng <= 180;
+  }
+
+  toggleGpsSharing() {
+    if (this.isGpsSharing() || this.isGpsStarting()) {
+      void this.stopGpsSharing();
+      return;
+    }
+    this.startGpsSharing();
+  }
+
+  private startGpsSharing() {
+    if (!this.canShareGps()) return;
+    if (!navigator.geolocation) {
+      this.gpsError.set('Este aparelho ou navegador não disponibiliza GPS.');
+      return;
+    }
+
+    const route = this.currentActiveRoute();
+    const driver = this.activeDriverProfile();
+    if (!route || !driver) return;
+
+    const generation = ++this.gpsWatchGeneration;
+    this.gpsRouteId = route.id;
+    this.lastGpsSentAt = 0;
+    this.gpsError.set(null);
+    this.isGpsStarting.set(true);
+    this.gpsWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        if (generation !== this.gpsWatchGeneration) return;
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        if (!this.isValidCoordinate(location.lat, location.lng)) return;
+        this.liveLocation.set(location);
+        this.gpsAccuracyMeters.set(position.coords.accuracy);
+        if (!this.gpsPingInFlight && Date.now() - this.lastGpsSentAt >= 15000) {
+          this.gpsPingInFlight = true;
+          this.gpsPingPromise = this.ecosystem.logisticsService.pingDriverGps(driver.id, {
+            sharing: true,
+            routeId: route.id,
+            ...location,
+            accuracyMeters: position.coords.accuracy
+          }).then(() => {
+            if (generation !== this.gpsWatchGeneration) return;
+            this.lastGpsSentAt = Date.now();
+            this.isGpsStarting.set(false);
+            this.isGpsSharing.set(true);
+            this.gpsError.set(null);
+          }).catch(() => {
+            if (generation !== this.gpsWatchGeneration) return;
+            this.gpsError.set('Não foi possível enviar a posição para a loja. O compartilhamento foi encerrado.');
+            void this.stopGpsSharing();
+          }).finally(() => {
+            this.gpsPingInFlight = false;
+            this.gpsPingPromise = null;
+          });
+        }
+      },
+      (error) => {
+        if (generation !== this.gpsWatchGeneration) return;
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Permita o acesso à localização no navegador para compartilhar o GPS.'
+          : error.code === error.TIMEOUT
+            ? 'O GPS demorou para responder. Tente novamente em uma área aberta.'
+            : 'Não foi possível obter a localização deste aparelho.';
+        this.gpsError.set(message);
+        void this.stopGpsSharing();
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+    );
+  }
+
+  private async stopGpsSharing() {
+    const driverId = this.activeDriverProfile()?.id;
+    const shouldClearRemote = this.isGpsSharing() || this.gpsWatchId !== null;
+    this.gpsWatchGeneration += 1;
+    if (this.gpsWatchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(this.gpsWatchId);
+      this.gpsWatchId = null;
+    }
+    this.isGpsStarting.set(false);
+    this.isGpsSharing.set(false);
+    this.liveLocation.set(null);
+    this.gpsAccuracyMeters.set(null);
+    this.gpsRouteId = null;
+    this.lastGpsSentAt = 0;
+    if (this.gpsPingPromise) await this.gpsPingPromise;
+    if (this.driverMarker && this.map) {
+      this.driverMarker.remove();
+      this.driverMarker = null;
+    }
+    if (shouldClearRemote && driverId && !this.ecosystem.isSimulationMode()) {
+      try {
+        await this.ecosystem.logisticsService.pingDriverGps(driverId, { sharing: false });
+      } catch {
+        this.gpsError.set('O GPS parou neste aparelho; a posição da loja expirará em até 2 minutos.');
+      }
     }
   }
 

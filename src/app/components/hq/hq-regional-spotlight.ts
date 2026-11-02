@@ -50,7 +50,7 @@ import { CompanyTenant } from '../../models/ecosystem.model';
                   </div>
                   <div class="text-[10px] text-stone-400 font-mono line-clamp-1">{{ tenant.badgeCategory || tenant.category }}</div>
                   <div class="text-[10px] text-amber-400 font-mono mt-0.5">
-                    ★ {{ tenant.rating || 4.9 }} • {{ tenant.address.neighborhood }}
+                    {{ tenant.address.neighborhood || tenant.address.city || 'Localização não informada' }}
                   </div>
                 </div>
               </div>

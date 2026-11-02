@@ -2,9 +2,9 @@
 
 ## Modelo comercial
 
-O HQ recebe do lojista a assinatura pelo uso do Store OS e pela cota de dispositivos do plano. A cobrança recorrente ainda não está integrada.
+O HQ recebe do lojista a assinatura mensal pelo acesso completo ao Store OS e pela cota de dispositivos do plano. Todos os planos incluem o mesmo acesso ao OS; o limite de dispositivos é a diferença comercial cadastrada. O HQ pode gerar checkout recorrente Mercado Pago ou Stripe e acompanhar o estado e as faturas recebidas pelos webhooks.
 
-O valor pago pelo consumidor em um pedido do marketplace pertence à loja e deve chegar diretamente à conta configurada por ela. Esse fluxo não é receita do HQ e não deve passar por uma conta central da plataforma. A oferta da assinatura deverá atender lojas sem equipe própria com entregadores da plataforma quando estiver disponível; ainda não foi definido se esse acesso ficará incluído no plano ou será uma opção adicional, e preço e cobrança não estão implementados.
+O valor pago pelo consumidor em um pedido do marketplace pertence à loja e deve chegar diretamente à conta configurada por ela. Esse fluxo não é receita do HQ e não passa pela cobrança central da plataforma. Quando a loja contratar entregadores da rede própria da plataforma, incidirá uma comissão separada de 8% sobre as entregas elegíveis. A rede ainda está em `coming_soon`, então essa comissão não é calculada nem cobrada hoje.
 
 Motoristas cadastrados pela loja ficam sob responsabilidade do lojista: a loja define quanto pagar e faz o pagamento conforme seu acordo com cada motorista. O App do Entregador facilita o acesso às rotas e o registro das entregas; não processa a remuneração do motorista.
 
@@ -22,6 +22,14 @@ Esse estado é persistido em `hq_settings/global.platformDeliveryCommissionStatu
 
 O campo legado `serviceFeePercent` não é aplicado. No checkout, a cobrança de entrega usa somente o valor fixo `deliveryFee` definido pela loja (inclusive R$ 0,00). A comissão futura de 8% não é repassada ao pedido nem cobrada do cliente enquanto estiver em `coming_soon`.
 
+## Motor de assinatura do HQ
+
+O painel `Pagamentos SaaS` no HQ lista lojas, plano, provedor e status da assinatura, permite gerar/abrir o checkout hospedado e cancelar a assinatura no provedor. O preço vem do plano autorizado no servidor e o e-mail vem do cadastro do tenant. Um checkout pendente é reutilizado para impedir cobranças recorrentes duplicadas. O backend mantém `platform_subscriptions`, `platform_billing_invoices` e `billing_webhook_events`; os identificadores externos e estados são persistidos sem guardar cartão ou credenciais do provedor.
+
+Mercado Pago e Stripe usam credenciais apenas no servidor. O checkout requer API key e segredo de webhook configurados. O Stripe valida a assinatura com o corpo HTTP bruto; Mercado Pago valida o HMAC do `x-signature` e consulta o recurso no provedor antes de registrar a cobrança. No Mercado Pago, configure os tópicos `subscription_preapproval` e `subscription_authorized_payment`; este último busca a fatura em `/authorized_payments/{id}`. O tópico `payment` também é aceito como compatibilidade. Sem webhook assinado, o HQ não marca o pagamento como confirmado. O cancelamento só altera o estado local depois de o provedor confirmar.
+
+Configuração necessária: `APP_URL`, `STRIPE_SECRET_KEY`, `STRIPE_BILLING_WEBHOOK_SECRET`, `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET`. O checkout Mercado Pago envia a URL de webhook em cada assinatura. Os provedores podem ser configurados individualmente. O estado de cobrança não suspende automaticamente a loja; a política de prazo de tolerância e bloqueio operacional ainda precisa ser definida.
+
 ## Pagamentos de pedidos das lojas
 
 O PIX pode usar a chave do tenant cadastrada pelo lojista em Minha Loja; o recebimento é direto na conta dessa chave, mas a confirmação do PIX é manual e não consulta o PSP. A integração de cartão com uma conta global Stripe foi removida do processamento live para impedir que pedidos das lojas sejam cobrados na conta da plataforma. Cartão real ficará indisponível até existir conexão de adquirência vinculada ao tenant. Dinheiro e voucher são recebidos e administrados pela loja.
@@ -34,9 +42,11 @@ O Store OS mantém o lançamento integral da venda do tenant em `/financials`. N
 
 | Capacidade | Situação |
 |---|---|
-| Planos que dão acesso ao Store OS | Catálogo e preço cadastrados; cobrança recorrente não integrada |
+| Acesso ao Store OS pelos planos | Acesso completo em todos os planos; a cota de dispositivos diferencia cada plano |
+| Cobrança recorrente da assinatura SaaS | Checkout Stripe/Mercado Pago e registro de status/faturas implementados; credenciais e homologação live pendentes |
+| Painel HQ de assinaturas | Lista status, gera links de checkout, cancela no provedor e consulta faturas recebidas por webhook |
 | Cota de dispositivos por plano | Aplicada no cadastro de novos tenants e no registro de dispositivos |
-| Acesso de lojas sem frota à rede de entregadores da plataforma | Em breve; inclusão no plano/regra adicional, preço e operação ainda não definidos |
+| Uso da rede de entregadores da plataforma | Em breve; quando ativada, comissão de 8% por entrega elegível, separada da assinatura SaaS |
 | Cadastro e operação de motoristas próprios da loja | Fluxo logístico disponível; remuneração decidida e paga pela loja |
 | Comissão de 8% da rede da plataforma | Em breve; estado padrão `coming_soon` |
 | Estimativa e ledger de comissão da plataforma | Desativados até ativação futura |

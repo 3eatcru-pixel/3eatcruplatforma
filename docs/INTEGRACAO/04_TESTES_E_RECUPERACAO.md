@@ -1,6 +1,6 @@
 # Integração — 04: Testes e recuperação
 
-Validação local em 2026-11-01: `npm run lint` passou; `npm run test:ci` passou com 96/96 testes em 10 arquivos; `npm run build` passou com bundle inicial de 604,53 kB brutos (129,08 kB estimados em transferência), com avisos CommonJS de Leaflet e gRPC; `npm ci --dry-run --include=dev --no-audit --no-fund` passou. Em cópia temporária limpa, `npm ci --include=dev --no-audit --no-fund` instalou 933 pacotes em 6 minutos e o build de produção passou. No checkout Windows aberto, o `npm ci` falhou ao remover binários nativos em uso (`EPERM`); `npm install --include=dev --no-audit --no-fund` concluiu com avisos de limpeza para esses binários bloqueados. Depois disso, o lint, os testes e o build também passaram no checkout. `node server/server.mjs` em `PORT=3102` iniciou e `GET /api/health` respondeu HTTP 200 com `environment: development`. Isso não comprova Cloud Run, Firebase real, Cloud SQL, PSP, carga, restauração ou operação física.
+Validação local em 2026-11-02: `npm run lint` passou; `npm run test:ci` passou com 100/100 testes em 11 arquivos; `npm run build` passou com bundle inicial de 611,35 kB brutos (130,49 kB estimados em transferência), com avisos CommonJS de Leaflet e gRPC; `npm ci --dry-run --include=dev --no-audit --no-fund` passou. Em cópia temporária limpa, `npm ci --include=dev --no-audit --no-fund` instalou 933 pacotes em 6 minutos e o build de produção passou. No checkout Windows aberto, o `npm ci` falhou ao remover binários nativos em uso (`EPERM`); `npm install --include=dev --no-audit --no-fund` concluiu com avisos de limpeza para esses binários bloqueados. Depois disso, o lint, os testes e o build também passaram no checkout. `node server/server.mjs` em `PORT=3102` iniciou e `GET /api/health` respondeu HTTP 200 com `environment: development`. Isso não comprova Cloud Run, Firebase real, Cloud SQL, PSP, carga, restauração ou operação física.
 
 ## Comandos disponíveis
 
@@ -14,8 +14,10 @@ O package.json define:
 - A sincronização do marketplace é iniciada após a primeira renderização no navegador para o SSR não aguardar credenciais/Firestore. Sem ADC, a tela inicial ainda renderiza, mas os dados reais das APIs administrativas não estarão disponíveis.
 - npm run test:ci para executar testes sem watch.
 - npm run lint para lint.
-- npm run check para lint seguido de testes.
+- npm run check para lint, testes sem watch e build de produção.
 - npm run build para build Angular com configuração de produção.
+
+O workflow `.github/workflows/verify.yml` instala as dependências pelo lockfile e roda `npm run check` em pushes, pull requests e acionamento manual. A execução local passou; a execução remota depende do envio do workflow ao GitHub.
 
 O comando `npm start` usa a configuração development do `ng serve`. Registre o comando exato, data, ambiente e resultado de cada build.
 

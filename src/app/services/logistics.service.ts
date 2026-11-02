@@ -75,18 +75,21 @@ export class LogisticsService {
     return data;
   }
 
-  async pingDriverGps(driverId: string, locationName: string): Promise<void> {
+  async pingDriverGps(driverId: string, location: {
+    sharing: boolean;
+    routeId?: string;
+    lat?: number;
+    lng?: number;
+    accuracyMeters?: number;
+  }): Promise<void> {
     this.syncExecutionMode();
-    if (this.lastModeIsSimulation) {
-      this.simulation.pingDriver(driverId, locationName);
-      return;
-    }
+    if (this.lastModeIsSimulation) return;
 
     const generation = this.modeGeneration;
     const data = await firstValueFrom(
       this.http.post<Partial<StoreDriver> & { id: string }>(
         '/api/logistics/drivers/' + driverId + '/ping',
-        { locationName }
+        location
       )
     );
     this.assertRealMode(generation);
@@ -94,8 +97,14 @@ export class LogisticsService {
       ? {
           ...driver,
           ...data,
-          currentLocationName: data.currentLocationName || locationName,
-          lastGpsPing: data.lastGpsPing || new Date().toISOString()
+          ...(location.sharing ? {} : {
+            lat: undefined,
+            lng: undefined,
+            gpsAccuracyMeters: undefined,
+            lastGpsPing: undefined,
+            gpsRouteId: undefined,
+            currentLocationName: undefined
+          })
         }
       : driver
     ));

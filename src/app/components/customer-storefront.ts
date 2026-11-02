@@ -4,8 +4,16 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, ActivatedRoute } from '@angular/router';
 import { EcosystemService } from '../services/ecosystem.service';
-import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appointment } from '../models/ecosystem.model';
+import { ProductItem, PublicCatalogProduct, OrderTransaction, TableInfo, Appointment, PublicStorefront } from '../models/ecosystem.model';
 import { PaymentTransactionResult } from '../core/engines/payment.engine';
+
+const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
+  id: '',
+  name: 'Vitrine indisponível',
+  category: '',
+  status: 'suspended',
+  address: {}
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,7 +25,16 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
       <!-- BACKGROUND CARBON TEXTURE -->
       <div class="absolute inset-0 pointer-events-none opacity-20 bg-carbon-pattern z-0"></div>
 
-      <div class="max-w-7xl mx-auto space-y-6 relative z-10">
+      @if (!isStoreReady()) {
+        <div class="max-w-2xl mx-auto mt-24 bg-[#1d1008] border-2 border-[#4d2813] rounded-3xl p-8 text-center space-y-3 relative z-10">
+          <mat-icon class="text-amber-500 text-4xl">storefront</mat-icon>
+          <h1 class="text-xl font-black text-white">{{ ecosystem.publicStorefrontsStatus() === 'error' ? 'Não foi possível carregar esta vitrine' : 'Vitrine indisponível' }}</h1>
+          <p class="text-sm text-stone-400">{{ ecosystem.publicStorefrontsStatus() === 'loading' || ecosystem.publicStorefrontsStatus() === 'idle' ? 'Buscando os dados públicos da loja…' : 'Esta loja não está disponível no marketplace.' }}</p>
+          <button type="button" (click)="onBackClick()" class="mt-3 bg-amber-500 text-stone-950 font-bold px-4 py-2 rounded-xl">Voltar ao marketplace</button>
+        </div>
+      }
+
+      <div class="max-w-7xl mx-auto space-y-6 relative z-10" [class.hidden]="!isStoreReady()">
         
         <!-- TOP NAV: BACK TO REGIONAL & STORE SELECTOR -->
         <div class="bg-[#1d1008] border-2 border-[#4d2813] rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4 text-xs">
@@ -34,7 +51,7 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
             <!-- Store Selector Pills -->
             <div class="hidden md:flex items-center gap-1.5 pl-2 border-l border-[#3d200f]">
               <span class="text-stone-400 font-mono text-[10px] font-bold uppercase">Ir Para:</span>
-              @for (tenant of ecosystem.tenants(); track tenant.id) {
+              @for (tenant of ecosystem.publicStorefronts(); track tenant.id) {
                 <button
                   type="button"
                   (click)="ecosystem.currentTenantId.set(tenant.id)"
@@ -65,29 +82,35 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
               </button>
             }
 
+            @if (activeStore().lat !== undefined && activeStore().lng !== undefined && ecosystem.marketplaceService.isRealLocationActive()) {
             <span class="flex items-center gap-1 text-amber-500">
               <mat-icon class="text-xs">near_me</mat-icon>
-              <span>{{ ecosystem.calculateDistanceToUser(activeStore().lat, activeStore().lng) }} km do seu GPS</span>
+                <span>{{ ecosystem.calculateDistanceToUser(activeStore().lat, activeStore().lng) }} km da sua localização</span>
             </span>
+            }
           </div>
 
         </div>
 
         <!-- OFFLINE STORE WARNING BANNER -->
-        @if (!activeStore().isOpen) {
+        @if (activeStore().isOpen === false) {
           <div class="bg-rose-950/90 text-rose-200 border-2 border-rose-700/80 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 text-xs font-bold animate-in fade-in">
             <div class="flex items-center gap-3">
               <mat-icon class="text-2xl text-rose-400 shrink-0">wifi_off</mat-icon>
               <div>
-                <div class="font-black uppercase tracking-wider text-rose-300">ESTABELECIMENTO EM OPERAÇÃO LOCAL / BALCÃO (OFFLINE)</div>
+                <div class="font-black uppercase tracking-wider text-rose-300">PEDIDOS ONLINE INDISPONÍVEIS</div>
                 <div class="text-[11px] font-medium text-rose-200 leading-snug">
-                  Esta unidade está operando em modo presencial local. Pedidos online e entregas temporariamente desativados. Consulte o cardápio em modo leitura.
+                  A loja informou que está fechada para pedidos online no momento.
                 </div>
               </div>
             </div>
             <span class="text-[10px] font-mono bg-rose-900 px-3 py-1 rounded border border-rose-600 font-extrabold uppercase shrink-0">
-              SOMENTE LOCAL
+              LOJA FECHADA
             </span>
+          </div>
+        } @else if (activeStore().isOpen === undefined) {
+          <div class="bg-amber-950/80 text-amber-200 border border-amber-700 rounded-2xl p-3 text-xs font-bold">
+            A loja ainda não informou seu status de atendimento. Pedidos online ficam indisponíveis até a confirmação.
           </div>
         }
 
@@ -127,21 +150,18 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
               <div class="flex flex-wrap items-center gap-2">
                 <h1 class="text-2xl sm:text-3xl font-serif font-black text-white">{{ activeStore().name }}</h1>
                 <span
-                  [class]="activeStore().isOpen ? 'bg-emerald-950 text-emerald-400 border-emerald-500/40' : 'bg-rose-950 text-rose-400 border-rose-500/40'"
+                  [class]="activeStore().isOpen ? 'bg-emerald-950 text-emerald-400 border-emerald-500/40' : activeStore().isOpen === false ? 'bg-rose-950 text-rose-400 border-rose-500/40' : 'bg-stone-900 text-stone-300 border-stone-500/40'"
                   class="text-xs px-2.5 py-0.5 rounded-full border font-bold flex items-center gap-1">
-                  <span class="w-2 h-2 rounded-full" [class]="activeStore().isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'"></span>
-                  {{ activeStore().isOpen ? 'Aberto para Pedidos' : 'Fechado no Momento' }}
-                </span>
-                <span class="border border-dashed border-amber-600 text-amber-400 bg-amber-950/40 text-[10px] font-mono px-2 py-0.5 rounded">
-                  FICHA #{{ activeStore().fichaCode || '001' }}
+                  <span class="w-2 h-2 rounded-full" [class]="activeStore().isOpen ? 'bg-emerald-400 animate-pulse' : activeStore().isOpen === false ? 'bg-rose-500' : 'bg-stone-500'"></span>
+                  {{ activeStore().isOpen === undefined ? 'Status não informado' : activeStore().isOpen ? 'Aberto para Pedidos' : 'Fechado no Momento' }}
                 </span>
               </div>
-              <p class="text-xs text-stone-300 font-serif mt-1">{{ activeStore().tagline || activeStore().legalName }}</p>
+              <p class="text-xs text-stone-300 font-serif mt-1">{{ activeStore().tagline || activeStore().category }}</p>
               
               <div class="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-amber-500 font-mono">
                 <span class="flex items-center gap-1">
                   <mat-icon class="text-xs">location_on</mat-icon>
-                  {{ activeStore().address.street }}, {{ activeStore().address.number }} - {{ activeStore().address.neighborhood }}
+                  {{ addressLabel(activeStore()) }}
                 </span>
                 @if (activeStore().openingHours) {
                   <span class="text-stone-400 flex items-center gap-1">
@@ -155,16 +175,18 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
               <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-mono font-bold">
                 <span class="bg-[#2b160b] text-amber-300 border border-[#482814] px-2.5 py-1 rounded-xl flex items-center gap-1">
                   <mat-icon class="text-xs text-amber-400">shopping_cart</mat-icon>
-                  <span>Pedido Mínimo: R$ {{ (activeStore().minOrderValue || 0).toFixed(2) }}</span>
+                  <span>Pedido Mínimo: {{ activeStore().minOrderValue === undefined ? 'Não informado' : 'R$ ' + activeStore().minOrderValue!.toFixed(2) }}</span>
                 </span>
                 <span class="bg-[#2b160b] text-amber-300 border border-[#482814] px-2.5 py-1 rounded-xl flex items-center gap-1">
                   <mat-icon class="text-xs text-amber-400">two_wheeler</mat-icon>
-                  <span>Taxa Delivery: {{ deliveryFeeAmount() === 0 ? 'Grátis' : 'R$ ' + deliveryFeeAmount().toFixed(2) }}</span>
+                  <span>Taxa Delivery: {{ deliveryFeeAmount() === null ? 'Não informada' : deliveryFeeAmount() === 0 ? 'Grátis' : 'R$ ' + deliveryFeeAmount()!.toFixed(2) }}</span>
                 </span>
-                <span [class]="activeStore().deliveryFleetType === 'own' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' : 'bg-purple-950/80 text-purple-300 border-purple-700/60'" class="border px-2.5 py-1 rounded-xl flex items-center gap-1">
+                @if (activeStore().supportsDelivery) {
+                <span class="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2.5 py-1 rounded-xl flex items-center gap-1">
                   <mat-icon class="text-xs">store</mat-icon>
-                  <span>{{ activeStore().deliveryFleetType === 'own' ? 'Entrega pela loja' : 'Entrega pela loja · rede 3EAT em breve' }}</span>
+                  <span>Entrega gerenciada pela loja</span>
                 </span>
+                }
               </div>
 
               <!-- Specialties Tags -->
@@ -194,7 +216,7 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
               </a>
             }
 
-            @if (activeStore().supportsReservation !== false) {
+            @if (activeStore().supportsReservation === true) {
               <button
                 type="button"
                 (click)="openReservationModal()"
@@ -477,7 +499,7 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
                   @if (orderType() === 'delivery') {
                     <div class="flex justify-between text-stone-600">
                       <span>Taxa de entrega:</span>
-                      <span>{{ deliveryFeeAmount() === 0 ? 'Grátis' : 'R$ ' + deliveryFeeAmount().toFixed(2) }}</span>
+                      <span>{{ deliveryFeeAmount() === null ? 'Não informada' : deliveryFeeAmount() === 0 ? 'Grátis' : 'R$ ' + deliveryFeeAmount()!.toFixed(2) }}</span>
                     </div>
                   }
                   <div class="flex justify-between font-bold text-stone-900 text-sm pt-1 border-t border-[#e6d8be]">
@@ -497,7 +519,7 @@ import { PaymentTransactionResult } from '../core/engines/payment.engine';
                 <button
                   type="button"
                   (click)="placeOnlineOrder()"
-                  [disabled]="isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
+                  [disabled]="!isStoreReady() || activeStore().isOpen !== true || (orderType() === 'delivery' && (activeStore().supportsDelivery !== true || deliveryFeeAmount() === null)) || isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
                   class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold py-2.5 px-5 rounded-xl shadow-lg border border-amber-400/50 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
                   <mat-icon class="text-sm">{{ isSubmittingOrder() ? 'hourglass_top' : 'check_circle' }}</mat-icon>
                   <span>{{ isSubmittingOrder() ? 'Enviando…' : paymentTargetOrder() ? 'Repetir pagamento' : 'Enviar pedido e pagar' }}</span>
@@ -748,7 +770,12 @@ export class CustomerStorefrontComponent {
 
   activeStore = computed(() => {
     const id = this.ecosystem.currentTenantId();
-    return this.ecosystem.tenants().find(t => t.id === id) || this.ecosystem.tenants()[0];
+    return this.ecosystem.publicStorefronts().find(store => store.id === id) || EMPTY_PUBLIC_STOREFRONT;
+  });
+
+  readonly isStoreReady = computed(() => {
+    const id = this.ecosystem.currentTenantId();
+    return Boolean(id && this.ecosystem.publicStorefronts().some(store => store.id === id && store.status === 'active'));
   });
 
   onlineProducts = computed(() => {
@@ -761,9 +788,15 @@ export class CustomerStorefrontComponent {
   cartTotal = computed(() => this.customerCart().reduce((sum, i) => sum + i.product.price * i.quantity, 0));
   deliveryFeeAmount = computed(() => {
     const fee = this.activeStore().deliveryFee;
-    return typeof fee === 'number' && Number.isFinite(fee) && fee >= 0 ? fee : 5;
+    return typeof fee === 'number' && Number.isFinite(fee) && fee >= 0 ? fee : null;
   });
-  finalTotal = computed(() => this.cartTotal() + this.deliveryFeeAmount());
+  finalTotal = computed(() => this.cartTotal() + (this.deliveryFeeAmount() ?? 0));
+
+  addressLabel(store: PublicStorefront): string {
+    const address = store.address;
+    const street = [address.street, address.number].filter(Boolean).join(', ');
+    return [street, address.neighborhood, address.city, address.state].filter(Boolean).join(' - ') || 'Endereço não informado';
+  }
 
   onBackClick() {
     this.backToRegional.emit();
@@ -771,6 +804,7 @@ export class CustomerStorefrontComponent {
   }
 
   addToCustomerCart(product: ProductItem | PublicCatalogProduct) {
+    if (!this.isStoreReady()) return;
     const cartProduct = this.toCartProduct(product);
     this.ecosystem.customerCart.update(c => {
       const existing = c.find(i => i.product.id === cartProduct.id);
@@ -808,12 +842,23 @@ export class CustomerStorefrontComponent {
   }
 
   async placeOnlineOrder() {
+    if (!this.isStoreReady()) return;
     if (this.isSubmittingOrder()) return;
     this.isSubmittingOrder.set(true);
 
     try {
       if (!this.activeStore().isOpen) {
-        this.ecosystem.notify('Esta loja está temporariamente em operação local/balcão sem conexão de delivery online. Atendimento presencial ativo no balcão.', 'warning');
+        this.ecosystem.notify('O status desta loja não permite confirmar pedidos online no momento.', 'warning');
+        return;
+      }
+
+      if (this.orderType() === 'delivery' && this.activeStore().supportsDelivery !== true) {
+        this.ecosystem.notify('A loja não confirmou disponibilidade de entrega.', 'warning');
+        return;
+      }
+
+      if (this.orderType() === 'delivery' && this.deliveryFeeAmount() === null) {
+        this.ecosystem.notify('A loja ainda não informou a taxa de entrega.', 'warning');
         return;
       }
 
@@ -849,14 +894,13 @@ export class CustomerStorefrontComponent {
         }
       }
 
-      const deliveryFee = isDelivery ? this.deliveryFeeAmount() : 0;
+      const deliveryFee = isDelivery ? (this.deliveryFeeAmount() ?? 0) : 0;
       const total = subtotal + deliveryFee;
       let placedOrder = this.paymentTargetOrder();
 
       if (!placedOrder) {
         const prefix = isDineIn ? `#M${this.selectedTableNumber()}-` : modality === 'takeout' ? '#RET-' : '#';
         const orderNum = prefix + Math.floor(Math.random() * 900 + 100);
-        const userCoords = this.ecosystem.userReferenceCoords();
         const key = this.orderIdempotencyKey() ||
           `marketplace-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`}`;
         this.orderIdempotencyKey.set(key);
@@ -868,7 +912,7 @@ export class CustomerStorefrontComponent {
           type: modality,
           tableNumber: isDineIn ? `Mesa ${this.selectedTableNumber()}` : undefined,
           customerName: this.customerName(),
-          customerPhone: this.customerPhone() || '(11) 99999-9999',
+          customerPhone: this.customerPhone().trim() || undefined,
           items: [...this.customerCart()],
           subtotal,
           deliveryFee,
@@ -878,8 +922,6 @@ export class CustomerStorefrontComponent {
           paymentMethod,
           status: 'pending',
           channel: (isDineIn ? 'Table QR' : 'Customer Storefront') as 'Table QR' | 'Customer Storefront',
-          lat: isDelivery ? userCoords.lat : this.activeStore().lat,
-          lng: isDelivery ? userCoords.lng : this.activeStore().lng,
           address: isDelivery ? this.deliveryAddress() : undefined
         };
         placedOrder = await this.ecosystem.addOrder(orderPayload);
@@ -959,6 +1001,7 @@ export class CustomerStorefrontComponent {
   }
 
   openReservationModal() {
+    if (!this.isStoreReady() || this.activeStore().supportsReservation !== true) return;
     if (this.customerName().trim() && !this.publicReservationForm.controls.customerName.value) {
       this.publicReservationForm.patchValue({
         customerName: this.customerName(),
@@ -969,6 +1012,7 @@ export class CustomerStorefrontComponent {
   }
 
   async submitPublicReservation() {
+    if (!this.isStoreReady() || this.activeStore().supportsReservation !== true) return;
     if (this.publicReservationForm.invalid) return;
     const raw = this.publicReservationForm.getRawValue();
     this.submittingReservation.set(true);

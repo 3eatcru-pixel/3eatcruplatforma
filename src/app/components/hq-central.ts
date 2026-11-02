@@ -18,10 +18,11 @@ import { HqLedgerComponent } from './hq/hq-ledger';
 import { HqAuditComponent } from './hq/hq-audit';
 import { HqSystemConfigComponent } from './hq/hq-system-config';
 import { HqCrmComponent } from './hq/hq-crm';
+import { HqBillingComponent } from './hq/hq-billing';
 
 import { HqEappsCatalogComponent } from './hq/hq-eapps-catalog';
 
-export type HQSubTab = 'tenants' | 'eapps' | 'devices' | 'apps_preview' | 'ledger' | 'regional' | 'consumers' | 'audit' | 'system' | 'plans';
+export type HQSubTab = 'tenants' | 'eapps' | 'devices' | 'apps_preview' | 'ledger' | 'regional' | 'consumers' | 'audit' | 'system' | 'plans' | 'billing';
 
 interface CommandItem {
   id: HQSubTab;
@@ -48,7 +49,8 @@ interface CommandItem {
     HqLedgerComponent,
     HqAuditComponent,
     HqSystemConfigComponent,
-    HqCrmComponent
+    HqCrmComponent,
+    HqBillingComponent
   ],
   host: {
     '(window:keydown)': 'onWindowKeydown($event)'
@@ -277,6 +279,9 @@ interface CommandItem {
             @case ('plans') {
               <app-hq-plans-pricing />
             }
+            @case ('billing') {
+              <app-hq-billing />
+            }
             @case ('devices') {
               <app-hq-devices-list (openRegisterModal)="showRegisterDeviceModal.set(true)" />
             }
@@ -473,6 +478,7 @@ export class HQCentralComponent implements OnInit {
     { id: 'eapps', label: 'Catálogo de eApps (Store OS)', icon: 'apps' },
     { id: 'apps_preview', label: 'Prévia simulada de aplicativos', icon: 'smartphone' },
     { id: 'plans', label: 'Planos & Preços SaaS', icon: 'payments' },
+    { id: 'billing', label: 'Pagamentos SaaS', icon: 'account_balance' },
     { id: 'devices', label: 'Inventário de Dispositivos', icon: 'developer_board' },
     { id: 'ledger', label: 'Comissão da Plataforma · Em breve', icon: 'schedule' },
     { id: 'regional', label: 'Portal Regional', icon: 'public' },
@@ -487,6 +493,7 @@ export class HQCentralComponent implements OnInit {
     { id: 'apps_preview', label: 'Prévia simulada de aplicativos', icon: 'smartphone', sub: 'Sub-aba 3' },
     { id: 'devices', label: 'Inventário de dispositivos', icon: 'developer_board', sub: 'Sub-aba 4' },
     { id: 'ledger', label: 'Comissão da Plataforma · Em breve', icon: 'schedule', sub: 'Sub-aba 5' },
+    { id: 'billing', label: 'Gerenciar pagamentos das assinaturas', icon: 'account_balance', sub: 'Cobranças SaaS' },
     { id: 'system', label: 'Configurações globais', icon: 'settings_input_component', sub: 'Sub-aba 9' }
   ];
 

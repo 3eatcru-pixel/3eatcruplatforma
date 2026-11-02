@@ -16,8 +16,9 @@ import {
 import { adminDb } from '../firebase-admin';
 import { Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { isValidCnpj } from '../utils/cnpj';
-import { DEFAULT_DEVICE_LIMITS } from '../utils/plan-limits';
+import { hasCompletePlanCatalogValues, hasValidPlanCatalogValues, normalizePlanCatalogEntry } from '../utils/plan-catalog';
 import { resolvePlatformDeliveryCommissionStatus } from '../utils/platform-delivery-readiness';
+import { DEFAULT_SAAS_PLANS } from '../../shared/constants/saas-plans';
 
 export const hqRouter = Router();
 
@@ -68,33 +69,6 @@ function isCompletedPlatformDelivery(
 function sumOrderTotals(orders: OrderTransaction[]): number {
   return Number(orders.reduce((sum, order) => sum + order.total, 0).toFixed(2));
 }
-
-const DEFAULT_SAAS_PLANS: LicensePlan[] = [
-  {
-    id: 'Starter',
-    name: 'Starter (Iniciante)',
-    priceMonthly: 149.0,
-    maxDevices: DEFAULT_DEVICE_LIMITS.Starter,
-    includedModules: ['PDV Caixa'],
-    description: 'Ideal para pequenos comércios.'
-  },
-  {
-    id: 'Professional',
-    name: 'Professional (Avançado)',
-    priceMonthly: 299.0,
-    maxDevices: DEFAULT_DEVICE_LIMITS.Professional,
-    includedModules: ['Full ERP'],
-    description: 'Perfeito para restaurantes.'
-  },
-  {
-    id: 'Enterprise',
-    name: 'Enterprise (Corporativo)',
-    priceMonthly: 599.0,
-    maxDevices: DEFAULT_DEVICE_LIMITS.Enterprise,
-    includedModules: ['MDM Supremo'],
-    description: 'Para redes de lojas.'
-  }
-];
 
 function getParamId(req: Request): string {
   const p = req.params['id'];
@@ -711,16 +685,13 @@ hqRouter.post('/communications/messages', requireHqAdmin, async (req: Request, r
 hqRouter.get('/plans', async (_req: Request, res: Response) => {
   try {
     const snap = await adminDb.collection('plans').get();
-    const storedPlans = new Map<string, Partial<LicensePlan>>(
-      snap.docs.map((d: QueryDocumentSnapshot): [string, Partial<LicensePlan>] => [d.id, d.data() as Partial<LicensePlan>])
+    const storedPlans = new Map<string, Record<string, unknown>>(
+      snap.docs.map((d: QueryDocumentSnapshot): [string, Record<string, unknown>] => [d.id, d.data()])
     );
-    const plans = DEFAULT_SAAS_PLANS.map((basePlan) => ({
-      ...basePlan,
-      ...(storedPlans.get(basePlan.id) || {}),
-      id: basePlan.id
-    }));
-    const savedPlanCount = DEFAULT_SAAS_PLANS.filter((plan) => storedPlans.has(plan.id)).length;
-    const source = savedPlanCount === 0 ? 'defaults' : savedPlanCount === DEFAULT_SAAS_PLANS.length ? 'firestore' : 'mixed';
+    const plans = DEFAULT_SAAS_PLANS.map((basePlan) => normalizePlanCatalogEntry(basePlan, storedPlans.get(basePlan.id)));
+    const plansWithSavedValues = DEFAULT_SAAS_PLANS.filter((plan) => hasValidPlanCatalogValues(storedPlans.get(plan.id))).length;
+    const hasCompleteSavedCatalog = DEFAULT_SAAS_PLANS.every((plan) => hasCompletePlanCatalogValues(storedPlans.get(plan.id)));
+    const source = plansWithSavedValues === 0 ? 'defaults' : hasCompleteSavedCatalog ? 'firestore' : 'mixed';
     res.setHeader('X-HQ-Plan-Catalog-Source', source);
     res.json(plans);
   } catch {
@@ -740,9 +711,8 @@ hqRouter.patch('/plans/:id', requireHqAdmin, async (req: Request, res: Response)
   try {
     const docRef = adminDb.collection('plans').doc(id);
     const snap = await docRef.get();
-    const existing = snap.exists ? (snap.data() as LicensePlan) : basePlan;
     const body = (req.body || {}) as Record<string, unknown>;
-    const updated: LicensePlan = { ...existing, id };
+    const updated = normalizePlanCatalogEntry(basePlan, snap.exists ? snap.data() : undefined);
     if ('priceMonthly' in body) {
       const price = body['priceMonthly'];
       if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) {

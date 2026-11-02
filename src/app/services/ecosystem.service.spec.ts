@@ -430,6 +430,8 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
     });
 
     it('should calculate distance to user reference address', () => {
+      expect(ecosystem.calculateDistanceToUser(-23.5651, -46.6521)).toBeNull();
+      ecosystem.userReferenceCoords.set({ lat: -23.5651, lng: -46.6521 });
       const distance = ecosystem.calculateDistanceToUser(-23.5651, -46.6521);
       expect(distance).toBeCloseTo(0, 1);
     });

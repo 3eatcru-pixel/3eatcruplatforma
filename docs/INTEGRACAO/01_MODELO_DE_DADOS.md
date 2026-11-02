@@ -67,7 +67,7 @@ O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calc
   - O Marketplace consulta lojas públicas onde `status === 'active'`.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta revisão, `npm run test:ci` passou com 96/96 testes, incluindo `src/server/api.spec.ts` e `src/server/security_phase1.spec.ts`. Os mocks não substituem validação das regras no emulador ou no Firestore real.
+- Nesta revisão, `npm run test:ci` passou com 100/100 testes, incluindo `src/server/api.spec.ts` e `src/server/security_phase1.spec.ts`. Os mocks não substituem validação das regras no emulador ou no Firestore real.
 
 ---
 

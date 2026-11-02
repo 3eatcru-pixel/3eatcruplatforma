@@ -17,6 +17,7 @@ import { serviceOrdersRouter } from './routes/service-orders.router';
 import { suppliersRouter } from './routes/suppliers.router';
 import { stockAuditsRouter } from './routes/stock-audits.router';
 import { tasksRouter } from './routes/tasks.router';
+import { billingRouter } from './routes/billing.router';
 import { authContext } from './middleware/auth.middleware';
 import { apiGeneralRateLimiter } from './middleware/rate-limiter.middleware';
 
@@ -31,6 +32,7 @@ apiRouter.use(authContext);
 apiRouter.use('/health', healthRouter);
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/hq', hqRouter);
+apiRouter.use('/billing', billingRouter);
 apiRouter.use('/tenants', tenantsRouter);
 apiRouter.use('/products', productsRouter);
 apiRouter.use('/orders', ordersRouter);

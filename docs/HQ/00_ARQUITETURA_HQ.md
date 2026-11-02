@@ -42,8 +42,8 @@ O HQ não é uma loja e não executa vendas de tenant. A autorização das rotas
 | MDM físico, heartbeat e execução de comandos | Não localizado |
 | Varredura estrutural sob demanda | Implementada no escopo descrito em Operações e Auditoria |
 | Telemetria de infraestrutura, certificados e armazenamento | Não localizada |
-| Cobrança recorrente de assinatura SaaS | Não localizada nesta auditoria |
+| Cobrança recorrente de assinatura SaaS | Implementada no `billing.router.ts` com Mercado Pago/Stripe; credenciais, webhooks live e homologação externa pendentes |
 
 ## Validação
 
-Este mapa foi elaborado por inspeção de código e documentação. No ciclo de 2026-11-01, `npm run test:ci` passou com 96/96 testes e `npm run build` compilou para produção; os testes usam mocks e não comprovam homologação do HQ contra um Firestore real.
+Este mapa foi elaborado por inspeção de código e documentação. No ciclo de 2026-11-01, `npm run test:ci` passou com 100/100 testes e `npm run build` compilou para produção; os testes usam mocks e não comprovam homologação do HQ contra um Firestore real.

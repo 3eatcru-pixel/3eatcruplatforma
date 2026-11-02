@@ -24,4 +24,4 @@ Antes de produção, validar as chaves Pix das lojas, automatizar confirmação 
 
 ## Validação
 
-Nesta revisão, o build de produção passou e `npm run test:ci` passou com 96/96 testes. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks ou conciliação financeira real.
+Nesta revisão, o build de produção passou e `npm run test:ci` passou com 100/100 testes. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks ou conciliação financeira real.

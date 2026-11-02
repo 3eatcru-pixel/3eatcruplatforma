@@ -111,6 +111,8 @@ export class EcosystemService {
 
   // Compatibility Read Bridges (@deprecated — prefer injecting domain services directly)
   readonly tenants = this.tenantsService.tenants;
+  readonly publicStorefronts = this.tenantsService.publicStorefronts;
+  readonly publicStorefrontsStatus = this.tenantsService.publicStorefrontsStatus;
   readonly products = this.inventoryService.products;
   readonly orders = this.ordersService.orders;
   readonly financials = this.financialsService.records;
@@ -753,7 +755,7 @@ export class EcosystemService {
       vehicleType: driver.vehicleType || 'moto',
       licensePlate: driver.licensePlate,
       status: driver.status || 'available',
-      rating: driver.rating ?? 5.0,
+      rating: driver.rating,
       activeDeliveriesCount: driver.activeDeliveriesCount ?? 0,
       completedTodayCount: driver.completedTodayCount ?? 0,
       driverType: driver.driverType || 'private',
@@ -891,7 +893,7 @@ export class EcosystemService {
     return success;
   }
 
-  calculateDistanceToUser(lat?: number, lng?: number): number {
+  calculateDistanceToUser(lat?: number, lng?: number): number | null {
     return this.marketplaceService.calculateDistanceKm(lat, lng);
   }
 

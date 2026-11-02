@@ -2,7 +2,7 @@
 
 ## 📌 1. Visão Geral do Contrato Arquitetural HQ ↔ OS
 
-A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um contrato de responsabilidades. O HQ recebe a assinatura do lojista pelo uso do sistema e pela cota de dispositivos; a cobrança recorrente ainda não está integrada. A loja recebe diretamente os pagamentos dos seus pedidos e administra sua frota própria, incluindo a remuneração. O acesso a entregadores da plataforma e a comissão por entregas da rede seguem em “Em breve”.
+A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um contrato de responsabilidades. O HQ cobra a assinatura mensal por checkout recorrente Mercado Pago ou Stripe, confirmado por webhook assinado. A loja recebe diretamente os pagamentos dos seus pedidos e administra sua frota própria, incluindo a remuneração. A comissão futura de 8% só incidirá em entregas elegíveis da rede da plataforma e permanece em “Em breve”.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -52,12 +52,13 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 - **Fluxo do OS para o HQ:** Não há envio periódico de vendas agregadas nem heartbeat de dispositivos. O HQ consulta pedidos elegíveis sob demanda em `GET /api/hq/tenants/:id/metrics`; campos de telemetria legados não comprovam estado físico.
 - **Motoristas da loja:** São cadastrados como `private`; a loja usa o App do Entregador para facilitar rotas e baixas e decide a remuneração. O app não processa o pagamento.
 - **Receita dos pedidos:** Pertence à loja e não deve transitar pela conta do HQ. O PIX usa a chave cadastrada no tenant. Cartão real está bloqueado até que cada loja tenha uma conta de adquirência conectada.
-- **Assinatura do lojista:** É paga ao HQ pelo uso do Store OS e pela cota de dispositivos do plano. A cobrança recorrente automática ainda não existe.
-- **Serviço futuro de entregadores do HQ:** Para loja sem motorista próprio, será uma opção comercial do HQ quando a frota própria e a inteligência operacional estiverem prontas. Preço e contratação estão pendentes.
-- **Comissão da plataforma:** O estado `platformDeliveryCommissionStatus` fica em `coming_soon` enquanto a rede própria e a inteligência operacional não estiverem prontas. A trava do servidor também ignora valores `active` antigos salvos no Firestore. Não há cálculo nem cobrança ativos. O futuro processo de 8% ficará separado do plano SaaS e do caixa do lojista.
+- **Assinatura do lojista:** É paga ao HQ pelo acesso completo ao Store OS; todos os planos liberam os mesmos módulos disponíveis. O plano diferencia a cota de dispositivos. O HQ gera checkout recorrente e acompanha faturas via Mercado Pago ou Stripe, conforme credenciais instaladas.
+- **Cobrança da assinatura:** `POST /api/billing/hq/subscriptions/:tenantId/checkout` lê e-mail e plano no servidor; nenhum valor enviado pelo navegador é aceito. Webhooks assinados atualizam o estado e as faturas. Inadimplência ainda não suspende automaticamente o tenant.
+- **Serviço futuro de entregadores do HQ:** Quando a rede própria e a inteligência operacional estiverem prontas, lojas que usarem entregadores da plataforma estarão sujeitas à comissão de 8% por entrega elegível.
+- **Comissão da plataforma:** O estado `platformDeliveryCommissionStatus` fica em `coming_soon` enquanto a rede própria e a inteligência operacional não estiverem prontas. A trava do servidor também ignora valores `active` antigos salvos no Firestore. A cobrança fica separada do plano SaaS, dos pedidos da loja e da remuneração dos motoristas próprios.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta auditoria, `npm run test:ci` passou com 96/96 testes; as suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. A execução usa mocks e não homologa Firebase real, PSP ou hardware.
+- Nesta auditoria, `npm run test:ci` passou com 100/100 testes; as suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. A execução usa mocks e não homologa Firebase real, PSP ou hardware.
 
 ---
 

@@ -16,6 +16,10 @@ A coleção /devices pode conter cadastros legados com status e campos de teleme
 
 Motoristas cadastrados pelas lojas são do tipo `private`. O lojista administra a operação e decide quanto pagar; o App do Entregador facilita o uso de rotas e a baixa das entregas, mas não processa pagamento. Novas lojas iniciam com entrega própria; valores legados de `deliveryFleetType` não ativam uma rede 3EAT. O tipo `platform` com `tenantId: marketplace` fica reservado para a futura frota da plataforma. Enquanto a rede estiver em breve, a API rejeita cadastros e rotas da frota `marketplace`, conversão e atribuição de motoristas da plataforma e transições de rotas legadas dessa frota. Gestores de loja não podem marcar seus motoristas como parte dessa rede.
 
+O perfil do App do Entregador usa nome, tipo de veículo, placa e estado de conferência registrados no cadastro. Entregas e rotas concluídas são agregadas das rotas carregadas. A tela não apresenta avaliações fictícias nem atesta documentos sem conferência registrada; o sistema ainda não possui fonte de avaliações.
+
+O mapa fica restrito à prévia simulada e mostra posições demonstrativas, sem navegação ou GPS. No modo real, o app informa que a navegação por mapa não está conectada e orienta o motorista a usar o endereço da parada; a API não geocodifica endereços e o app não envia coordenadas do aparelho. A loja pode informar distância, duração e janela ao criar a rota; esses valores são exibidos como dados informados, sem cálculo ou verificação por GPS. Quando omitidos, distância e duração ficam como não informadas, e a janela aparece como `Sem janela definida`; a API não inventa estimativas padrão.
+
 ## Limites
 
 - A cota conta registros em `/devices`, não equipamentos fisicamente conectados. Ao atingir `devicesLimit`, o servidor rejeita novos registros da loja com `409 DEVICE_QUOTA_REACHED`; elevar ou reduzir o limite é uma ação administrativa. Se a cota for reduzida abaixo da quantidade atual, novos cadastros ficam bloqueados até o limite ser aumentado; não há rota de remoção de registros nesta API.

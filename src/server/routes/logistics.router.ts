@@ -9,7 +9,7 @@ import {
 } from '../../shared/models/ecosystem.model';
 import { isTenantManagerRole, requireAuth } from '../middleware/auth.middleware';
 import { adminDb } from '../firebase-admin';
-import { Query, Transaction, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldValue, Query, Transaction, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import {
   isPlatformDeliveryTenantUnavailable,
   PLATFORM_DELIVERY_NETWORK_READY
@@ -196,9 +196,23 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
     }
     const rawStoreDriverAmount = body.storeDriverCompensation ?? body.totalEarnings ?? body.totalEstimatedEarnings;
     const storeDriverAmount = rawStoreDriverAmount === undefined ? 0 : Number(rawStoreDriverAmount);
+    const rawDistance = body.totalDistanceKm;
+    const totalDistanceKm = rawDistance === undefined || rawDistance === null || rawDistance === ''
+      ? 0
+      : Number(rawDistance);
+    const estimatedDuration = typeof body.estimatedDuration === 'string'
+      ? body.estimatedDuration.trim().slice(0, 50)
+      : '';
+    const timeWindow = typeof body.timeWindow === 'string'
+      ? body.timeWindow.trim().slice(0, 50)
+      : '';
 
     if (!Number.isFinite(storeDriverAmount) || storeDriverAmount < 0) {
       res.status(400).json({ error: 'O valor combinado com o entregador deve ser um número igual ou maior que zero.' });
+      return;
+    }
+    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm < 0) {
+      res.status(400).json({ error: 'A distância informada deve ser um número igual ou maior que zero.', code: 'INVALID_ROUTE_DISTANCE' });
       return;
     }
 
@@ -246,9 +260,9 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
       routeCode: String(body.routeCode || `RT-${Math.floor(1000 + Math.random() * 9000)}`),
       tenantId: assignedTenantId,
       date: nowIso,
-      timeWindow: String(body.timeWindow || 'Imediato (30-45 min)'),
-      totalDistanceKm: Number(body.totalDistanceKm || 4.2),
-      estimatedDuration: String(body.estimatedDuration || '25 min'),
+      timeWindow: timeWindow || 'Sem janela definida',
+      totalDistanceKm,
+      estimatedDuration: estimatedDuration || 'Não informado',
       // Store-defined route amount only; this is not a payment record.
       totalEarnings: storeDriverAmount,
       waypoints,
@@ -448,16 +462,63 @@ logisticsRouter.post('/drivers/:id/ping', async (req: Request, res: Response) =>
   }
   try {
     const docRef = adminDb.collection('drivers').doc(id);
-    const updates: Record<string, string | number> = { lastGpsPing: new Date().toISOString() };
-    const lat = Number(req.body?.lat);
-    const lng = Number(req.body?.lng);
-    const locationName = String(req.body?.locationName || '').trim().slice(0, 120);
-    const hasLat = req.body?.lat !== undefined && req.body?.lat !== null && req.body?.lat !== '';
-    const hasLng = req.body?.lng !== undefined && req.body?.lng !== null && req.body?.lng !== '';
-    if (hasLat && Number.isFinite(lat) && lat >= -90 && lat <= 90) updates['lat'] = lat;
-    if (hasLng && Number.isFinite(lng) && lng >= -180 && lng <= 180) updates['lng'] = lng;
-    if (locationName) updates['currentLocationName'] = locationName;
-    await docRef.set(updates, { merge: true });
+    const driverSnap = await docRef.get();
+    if (!driverSnap.exists) {
+      res.status(404).json({ error: 'Entregador não encontrado.' });
+      return;
+    }
+    const driver = driverSnap.data() as StoreDriver;
+    if (driver.driverType !== 'private' || !driver.tenantId || driver.tenantId === 'marketplace') {
+      res.status(403).json({ error: 'GPS disponível somente para entregadores próprios de uma loja.' });
+      return;
+    }
+
+    if (req.body?.sharing !== true) {
+      await docRef.update({
+        locationSharing: false,
+        gpsRouteId: FieldValue.delete(),
+        lat: FieldValue.delete(),
+        lng: FieldValue.delete(),
+        gpsAccuracyMeters: FieldValue.delete(),
+        lastGpsPing: FieldValue.delete(),
+        currentLocationName: FieldValue.delete()
+      });
+      res.json({ id, locationSharing: false });
+      return;
+    }
+
+    const routeId = typeof req.body?.routeId === 'string' ? req.body.routeId.trim() : '';
+    const lat = req.body?.lat;
+    const lng = req.body?.lng;
+    const accuracyMeters = req.body?.accuracyMeters;
+    if (!routeId || typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180 ||
+      (accuracyMeters !== undefined && (typeof accuracyMeters !== 'number' || !Number.isFinite(accuracyMeters) || accuracyMeters < 0 || accuracyMeters > 10000))) {
+      res.status(400).json({ error: 'Coordenadas, precisão e rota ativa inválidas.' });
+      return;
+    }
+
+    const routeSnap = await adminDb.collection('delivery_routes').doc(routeId).get();
+    if (!routeSnap.exists) {
+      res.status(404).json({ error: 'Rota não encontrada.' });
+      return;
+    }
+    const route = routeSnap.data() as DeliveryRoute;
+    if (route.status !== 'in_progress' || route.driverId !== id || route.tenantId !== driver.tenantId ||
+      isPlatformDeliveryTenantUnavailable(route.tenantId)) {
+      res.status(403).json({ error: 'GPS permitido somente durante rota ativa atribuída ao entregador da mesma loja.' });
+      return;
+    }
+
+    const updates = {
+      locationSharing: true,
+      gpsRouteId: route.id,
+      lat,
+      lng,
+      ...(accuracyMeters === undefined ? {} : { gpsAccuracyMeters: accuracyMeters }),
+      lastGpsPing: new Date().toISOString()
+    };
+    await docRef.update(updates);
     res.json({ id, ...updates });
   } catch {
     res.status(500).json({ error: 'Falha ao registrar localização.' });
@@ -781,6 +842,9 @@ logisticsRouter.post(
           newStatus = 'completed';
         }
 
+        const driverRef = route.driverId ? adminDb.collection('drivers').doc(route.driverId) : null;
+        const driverDoc = driverRef && newStatus === 'completed' ? await transaction.get(driverRef) : null;
+
         const updates = {
           waypoints: updatedWaypoints,
           status: newStatus,
@@ -788,6 +852,17 @@ logisticsRouter.post(
         };
 
         transaction.update(docRef, updates);
+        if (driverRef && driverDoc?.exists && driverDoc.get('gpsRouteId') === route.id) {
+          transaction.update(driverRef, {
+            locationSharing: false,
+            gpsRouteId: FieldValue.delete(),
+            lat: FieldValue.delete(),
+            lng: FieldValue.delete(),
+            gpsAccuracyMeters: FieldValue.delete(),
+            lastGpsPing: FieldValue.delete(),
+            currentLocationName: FieldValue.delete()
+          });
+        }
         return { ...route, ...updates };
       });
 

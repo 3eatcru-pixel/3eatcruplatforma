@@ -16,4 +16,4 @@ A vitrine pública em /p/:id permite selecionar modalidades de pedido e, na moda
 
 ## Validação
 
-O build de produção passou e a suíte geral passou com 96/96 testes. Não houve homologação de QR físico ou totem nem teste ponta a ponta do pedido de mesa nesta revisão.
+O build de produção passou e a suíte geral passou com 100/100 testes. Não houve homologação de QR físico ou totem nem teste ponta a ponta do pedido de mesa nesta revisão.

@@ -25,7 +25,14 @@ app.use((_req, res, next) => {
 });
 
 // Bounded JSON and URL-encoded payload limits to prevent resource exhaustion attacks
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({
+  limit: '2mb',
+  verify: (request, _response, body) => {
+    if (request.url === '/api/billing/webhooks/stripe') {
+      (request as typeof request & { stripeRawBody?: Buffer }).stripeRawBody = Buffer.from(body);
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 const angularApp = new AngularNodeAppEngine({

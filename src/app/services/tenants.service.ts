@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CompanyTenant, PublicStorefront } from '../models/ecosystem.model';
 import { MOCK_TENANTS } from '../models/mock-data';
@@ -14,9 +14,21 @@ export class TenantsService {
 
   readonly isSimulation = computed(() => this.security.isSimulated());
   
-  readonly tenants = signal<CompanyTenant[]>(MOCK_TENANTS);
+  readonly tenants = signal<CompanyTenant[]>(this.security.isSimulated() ? MOCK_TENANTS : []);
   readonly publicStorefronts = signal<PublicStorefront[]>([]);
+  readonly publicStorefrontsStatus = signal<'idle' | 'loading' | 'loaded' | 'error' | 'simulation'>(
+    this.security.isSimulated() ? 'simulation' : 'idle'
+  );
   readonly activeTenantId = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      const simulated = this.isSimulation();
+      this.tenants.set(simulated ? MOCK_TENANTS : []);
+      this.publicStorefronts.set(simulated ? MOCK_TENANTS.filter(tenant => tenant.status === 'active').map(tenant => this.toDemoStorefront(tenant)) : []);
+      this.publicStorefrontsStatus.set(simulated ? 'simulation' : 'idle');
+    });
+  }
 
   readonly currentTenant = computed(() => {
     const id = this.activeTenantId();
@@ -24,15 +36,26 @@ export class TenantsService {
   });
 
   async fetchPublicStorefronts(): Promise<PublicStorefront[]> {
+    if (this.isSimulation()) {
+      const storefronts = this.tenants().filter(tenant => tenant.status === 'active').map(tenant => this.toDemoStorefront(tenant));
+      this.publicStorefronts.set(storefronts);
+      this.publicStorefrontsStatus.set('simulation');
+      return storefronts;
+    }
+
+    this.publicStorefrontsStatus.set('loading');
     try {
       const data = await firstValueFrom(this.http.get<PublicStorefront[]>('/api/tenants/public'));
       if (Array.isArray(data)) {
         this.publicStorefronts.set(data);
+        this.publicStorefrontsStatus.set('loaded');
         return data;
       }
-      return this.publicStorefronts();
+      throw new Error('Resposta inválida ao carregar vitrines públicas.');
     } catch {
-      return this.publicStorefronts();
+      this.publicStorefronts.set([]);
+      this.publicStorefrontsStatus.set('error');
+      return [];
     }
   }
 
@@ -48,9 +71,11 @@ export class TenantsService {
         this.tenants.set(data);
         return data;
       }
-      return this.tenants();
+      this.tenants.set([]);
+      return [];
     } catch {
-      return this.tenants();
+      this.tenants.set([]);
+      return [];
     }
   }
 
@@ -74,12 +99,18 @@ export class TenantsService {
         return t;
       }));
       if (!updated) throw new Error('Simulated tenant not found');
+      const publicStorefront = this.toDemoStorefront(updated);
+      this.publicStorefronts.update(cur => updated!.status === 'active'
+        ? cur.some(store => store.id === id)
+          ? cur.map(store => store.id === id ? publicStorefront : store)
+          : [...cur, publicStorefront]
+        : cur.filter(store => store.id !== id));
       return updated;
     }
 
     const data = await firstValueFrom(this.http.patch<CompanyTenant>(`/api/tenants/${id}`, updates));
     this.tenants.update(cur => cur.map(t => t.id === id ? { ...t, ...data } : t));
-    this.publicStorefronts.update(cur => cur.map(t => t.id === id ? { ...t, ...data } : t));
+    await this.fetchPublicStorefronts();
     return data;
   }
 
@@ -140,5 +171,46 @@ export class TenantsService {
     const data = await firstValueFrom(this.http.post<CompanyTenant>('/api/tenants', tenant));
     this.tenants.update(cur => [...cur, data]);
     return data;
+  }
+
+  private toDemoStorefront(tenant: CompanyTenant): PublicStorefront {
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      category: tenant.category,
+      status: tenant.status,
+      tagline: tenant.tagline,
+      badgeCategory: tenant.badgeCategory,
+      supportsDelivery: tenant.supportsDelivery,
+      supportsTakeout: tenant.supportsTakeout,
+      supportsReservation: tenant.supportsReservation,
+      pixAvailable: tenant.pixAvailable,
+      isOpen: tenant.isOpen,
+      estimatedDeliveryMinutes: tenant.estimatedDeliveryMinutes,
+      deliveryFee: tenant.deliveryFee,
+      minOrderValue: tenant.minOrderValue,
+      deliveryRadiusKm: tenant.deliveryRadiusKm,
+      openingHours: tenant.openingHours,
+      address: {
+        city: tenant.address.city,
+        neighborhood: tenant.address.neighborhood,
+        state: tenant.address.state,
+        street: tenant.address.street,
+        number: tenant.address.number,
+        zipCode: tenant.address.zipCode
+      },
+      lat: tenant.lat,
+      lng: tenant.lng,
+      logo: tenant.logo,
+      coverImage: tenant.coverImage,
+      specialties: tenant.specialties,
+      storeSlug: tenant.storeSlug,
+      themeColor: tenant.themeColor,
+      announcementText: tenant.announcementText,
+      showAnnouncement: tenant.showAnnouncement,
+      announcementType: tenant.announcementType,
+      whatsappNumber: tenant.whatsappNumber,
+      highlightedProductIds: tenant.highlightedProductIds
+    };
   }
 }

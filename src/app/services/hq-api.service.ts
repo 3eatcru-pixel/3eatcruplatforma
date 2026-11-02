@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { CompanyTenant, POSDevice, AuditLog, SystemAuditReport, LicensePlan, RegionalMarketplaceConfig, StoreDriver, ConsumerAccount } from '../models/ecosystem.model';
+import type { BillingProvider, HqBillingDashboard, PlatformSubscriptionRecord } from '../../shared/models/billing.model';
 
 export interface HqOverviewResponse {
   tenantsCount: number;
@@ -129,6 +130,28 @@ export class HqApiService {
 
   async updatePlan(planId: string, updates: Partial<LicensePlan>): Promise<LicensePlan> {
     return firstValueFrom(this.http.patch<LicensePlan>(`${this.baseUrl}/hq/plans/${planId}`, updates));
+  }
+
+  async getBillingDashboard(): Promise<HqBillingDashboard> {
+    return firstValueFrom(this.http.get<HqBillingDashboard>(`${this.baseUrl}/billing/hq`));
+  }
+
+  async createSubscriptionCheckout(tenantId: string, provider: BillingProvider): Promise<{
+    reused: boolean;
+    subscription: PlatformSubscriptionRecord;
+  }> {
+    return firstValueFrom(this.http.post<{ reused: boolean; subscription: PlatformSubscriptionRecord }>(
+      `${this.baseUrl}/billing/hq/subscriptions/${encodeURIComponent(tenantId)}/checkout`,
+      { provider }
+    ));
+  }
+
+  async cancelSubscription(tenantId: string): Promise<PlatformSubscriptionRecord> {
+    const result = await firstValueFrom(this.http.post<{ subscription: PlatformSubscriptionRecord }>(
+      `${this.baseUrl}/billing/hq/subscriptions/${encodeURIComponent(tenantId)}/cancel`,
+      {}
+    ));
+    return result.subscription;
   }
 
   // 8. Regional Marketplace Configuration

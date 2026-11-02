@@ -35,4 +35,4 @@ Tenants que não estão ativos não aparecem na listagem pública. O backend com
 - O backend valida os dígitos verificadores do CNPJ pelo helper isValidCnpj.
 - Coordenadas e endereço são dados fornecidos no cadastro; a tela do HQ não geocodifica automaticamente o endereço.
 - O painel não comprova a titularidade fiscal dos dados.
-- Nesta revisão, `npm run test:ci` passou com 96/96 testes. A suíte usa mocks e não valida criação ou alteração de tenant contra um Firestore real.
+- Nesta revisão, `npm run test:ci` passou com 100/100 testes. A suíte usa mocks e não valida criação ou alteração de tenant contra um Firestore real.

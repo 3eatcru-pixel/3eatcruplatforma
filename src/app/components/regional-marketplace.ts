@@ -5,12 +5,13 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { EcosystemService } from '../services/ecosystem.service';
-import { CompanyTenant, ConsumerAccount } from '../models/ecosystem.model';
+import { MapProviderService } from '../services/map-provider.service';
+import { PublicStorefront, ConsumerAccount } from '../models/ecosystem.model';
 import { RegionalMarketplaceMobileComponent } from './marketplace/regional-marketplace-mobile';
 import { ConsumerProfileComponent } from './consumer-profile';
 
 type CatalogViewMode = 'fichario' | 'livro-razao' | 'mesa-cartografica';
-type SortOption = 'rating' | 'distance' | 'name' | 'fee';
+type SortOption = 'distance' | 'name' | 'fee';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -151,7 +152,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
               </div>
 
               <p class="text-xs text-stone-600 leading-snug">
-                Defina o ponto de referência para medir a distância em quilômetros reais de cada balcão comercial:
+                Ative a localização do navegador para calcular distâncias. Endereço digitado não é geocodificado.
               </p>
 
               <!-- PONTO GEOGRÁFICO BOX -->
@@ -177,7 +178,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
 
               <!-- BUSCAR ENDEREÇO -->
               <div class="space-y-2 pt-1">
-                <label for="searchAddrInput" class="block text-xs font-bold text-stone-800">Buscar Endereço no Mapa</label>
+                <label for="searchAddrInput" class="block text-xs font-bold text-stone-800">Filtrar por loja, bairro ou cidade</label>
                 <div class="flex gap-2">
                   <input
                     id="searchAddrInput"
@@ -186,7 +187,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                     [value]="searchAddressValue()"
                     (input)="searchAddressValue.set(addrInput.value)"
                     (keydown.enter)="applyAddressSearch(addrInput.value)"
-                    placeholder="Rua, Bairro, Cidade..."
+                    placeholder="Nome, bairro ou cidade..."
                     class="flex-1 bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:border-amber-600 font-medium placeholder:text-stone-400">
                   <button
                     type="button"
@@ -195,7 +196,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                     <mat-icon class="text-sm">search</mat-icon> Buscar
                   </button>
                 </div>
-                <div class="text-[10px] text-rose-600 font-semibold italic">Digite um endereço para buscar.</div>
+                <div class="text-[10px] text-stone-500 font-semibold italic">A busca filtra dados publicados; não altera sua localização.</div>
               </div>
 
               <!-- SLIDER RAIO MÁXIMO -->
@@ -206,6 +207,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                 </div>
                 <input
                   type="range"
+                  [disabled]="!ecosystem.marketplaceService.isRealLocationActive()"
                   min="1"
                   max="30"
                   step="1"
@@ -350,7 +352,6 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                     [value]="sortCriteria()"
                     (change)="sortCriteria.set($any($event.target).value)"
                     class="bg-white border border-[#d6c7b0] rounded-xl px-3 py-2 text-xs font-bold text-stone-800 focus:outline-none focus:border-amber-600 cursor-pointer">
-                    <option value="rating">Melhor Avaliação ⭐</option>
                     <option value="distance">Menor Distância (km)</option>
                     <option value="name">Nome (A-Z)</option>
                     <option value="fee">Menor Taxa de Entrega</option>
@@ -405,6 +406,16 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
 
             </div>
 
+            @if (ecosystem.publicStorefrontsStatus() === 'loading' || ecosystem.publicStorefrontsStatus() === 'idle') {
+              <p class="rounded-xl bg-white/90 p-4 text-sm text-stone-600">Carregando estabelecimentos publicados…</p>
+            } @else if (ecosystem.publicStorefrontsStatus() === 'error') {
+              <p role="alert" class="rounded-xl bg-amber-100 p-4 text-sm text-amber-900">Não foi possível carregar as vitrines públicas.</p>
+            } @else if (totalStoresCount() === 0) {
+              <p class="rounded-xl bg-white/90 p-4 text-sm text-stone-600">Nenhum estabelecimento publicado no momento.</p>
+            } @else if (filteredTenants().length === 0) {
+              <p class="rounded-xl bg-white/90 p-4 text-sm text-stone-600">Nenhum estabelecimento corresponde aos filtros atuais.</p>
+            }
+
             <!-- VIEW 1: FICHÁRIO (GRID OF PARCHMENT CARDS) -->
             @if (viewMode() === 'fichario') {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -430,7 +441,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                               </span>
                             }
                             <span class="border border-dashed border-amber-700 text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider block mb-0.5">
-                              {{ store.badgeCategory || store.category }} • FICHA #{{ store.fichaCode || '001' }}
+                              {{ store.badgeCategory || store.category }}
                             </span>
                             <h3 class="font-serif font-black text-stone-900 text-base leading-tight">{{ store.name }}</h3>
                             <div class="text-[10px] text-stone-500 font-medium">{{ store.tagline || 'Alimentos & Bebidas' }}</div>
@@ -442,11 +453,13 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                   <span>ABERTO AGORA</span>
                                 </span>
-                              } @else {
+                              } @else if (store.isOpen === false) {
                                 <span class="inline-flex items-center gap-1 bg-stone-200 text-stone-700 border border-stone-300 font-bold text-[9px] font-mono px-2 py-0.5 rounded-full shadow-xs">
                                   <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                                   <span>FECHADO NO MOMENTO</span>
                                 </span>
+                              } @else {
+                                <span class="text-stone-500 text-[9px]">STATUS NÃO INFORMADO</span>
                               }
                             </div>
                           </div>
@@ -455,7 +468,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                         <div class="flex gap-1">
                           <button 
                             type="button" 
-                            (click)="ecosystem.sendWhatsAppMessage('Compartilhar', '999', 'Veja que legal essa loja no 3EAT: ' + store.name)"
+                            (click)="shareStore(store)"
                             class="w-8 h-8 rounded-xl bg-emerald-950/20 hover:bg-emerald-900/30 text-emerald-500 flex items-center justify-center border border-emerald-500/20 transition-all cursor-pointer" 
                             title="Compartilhar via WhatsApp">
                             <mat-icon class="text-sm">share</mat-icon>
@@ -470,24 +483,20 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                       <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-xl p-3 space-y-1 my-3 text-xs">
                         <div class="flex justify-between text-[10px] font-mono text-amber-900 font-bold uppercase">
                           <span>LOCAL</span>
-                          <span>DISTÂNCIA: {{ ecosystem.calculateDistanceToUser(store.lat, store.lng) }} km</span>
+                          <span>DISTÂNCIA: {{ distanceLabel(store) }}</span>
                         </div>
-                        <div class="text-stone-700 text-xs font-medium truncate">
-                          {{ store.address.street }}, {{ store.address.number }} - {{ store.address.neighborhood }}
-                        </div>
+                        <div class="text-stone-700 text-xs font-medium truncate">{{ addressLabel(store) }}</div>
                         <!-- Delivery Rules Pills -->
                         <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-[#e0d0b6] text-[10px] font-mono font-bold">
                           <span class="text-amber-900">
-                            Entrega: {{ (store.deliveryFee ?? 0) === 0 ? 'Grátis' : 'R$ ' + (store.deliveryFee || 0).toFixed(2) }}
+                            Entrega: {{ store.deliveryFee === undefined ? 'Não informada' : store.deliveryFee === 0 ? 'Grátis' : 'R$ ' + store.deliveryFee.toFixed(2) }}
                           </span>
                           <span class="text-stone-600">•</span>
                           <span class="text-amber-900">
-                            Min: R$ {{ (store.minOrderValue || 0).toFixed(2) }}
+                            Min: R$ {{ store.minOrderValue === undefined ? 'Não informado' : store.minOrderValue.toFixed(2) }}
                           </span>
                           <span class="text-stone-600">•</span>
-                          <span [class]="store.deliveryFleetType === 'own' ? 'text-emerald-800' : 'text-purple-800'">
-                            {{ store.deliveryFleetType === 'own' ? '🛵 Entrega pela loja' : '🛵 Entrega pela loja · 3EAT em breve' }}
-                          </span>
+                          @if (store.supportsDelivery) { <span class="text-emerald-800">🛵 Entrega gerenciada pela loja</span> }
                         </div>
                       </div>
                     </div>
@@ -546,47 +555,41 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                   <table class="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr class="border-b-2 border-[#d0c2a8] text-[10px] font-mono font-bold uppercase tracking-wider text-amber-950">
-                        <th class="py-2.5 px-3">Nº FICHA</th>
                         <th class="py-2.5 px-3">ESTABELECIMENTO</th>
                         <th class="py-2.5 px-3">RAMO / CATEGORIA</th>
                         <th class="py-2.5 px-3">DISTÂNCIA</th>
                         <th class="py-2.5 px-3">EXPEDIENTE</th>
                         <th class="py-2.5 px-3">MODALIDADES</th>
-                        <th class="py-2.5 px-3">NOTA</th>
                         <th class="py-2.5 px-3 text-right">AÇÕES</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-[#e8dfce]">
                       @for (store of filteredTenants(); track store.id) {
                         <tr class="hover:bg-[#f2e8d5] transition-colors">
-                          <td class="py-3 px-3 font-mono font-bold text-amber-900">
-                            #{{ store.fichaCode || '001' }}
-                          </td>
-
                           <td class="py-3 px-3">
                             <div class="flex items-center gap-3">
                               <img [src]="store.logo || store.coverImage" [alt]="store.name" class="w-8 h-8 rounded-lg object-cover border border-[#d6c7b0]" referrerpolicy="no-referrer">
                               <div>
                                 <div class="font-bold text-stone-900">{{ store.name }}</div>
-                                <div class="text-[10px] text-stone-500">{{ store.address.street }}, {{ store.address.number }} - {{ store.address.neighborhood }}</div>
+                                <div class="text-[10px] text-stone-500">{{ addressLabel(store) }}</div>
                               </div>
                             </div>
                           </td>
 
                           <td class="py-3 px-3">
                             <span class="border border-dashed border-amber-700 text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase">
-                              {{ store.badgeCategory || 'RESTAURANTES' }}
+                              {{ store.badgeCategory || store.category }}
                             </span>
                           </td>
 
                           <td class="py-3 px-3 font-mono font-bold text-stone-800">
-                            {{ ecosystem.calculateDistanceToUser(store.lat, store.lng) }} km
+                            {{ distanceLabel(store) }}
                           </td>
 
                           <td class="py-3 px-3">
-                            <span [class]="store.isOpen ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'" class="text-[11px] flex items-center gap-1">
-                              <span [class]="store.isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'" class="w-2 h-2 rounded-full inline-block"></span>
-                              {{ store.isOpen ? 'Aberto Agora' : 'Fechado' }}
+                            <span [class]="store.isOpen ? 'text-emerald-700 font-bold' : store.isOpen === false ? 'text-rose-700 font-bold' : 'text-stone-500'" class="text-[11px] flex items-center gap-1">
+                              <span [class]="store.isOpen ? 'bg-emerald-500 animate-pulse' : store.isOpen === false ? 'bg-rose-500' : 'bg-stone-400'" class="w-2 h-2 rounded-full inline-block"></span>
+                              {{ store.isOpen === undefined ? 'Não informado' : store.isOpen ? 'Aberto Agora' : 'Fechado' }}
                             </span>
                           </td>
 
@@ -595,11 +598,6 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                               @if (store.supportsDelivery) { <mat-icon class="text-sm" title="Delivery">delivery_dining</mat-icon> }
                               @if (store.supportsTakeout) { <mat-icon class="text-sm" title="Balcão">storefront</mat-icon> }
                             </div>
-                          </td>
-
-                          <td class="py-3 px-3 font-bold text-amber-700 flex items-center gap-1">
-                            <mat-icon class="text-xs text-amber-500">star</mat-icon>
-                            {{ store.rating }}
                           </td>
 
                           <td class="py-3 px-3 text-right">
@@ -698,7 +696,7 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
                 <img [src]="store.logo || store.coverImage" [alt]="store.name" class="w-14 h-14 rounded-2xl object-cover border border-[#d6c7b0]" referrerpolicy="no-referrer">
                 <div>
                   <span class="border border-dashed border-amber-700 text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase">
-                    {{ store.badgeCategory || store.category }} • FICHA #{{ store.fichaCode || '001' }}
+                    {{ store.badgeCategory || store.category }}
                   </span>
                   <h3 class="font-serif font-black text-xl text-stone-900 mt-1">{{ store.name }}</h3>
                   <div class="text-xs text-stone-500 font-medium">{{ store.tagline || (store.badgeCategory || store.category) }}</div>
@@ -712,23 +710,23 @@ type SortOption = 'rating' | 'distance' | 'name' | 'fee';
               <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-xl p-3 flex items-center justify-between">
                 <div>
                   <div class="font-bold text-amber-900">Expediente Operacional:</div>
-                  <div class="flex items-center gap-1.5 mt-0.5 font-bold" [class]="store.isOpen ? 'text-emerald-800' : 'text-rose-800'">
-                    <span class="w-2 h-2 rounded-full" [class]="store.isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
-                    <span>{{ store.isOpen ? 'ABERTO AGORA PARA PEDIDOS' : 'FECHADO NO MOMENTO' }}</span>
+                  <div class="flex items-center gap-1.5 mt-0.5 font-bold" [class]="store.isOpen ? 'text-emerald-800' : store.isOpen === false ? 'text-rose-800' : 'text-stone-600'">
+                    <span class="w-2 h-2 rounded-full" [class]="store.isOpen ? 'bg-emerald-500 animate-pulse' : store.isOpen === false ? 'bg-rose-500' : 'bg-stone-500'"></span>
+                    <span>{{ store.isOpen === undefined ? 'STATUS NÃO INFORMADO' : store.isOpen ? 'ABERTO AGORA PARA PEDIDOS' : 'FECHADO NO MOMENTO' }}</span>
                   </div>
                 </div>
               </div>
 
               <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-xl p-3 space-y-1">
                 <div class="font-bold text-amber-900">Endereço &amp; Localização:</div>
-                <div>{{ store.address.street }}, {{ store.address.number }} - {{ store.address.neighborhood }}</div>
-                <div class="text-stone-500">Distância calculada: {{ ecosystem.calculateDistanceToUser(store.lat, store.lng) }} km</div>
+                <div>{{ addressLabel(store) }}</div>
+                @if (store.lat !== undefined && store.lng !== undefined) { <div class="text-stone-500">Distância calculada: {{ ecosystem.calculateDistanceToUser(store.lat, store.lng) }} km</div> }
               </div>
 
               <div class="bg-[#f5ebd9] border border-[#e6d8be] rounded-xl p-3 space-y-1">
                 <div class="font-bold text-amber-900">Atendimento &amp; Telefone:</div>
-                <div>Horário: {{ store.openingHours }}</div>
-                <div>Telefone: {{ store.phone }}</div>
+                <div>Horário: {{ store.openingHours || 'Não informado' }}</div>
+                <div>Entrega: {{ store.supportsDelivery ? 'Gerenciada pela loja' : 'Não informada' }}</div>
               </div>
             </div>
 
@@ -768,6 +766,7 @@ export class RegionalMarketplaceComponent {
   readonly ecosystem = inject(EcosystemService);
   private readonly fb = inject(FormBuilder);
   readonly router = inject(Router);
+  private readonly mapProvider = inject(MapProviderService);
   readonly Math = Math;
 
   // Map state
@@ -775,41 +774,67 @@ export class RegionalMarketplaceComponent {
   private map: any = null;
   private markersLayer: any = null;
   private L: any = null;
+  private maplibreGL: any = null;
+  private readonly mapLibrariesReady = signal(false);
 
   constructor() {
     afterNextRender(async () => {
       void this.ecosystem.syncMarketplaceFromBackend();
-      this.L = (await import('leaflet')).default;
-      this.initMap();
+      try {
+        const libraries = await this.mapProvider.load();
+        this.L = libraries.leaflet;
+        this.maplibreGL = libraries.maplibreGL;
+        this.mapLibrariesReady.set(true);
+      } catch {
+        this.ecosystem.notify('Não foi possível carregar o mapa regional.', 'warning');
+      }
     });
 
     effect(() => {
       const mode = this.viewMode();
       this.filteredTenants(); // Access to trigger effect dependency
-      if (mode === 'mesa-cartografica' && this.map && this.L) {
-        setTimeout(() => {
-          this.map?.invalidateSize();
-          this.updateMapMarkers();
-        }, 100);
+      const container = this.mapContainer()?.nativeElement;
+      if (mode !== 'mesa-cartografica' || !container) {
+        this.destroyMap();
+        return;
       }
+
+      if (!this.mapLibrariesReady() || !this.L || !this.maplibreGL) return;
+      if (!this.map) {
+        this.initMap();
+        return;
+      }
+
+      setTimeout(() => {
+        this.map?.invalidateSize();
+        this.updateMapMarkers();
+      }, 100);
     });
   }
 
   private initMap() {
     const container = this.mapContainer()?.nativeElement;
-    if (!container || !this.L) return;
-
-    const tileUrl = 'https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png';
+    if (!container || !this.L || !this.maplibreGL || this.map) return;
+    const userLocation = this.ecosystem.marketplaceService.userReferenceCoords();
 
     this.map = this.L.map(container, {
-      center: [-23.5651, -46.6521], // Avenida Paulista, SP
-      zoom: 14,
-      zoomControl: false,
-      attributionControl: false
+      center: userLocation ? [userLocation.lat, userLocation.lng] : [0, 0],
+      zoom: userLocation && this.ecosystem.marketplaceService.isRealLocationActive() ? 14 : 2,
+      zoomControl: true,
+      attributionControl: true,
+      minZoom: 1
     });
 
-    this.L.tileLayer(tileUrl).addTo(this.map);
+    this.mapProvider.addBaseLayer(this.maplibreGL, this.map);
     this.markersLayer = this.L.layerGroup().addTo(this.map);
+    this.updateMapMarkers();
+  }
+
+  private destroyMap() {
+    if (!this.map) return;
+    this.map.remove();
+    this.map = null;
+    this.markersLayer = null;
   }
 
   private updateMapMarkers() {
@@ -818,31 +843,50 @@ export class RegionalMarketplaceComponent {
 
     const bounds: any[] = [];
 
-    // Reference Point
-    const refIcon = this.L.divIcon({
-      className: 'ref-icon',
-      html: `<div class="w-7 h-7 rounded-full bg-amber-600 border-2 border-stone-900 flex items-center justify-center text-white shadow-lg animate-pulse"><i class="material-icons text-base">my_location</i></div>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
-    });
-    const refLatLng: [number, number] = [-23.5651, -46.6521];
-    this.L.marker(refLatLng, { icon: refIcon }).addTo(this.markersLayer);
-    bounds.push(refLatLng);
+    const userLocation = this.ecosystem.marketplaceService.userReferenceCoords();
+    if (userLocation && this.ecosystem.marketplaceService.isRealLocationActive() && this.isValidCoordinate(userLocation.lat, userLocation.lng)) {
+      const userLatLng: [number, number] = [userLocation.lat, userLocation.lng];
+      const userIcon = this.L.divIcon({
+        className: 'ref-icon',
+        html: `<div class="w-7 h-7 rounded-full bg-amber-600 border-2 border-stone-900 flex items-center justify-center text-white shadow-lg"><i class="material-icons text-base">my_location</i></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+      this.L.marker(userLatLng, { icon: userIcon }).addTo(this.markersLayer);
+      bounds.push(userLatLng);
+    }
 
     // Store markers
     this.filteredTenants().forEach(store => {
-      if (store.lat && store.lng) {
-        const storeLatLng: [number, number] = [store.lat, store.lng];
+      if (this.isValidCoordinate(store.lat, store.lng)) {
+        const storeLatLng: [number, number] = [store.lat!, store.lng!];
+        const markerStatus = store.isOpen === true ? 'bg-emerald-500' : store.isOpen === false ? 'bg-rose-500' : 'bg-stone-500';
+        const markerNode = document.createElement('div');
+        markerNode.className = 'relative group';
+        const logoFrame = document.createElement('div');
+        logoFrame.className = 'w-10 h-10 rounded-2xl bg-[#faf7f0] border-2 border-amber-600 shadow-xl flex items-center justify-center overflow-hidden transform hover:scale-110 transition-transform';
+        const imageUrl = store.logo || store.coverImage;
+        if (imageUrl) {
+          try {
+            const safeUrl = new URL(imageUrl, document.baseURI);
+            if (safeUrl.protocol === 'https:' || safeUrl.protocol === 'http:') {
+              const image = document.createElement('img');
+              image.src = safeUrl.href;
+              image.alt = '';
+              image.referrerPolicy = 'no-referrer';
+              image.className = 'w-full h-full object-cover';
+              logoFrame.appendChild(image);
+            }
+          } catch {
+            // Invalid public logo URL: show the neutral marker.
+          }
+        }
+        const statusDot = document.createElement('div');
+        statusDot.className = `absolute -top-1 -right-1 w-3 h-3 ${markerStatus} border border-stone-900 rounded-full`;
+        markerNode.append(logoFrame, statusDot);
         const icon = this.L.divIcon({
           className: 'store-marker-icon',
-          html: `
-            <div class="relative group">
-              <div class="w-10 h-10 rounded-2xl bg-[#faf7f0] border-2 border-amber-600 shadow-xl flex items-center justify-center overflow-hidden transform hover:scale-110 transition-transform">
-                <img src="${store.logo || store.coverImage}" class="w-full h-full object-cover" referrerpolicy="no-referrer">
-              </div>
-              <div class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border border-stone-900 rounded-full"></div>
-            </div>
-          `,
+          html: markerNode,
           iconSize: [40, 40],
           iconAnchor: [20, 20]
         });
@@ -856,19 +900,26 @@ export class RegionalMarketplaceComponent {
     if (bounds.length > 1) {
       this.map.fitBounds(bounds, { padding: [50, 50] });
     } else {
-      this.map.setView(refLatLng, 14);
+      const user = this.ecosystem.marketplaceService.userReferenceCoords();
+      const validUser = Boolean(user && this.isValidCoordinate(user.lat, user.lng));
+      this.map.setView(validUser && user ? [user.lat, user.lng] : [0, 0], validUser ? 12 : 2);
     }
+  }
+
+  private isValidCoordinate(lat: number | undefined, lng: number | undefined): lat is number {
+    return typeof lat === 'number' && Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
+      typeof lng === 'number' && Number.isFinite(lng) && lng >= -180 && lng <= 180;
   }
 
   readonly viewMode = signal<CatalogViewMode>('fichario');
   readonly selectedCategory = signal<string>('all');
   readonly searchQuery = signal<string>('');
-  readonly sortCriteria = signal<SortOption>('rating');
+  readonly sortCriteria = signal<SortOption>('name');
   readonly statusFilter = signal<'all' | 'open' | 'closed'>('all');
 
-  readonly totalStoresCount = computed(() => this.ecosystem.tenants().length);
-  readonly openStoresCount = computed(() => this.ecosystem.tenants().filter(t => t.isOpen).length);
-  readonly closedStoresCount = computed(() => this.ecosystem.tenants().filter(t => !t.isOpen).length);
+  readonly totalStoresCount = computed(() => this.ecosystem.publicStorefronts().length);
+  readonly openStoresCount = computed(() => this.ecosystem.publicStorefronts().filter(t => t.isOpen === true).length);
+  readonly closedStoresCount = computed(() => this.ecosystem.publicStorefronts().filter(t => t.isOpen === false).length);
 
   readonly searchAddressValue = signal<string>('');
   readonly isAcquiringGps = signal<boolean>(false);
@@ -878,7 +929,7 @@ export class RegionalMarketplaceComponent {
   readonly filterReservation = signal<boolean>(false);
   readonly filterOpenNow = signal<boolean>(false);
 
-  readonly inspectedStore = signal<CompanyTenant | null>(null);
+  readonly inspectedStore = signal<PublicStorefront | null>(null);
   readonly showConsumerModal = signal<boolean>(false);
   readonly consumerModalTab = signal<'select' | 'register'>('select');
 
@@ -908,7 +959,7 @@ export class RegionalMarketplaceComponent {
   ];
 
   filteredTenants = computed(() => {
-    let list = this.ecosystem.tenants();
+    let list = this.ecosystem.publicStorefronts().filter(tenant => tenant.status === 'active');
     const cat = this.selectedCategory();
     const query = this.searchQuery().toLowerCase().trim();
     const maxRadius = this.ecosystem.maxDiscoveryRadiusKm();
@@ -924,35 +975,40 @@ export class RegionalMarketplaceComponent {
     if (query) {
       list = list.filter(t =>
         t.name.toLowerCase().includes(query) ||
-        t.legalName.toLowerCase().includes(query) ||
+        (t.address.city || '').toLowerCase().includes(query) ||
         t.tagline?.toLowerCase().includes(query) ||
-        t.address.neighborhood.toLowerCase().includes(query)
+        (t.address.neighborhood || '').toLowerCase().includes(query)
       );
     }
 
     list = list.filter(t => {
+      if (t.lat === undefined || t.lng === undefined) return true;
+      if (!this.ecosystem.marketplaceService.isRealLocationActive()) return true;
       const dist = this.ecosystem.calculateDistanceToUser(t.lat, t.lng);
-      return dist <= maxRadius;
+      return dist === null || dist <= maxRadius;
     });
 
-    if (this.filterDelivery()) list = list.filter(t => t.supportsDelivery);
-    if (this.filterTakeout()) list = list.filter(t => t.supportsTakeout);
-    if (this.filterReservation()) list = list.filter(t => t.supportsReservation);
-    if (this.filterOpenNow()) list = list.filter(t => t.isOpen);
+    if (this.filterDelivery()) list = list.filter(t => t.supportsDelivery === true);
+    if (this.filterTakeout()) list = list.filter(t => t.supportsTakeout === true);
+    if (this.filterReservation()) list = list.filter(t => t.supportsReservation === true);
+    if (this.filterOpenNow()) list = list.filter(t => t.isOpen === true);
 
     const sFilter = this.statusFilter();
     if (sFilter === 'open') {
       list = list.filter(t => t.isOpen);
     } else if (sFilter === 'closed') {
-      list = list.filter(t => !t.isOpen);
+      list = list.filter(t => t.isOpen === false);
     }
 
     const sort = this.sortCriteria();
     return [...list].sort((a, b) => {
-      if (sort === 'rating') return (b.rating || 0) - (a.rating || 0);
-      if (sort === 'distance') return this.ecosystem.calculateDistanceToUser(a.lat, a.lng) - this.ecosystem.calculateDistanceToUser(b.lat, b.lng);
+      if (sort === 'distance') {
+        const aDistance = a.lat === undefined || a.lng === undefined ? Number.POSITIVE_INFINITY : this.ecosystem.calculateDistanceToUser(a.lat, a.lng) ?? Number.POSITIVE_INFINITY;
+        const bDistance = b.lat === undefined || b.lng === undefined ? Number.POSITIVE_INFINITY : this.ecosystem.calculateDistanceToUser(b.lat, b.lng) ?? Number.POSITIVE_INFINITY;
+        return aDistance - bDistance;
+      }
       if (sort === 'name') return a.name.localeCompare(b.name);
-      if (sort === 'fee') return (a.deliveryFee || 0) - (b.deliveryFee || 0);
+      if (sort === 'fee') return (a.deliveryFee ?? Number.POSITIVE_INFINITY) - (b.deliveryFee ?? Number.POSITIVE_INFINITY);
       return 0;
     });
   });
@@ -975,11 +1031,11 @@ export class RegionalMarketplaceComponent {
 
   applyAddressSearch(val: string) {
     if (!val) return;
-    this.ecosystem.userReferenceAddress.set(val);
-    this.ecosystem.notify(`Endereço de referência atualizado: ${val}`, 'info');
+    this.searchQuery.set(val.trim());
+    this.ecosystem.notify(`Filtro aplicado: ${val.trim()}`, 'info');
   }
 
-  inspectFicha(store: CompanyTenant) {
+  inspectFicha(store: PublicStorefront) {
     this.inspectedStore.set(store);
   }
 
@@ -990,6 +1046,28 @@ export class RegionalMarketplaceComponent {
 
   isSpotlight(tenantId: string): boolean {
     return this.ecosystem.regionalConfig().featuredTenantIds.includes(tenantId);
+  }
+
+  addressLabel(store: PublicStorefront): string {
+    const address = store.address;
+    const street = [address.street, address.number].filter(Boolean).join(', ');
+    return [street, address.neighborhood, address.city, address.state].filter(Boolean).join(' - ') || 'Endereço não informado';
+  }
+
+  distanceLabel(store: PublicStorefront): string {
+    if (store.lat === undefined || store.lng === undefined) return 'Não informada';
+    const distance = this.ecosystem.calculateDistanceToUser(store.lat, store.lng);
+    return distance === null ? 'Ative o GPS' : `${distance} km`;
+  }
+
+  shareStore(store: PublicStorefront) {
+    const url = `${window.location.origin}/p/${encodeURIComponent(store.id)}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(url);
+      this.ecosystem.notify('Link da vitrine copiado.', 'success');
+    } else {
+      this.ecosystem.notify(url, 'info');
+    }
   }
 
   submitConsumerRegistration() {

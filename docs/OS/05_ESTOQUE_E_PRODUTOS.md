@@ -22,4 +22,4 @@ Importação de NF-e, perdas/avarias, ajuste de saldo a partir da conferência, 
 
 ## Validação
 
-Nesta revisão, lint passou, a suíte geral passou com 96/96 testes e o build de produção passou. Os testes cobrem isolamento de tenant e registro da divergência sem alteração do estoque. Não houve homologação com Firestore real nem validação operacional de inventário físico.
+Nesta revisão, lint passou, a suíte geral passou com 100/100 testes e o build de produção passou. Os testes cobrem isolamento de tenant e registro da divergência sem alteração do estoque. Não houve homologação com Firestore real nem validação operacional de inventário físico.

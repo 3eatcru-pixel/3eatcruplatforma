@@ -80,13 +80,16 @@ O ecossistema combina validação de Firebase ID Tokens, middlewares de autoriza
     }
     return user.tenantId;
     ```
+- **Projeção de vitrine pública (`toPublicStorefront`):** `GET /api/tenants/public` libera apenas campos de exibição das lojas ativas. Nome legal, telefone privado, CNPJ, chave PIX, equipe, dispositivos, rating não verificado e dados financeiros não fazem parte do contrato. O campo WhatsApp só é publicado quando cadastrado para contato público. O front usa essa projeção no marketplace, na landing e em `/p/:id`; dados `MOCK_TENANTS` são restritos ao modo de simulação. Falha de rede limpa o cache público em vez de exibir dados de exemplo.
+- **GPS de motorista:** o endpoint aceita ping somente do próprio usuário com papel `driver`; valida o documento `private`, tenant e rota exata atribuída em `in_progress`. Latitude/longitude são validadas em conjunto. `sharing: false` e a conclusão de rota apagam a posição. Gestores consultam apenas motoristas do próprio tenant, e o cliente oculta a posição se o último ping tiver mais de 2 minutos. A posição do consumidor no marketplace não é enviada à API.
+- **Cobrança SaaS do HQ:** endpoints de gestão exigem `hq_admin`; o tenant, plano, mensalidade e e-mail são lidos no servidor. Webhooks de Stripe exigem assinatura sobre o corpo HTTP bruto; webhooks Mercado Pago exigem HMAC de `x-signature` e consulta autenticada ao recurso no provedor. IDs de eventos e faturas são registrados de forma idempotente. As chaves privadas nunca são retornadas à interface.
 
 ### Perspectiva 3: Como se conecta (Topologia de Integração)
 - **Entrada:** Bearer ID Token injetado pelo interceptor Angular.
 - **Prevenção de Evasão:** Tentativas de consultar `/api/financials`, `/api/orders` ou `/api/products` sem token ou com token de outro tenant resultam em interrupção imediata da requisição.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta revisão, `npm run test:ci` passou com 96/96 testes e executou `src/server/security_phase1.spec.ts` e `src/server/commerce_war_tests.spec.ts`. Os testes usam mocks; as regras do Firestore não foram exercitadas no emulador.
+- Nesta revisão, `npm run test:ci` passou com 100/100 testes e executou `src/server/security_phase1.spec.ts` e `src/server/commerce_war_tests.spec.ts`. Os testes usam mocks; as regras do Firestore não foram exercitadas no emulador.
 
 ---
 

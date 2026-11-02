@@ -4,6 +4,7 @@ import { SystemAuditReport, AuditLog, POSDevice, LicensePlan } from '../models/e
 import { firstValueFrom } from 'rxjs';
 import { SecurityService } from './security.service';
 import type { HqOverviewResponse } from './hq-api.service';
+import { DEFAULT_SAAS_PLANS } from '../../shared/constants/saas-plans';
 
 export interface HqTenantMetricsResponse {
   tenantId: string;
@@ -11,12 +12,6 @@ export interface HqTenantMetricsResponse {
   eligibleOrderVolume: number;
   capturedAt: string;
 }
-
-const DEFAULT_PLANS: LicensePlan[] = [
-  { id: 'Starter', name: 'Starter (Iniciante)', priceMonthly: 149.00, maxDevices: 2, includedModules: ['PDV Caixa'], description: 'Pequenos comércios.' },
-  { id: 'Professional', name: 'Professional (Avançado)', priceMonthly: 299.00, maxDevices: 5, includedModules: ['PDV', 'KDS', 'Mesas'], description: 'Restaurantes e lojas.' },
-  { id: 'Enterprise', name: 'Enterprise (Corporativo)', priceMonthly: 599.00, maxDevices: 20, includedModules: ['Total'], description: 'Franquias.' }
-];
 
 @Injectable({
   providedIn: 'root'
@@ -32,7 +27,7 @@ export class HqService {
   readonly maintenanceMode = signal<boolean>(false);
   readonly globalBroadcastMessage = signal<string | null>(null);
   readonly hqCommissionRate = signal<number>(0.08);
-  readonly licensePlans = signal<LicensePlan[]>(DEFAULT_PLANS);
+  readonly licensePlans = signal<LicensePlan[]>(DEFAULT_SAAS_PLANS.map((plan) => ({ ...plan, includedModules: [...plan.includedModules] })));
   readonly licensePlansStatus = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   readonly licensePlansSource = signal<'unknown' | 'firestore' | 'mixed' | 'defaults' | 'demo'>('unknown');
   readonly overview = signal<HqOverviewResponse | null>(null);

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, afterNextRender, ElementRef, viewChild, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -6,6 +6,7 @@ import { DeliveryRoute, DeliveryWaypoint, OrderTransaction, StoreDriver } from '
 import { EcosystemService } from '../../services/ecosystem.service';
 import { LogisticsService } from '../../services/logistics.service';
 import { OrdersService } from '../../services/orders.service';
+import { MapLibraries, MapProviderService } from '../../services/map-provider.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,6 +34,20 @@ import { OrdersService } from '../../services/orders.service';
         <div class="flex-1 flex flex-col items-center justify-center gap-2 text-center text-rose-300"><p>{{ loadError() }}</p><button type="button" (click)="refresh()" class="font-bold underline">Tentar novamente</button></div>
       } @else {
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4">
+          <section class="bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="text-xs font-bold text-white uppercase">GPS da frota própria</h3><p class="text-[10px] text-stone-500">Posições recentes compartilhadas pelo entregador durante uma rota ativa.</p></div><span class="text-[10px] text-emerald-300">{{ liveDrivers().length }} com posição recente</span></div>
+            @if (liveDrivers().length === 0) {
+              <div class="h-32 rounded-xl border border-dashed border-[#593017] flex items-center justify-center text-center text-xs text-stone-500 px-4">Nenhum entregador compartilhou a posição nos últimos 2 minutos.</div>
+            } @else {
+              <div class="relative h-64 rounded-xl overflow-hidden border border-[#593017] bg-[#100803]"><div #driversMapContainer class="w-full h-full"></div></div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                @for (driver of liveDrivers(); track driver.id) {
+                  <div class="flex items-center justify-between gap-2 rounded-lg border border-[#381c0c] bg-[#200e05] p-2 text-[10px]"><span class="font-bold text-white">{{ driver.name }}</span><span class="text-emerald-300">GPS ativo · precisão {{ driver.gpsAccuracyMeters | number:'1.0-0' }} m</span></div>
+                }
+              </div>
+            }
+          </section>
+
           <section class="bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 space-y-3">
             <div class="flex items-center justify-between"><h3 class="text-xs font-bold text-white uppercase">Frota própria da unidade</h3><span class="text-[10px] text-stone-500">{{ drivers().length }} cadastrados</span></div>
             <form (ngSubmit)="createDriver()" class="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -110,7 +125,7 @@ import { OrdersService } from '../../services/orders.service';
     </div>
   `
 })
-export class EAppDriversWindow {
+export class EAppDriversWindow implements OnDestroy {
   private readonly logisticsService = inject(LogisticsService);
   private readonly ordersService = inject(OrdersService);
   readonly ecosystem = inject(EcosystemService);
@@ -123,6 +138,14 @@ export class EAppDriversWindow {
   storeDriverCompensation = 0;
   readonly newDriver = { name: '', phone: '', vehicleType: 'moto' as StoreDriver['vehicleType'] };
   private fetchGeneration = 0;
+  private readonly mapProvider = inject(MapProviderService);
+  private readonly driversMapContainer = viewChild<ElementRef>('driversMapContainer');
+  private readonly mapReady = signal(false);
+  private L: MapLibraries['leaflet'] | null = null;
+  private maplibreGL: MapLibraries['maplibreGL'] | null = null;
+  private map: import('leaflet').Map | null = null;
+  private markersLayer: import('leaflet').LayerGroup | null = null;
+  private gpsRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   readonly canManageLogistics = computed(() => {
     const role = this.ecosystem.currentSession()?.role;
@@ -134,6 +157,16 @@ export class EAppDriversWindow {
     return this.logisticsService.drivers().filter((driver) => driver.tenantId === tenantId && driver.driverType === 'private');
   });
   readonly availableDrivers = computed(() => this.drivers().filter((driver) => driver.status === 'available'));
+  readonly liveDrivers = computed(() => {
+    const now = Date.now();
+    return this.drivers().filter((driver) => {
+      const pingTime = driver.lastGpsPing ? Date.parse(driver.lastGpsPing) : Number.NaN;
+      return driver.locationSharing === true && Boolean(driver.gpsRouteId) &&
+        typeof driver.lat === 'number' && Number.isFinite(driver.lat) && driver.lat >= -90 && driver.lat <= 90 &&
+        typeof driver.lng === 'number' && Number.isFinite(driver.lng) && driver.lng >= -180 && driver.lng <= 180 &&
+        Number.isFinite(pingTime) && now - pingTime >= 0 && now - pingTime <= 120000;
+    });
+  });
   readonly routes = computed(() => {
     const tenantId = this.ecosystem.resolveOperationalTenantId();
     if (!tenantId) return [];
@@ -166,6 +199,74 @@ export class EAppDriversWindow {
       }
       void this.load(tenantId, generation);
     });
+
+    effect(() => {
+      const container = this.driversMapContainer()?.nativeElement;
+      const liveDrivers = this.liveDrivers();
+      const leaflet = this.L;
+      const maplibreGL = this.maplibreGL;
+      if (!container || !this.mapReady() || !leaflet || !maplibreGL || liveDrivers.length === 0) {
+        this.destroyMap();
+        return;
+      }
+      if (!this.map) {
+        const firstDriver = liveDrivers[0]!;
+        this.map = leaflet.map(container, {
+          center: [firstDriver.lat!, firstDriver.lng!],
+          zoom: 13,
+          zoomControl: true,
+          attributionControl: true,
+          minZoom: 1
+        });
+        this.mapProvider.addBaseLayer(maplibreGL, this.map);
+        this.markersLayer = leaflet.layerGroup().addTo(this.map);
+      }
+
+      const map = this.map;
+      const markersLayer = this.markersLayer;
+      if (!map || !markersLayer) return;
+      markersLayer.clearLayers();
+      const bounds: [number, number][] = [];
+      liveDrivers.forEach((driver) => {
+        const markerNode = document.createElement('div');
+        markerNode.className = 'flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-[10px] font-black text-white shadow-xl';
+        markerNode.textContent = driver.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
+        const marker = leaflet.marker([driver.lat!, driver.lng!], {
+          icon: leaflet.divIcon({ className: 'store-driver-gps-icon', html: markerNode, iconSize: [36, 36], iconAnchor: [18, 18] })
+        });
+        markersLayer.addLayer(marker);
+        bounds.push([driver.lat!, driver.lng!]);
+      });
+      if (bounds.length > 1) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
+      else map.setView(bounds[0]!, 14);
+      setTimeout(() => this.map?.invalidateSize(), 100);
+    });
+
+    afterNextRender(async () => {
+      try {
+        const libraries = await this.mapProvider.load();
+        this.L = libraries.leaflet;
+        this.maplibreGL = libraries.maplibreGL;
+        this.mapReady.set(true);
+      } catch {
+        this.loadError.set('Não foi possível carregar o mapa GPS.');
+      }
+      this.gpsRefreshTimer = setInterval(() => {
+        if (this.canManageLogistics() && !this.isLoading()) void this.logisticsService.fetchDrivers();
+      }, 30000);
+    });
+  }
+
+  ngOnDestroy() {
+    if (this.gpsRefreshTimer) clearInterval(this.gpsRefreshTimer);
+    this.destroyMap();
+  }
+
+  private destroyMap() {
+    if (!this.map) return;
+    this.map.remove();
+    this.map = null;
+    this.markersLayer = null;
   }
 
   async refresh() {

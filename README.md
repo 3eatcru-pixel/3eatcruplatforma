@@ -26,7 +26,7 @@ A lista completa e o estado por módulo estão em [Aplicativos e módulos](./doc
 ## Regras do modelo de negócio
 
 - A loja administra sua frota própria e decide quanto paga aos seus motoristas.
-- A assinatura contratada no HQ dá acesso ao Store OS e à cota de dispositivos do plano; a oferta deverá atender também lojas sem frota própria com entregadores da plataforma quando estiver pronta. O catálogo e o bloqueio de novas ativações por cota existem, mas cobrança recorrente e regras/preços do acesso à frota ainda não estão integrados.
+- A assinatura contratada no HQ dá acesso ao Store OS e à cota de dispositivos do plano; o painel de pagamentos gera checkouts recorrentes Mercado Pago/Stripe e registra faturas via webhooks. Lojas que usarem a futura rede própria de entregadores terão comissão de 8% por entrega elegível; a rede e a comissão continuam em breve.
 - Os pagamentos de pedidos do marketplace pertencem à loja e devem cair na conta de pagamento dela. O PIX usa a chave cadastrada no tenant e a confirmação é manual; cartão real está bloqueado até conectar uma conta de adquirência por loja. Não há recebimento central pelo HQ.
 - A comissão de referência de 8% permanece em coming_soon e se aplica somente ao futuro processo de entregas executadas pela rede própria da plataforma. É separada da assinatura e dos pagamentos de pedidos, e não incide sobre entregas feitas pelos motoristas da loja.
 
@@ -50,5 +50,8 @@ O índice canônico é [docs/INDEX.md](./docs/INDEX.md). O arquivo [docs/00_INDI
 - npm run lint: lint configurado no projeto.
 - npm run test:ci: testes configurados para execução sem watch.
 - npm run build: build Angular com configuração de produção.
+- npm run check: lint, testes sem watch e build de produção em sequência.
+
+O workflow `.github/workflows/verify.yml` executa `npm ci` e `npm run check` em pushes, pull requests e acionamento manual. A validação do workflow no GitHub depende do próximo envio desta alteração.
 
 A existência de scripts ou arquivos de teste não representa aprovação atual. Consulte o status da última execução antes de considerar uma entrega homologada.

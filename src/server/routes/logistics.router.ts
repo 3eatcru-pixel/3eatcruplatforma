@@ -225,7 +225,7 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
       ? body.timeWindow.trim().slice(0, 50)
       : '';
 
-    if (!Number.isFinite(storeDriverAmount) || storeDriverAmount < 0) {
+    if (linkedOrderIds.size === 0 && (!Number.isFinite(storeDriverAmount) || storeDriverAmount < 0)) {
       res.status(400).json({ error: 'O valor combinado com o entregador deve ser um número igual ou maior que zero.' });
       return;
     }
@@ -235,6 +235,9 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
     }
 
     // Validate linked orders before making a route available to the tenant's drivers.
+    let customerDeliveryFeesTotal = 0;
+    let storeDeliveryContributionTotal = 0;
+    let orderDriverCompensationTotal = 0;
     for (const orderId of linkedOrderIds) {
         const ordDoc = await adminDb.collection('orders').doc(orderId).get();
         if (!ordDoc.exists) {
@@ -253,6 +256,17 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
           res.status(409).json({ error: 'O pedido não está disponível para uma nova rota.', code: 'ORDER_NOT_ROUTABLE' });
           return;
         }
+        const customerFee = typeof ordData.deliveryFee === 'number' && Number.isFinite(ordData.deliveryFee) && ordData.deliveryFee >= 0
+          ? ordData.deliveryFee
+          : 0;
+        const storeContribution = typeof ordData.storeDeliveryContribution === 'number' && Number.isFinite(ordData.storeDeliveryContribution) && ordData.storeDeliveryContribution >= 0
+          ? ordData.storeDeliveryContribution
+          : 0;
+        customerDeliveryFeesTotal += customerFee;
+        storeDeliveryContributionTotal += storeContribution;
+        orderDriverCompensationTotal += typeof ordData.driverCompensation === 'number' && Number.isFinite(ordData.driverCompensation) && ordData.driverCompensation >= 0
+          ? ordData.driverCompensation
+          : customerFee + storeContribution;
     }
 
     if (linkedOrderIds.size > 0) {
@@ -273,6 +287,9 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
 
     const id = `rt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
     const nowIso = new Date().toISOString();
+    const totalRouteCompensation = linkedOrderIds.size > 0
+      ? Number(orderDriverCompensationTotal.toFixed(2))
+      : storeDriverAmount;
     const newRoute: DeliveryRoute = {
       id,
       routeCode: String(body.routeCode || `RT-${Math.floor(1000 + Math.random() * 9000)}`),
@@ -282,7 +299,11 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
       totalDistanceKm,
       estimatedDuration: estimatedDuration || 'Não informado',
       // Store-defined route amount only; this is not a payment record.
-      totalEarnings: storeDriverAmount,
+      totalEarnings: totalRouteCompensation,
+      ...(linkedOrderIds.size > 0 ? {
+        customerDeliveryFeesTotal: Number(customerDeliveryFeesTotal.toFixed(2)),
+        storeDeliveryContributionTotal: Number(storeDeliveryContributionTotal.toFixed(2))
+      } : {}),
       waypoints,
       status: 'available',
       totalDeliveredCount: 0,

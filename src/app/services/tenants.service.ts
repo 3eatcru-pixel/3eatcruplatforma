@@ -1,9 +1,10 @@
 import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { CompanyTenant, PublicStorefront } from '../models/ecosystem.model';
+import { CompanyTenant, PublicStorefront, TenantUpdate } from '../models/ecosystem.model';
 import { MOCK_TENANTS } from '../models/mock-data';
 import { firstValueFrom } from 'rxjs';
 import { SecurityService } from './security.service';
+import { roundCurrencyAmount } from '../../shared/utils/money.util';
 
 @Injectable({
   providedIn: 'root'
@@ -97,12 +98,23 @@ export class TenantsService {
     return firstValueFrom(this.http.get<CompanyTenant | PublicStorefront>(`/api/tenants/${id}`));
   }
 
-  async updateTenant(id: string, updates: Partial<CompanyTenant>): Promise<CompanyTenant> {
+  async updateTenant(id: string, updates: TenantUpdate): Promise<CompanyTenant> {
     if (this.isSimulation()) {
       let updated: CompanyTenant | null = null;
       this.tenants.update(cur => cur.map(t => {
         if (t.id === id) {
-          updated = { ...t, ...updates };
+          const next = {
+            ...t,
+            ...updates,
+            ...(typeof updates.deliveryFee === 'number' ? { deliveryFee: roundCurrencyAmount(updates.deliveryFee) } : {}),
+            ...(typeof updates.storeDeliveryContribution === 'number'
+              ? { storeDeliveryContribution: roundCurrencyAmount(updates.storeDeliveryContribution) }
+              : {})
+          } as CompanyTenant;
+          for (const field of ['deliveryFee', 'storeDeliveryContribution', 'minOrderValue', 'aboutText', 'pixKey'] as const) {
+            if (updates[field] === null) delete next[field];
+          }
+          updated = next;
           return updated;
         }
         return t;
@@ -120,7 +132,14 @@ export class TenantsService {
     const modeRevision = this.security.executionModeRevision();
     const data = await firstValueFrom(this.http.patch<CompanyTenant>(`/api/tenants/${id}`, updates));
     if (modeRevision !== this.security.executionModeRevision()) return data;
-    this.tenants.update(cur => cur.map(t => t.id === id ? { ...t, ...data } : t));
+    this.tenants.update(cur => cur.map(t => {
+      if (t.id !== id) return t;
+      const next = { ...t, ...data };
+      for (const field of ['deliveryFee', 'storeDeliveryContribution', 'minOrderValue', 'aboutText', 'pixKey'] as const) {
+        if (updates[field] === null) delete next[field];
+      }
+      return next;
+    }));
     await this.fetchPublicStorefronts();
     return data;
   }
@@ -173,7 +192,10 @@ export class TenantsService {
         activeDevicesCount: 0,
         devicesLimit: tenant.devicesLimit ?? (plan === 'Enterprise' ? 20 : plan === 'Professional' ? 5 : 2),
         createdAt: new Date().toISOString(),
-        isOpen: false
+        isOpen: false,
+        supportsDelivery: false,
+        supportsTakeout: true,
+        storeDeliveryContribution: 0
       } as CompanyTenant;
       this.tenants.update(cur => [...cur, simTenant]);
       return simTenant;
@@ -190,12 +212,13 @@ export class TenantsService {
       name: tenant.name,
       category: tenant.category,
       status: tenant.status,
+      aboutText: typeof tenant.aboutText === 'string' ? tenant.aboutText.trim().slice(0, 500) : undefined,
       tagline: tenant.tagline,
       badgeCategory: tenant.badgeCategory,
       supportsDelivery: tenant.supportsDelivery,
       supportsTakeout: tenant.supportsTakeout,
       supportsReservation: tenant.supportsReservation,
-      pixAvailable: tenant.pixAvailable,
+      pixAvailable: Boolean(tenant.pixKey?.trim() && tenant.pixKey.trim().length <= 77),
       isOpen: tenant.isOpen,
       estimatedDeliveryMinutes: tenant.estimatedDeliveryMinutes,
       deliveryFee: tenant.deliveryFee,

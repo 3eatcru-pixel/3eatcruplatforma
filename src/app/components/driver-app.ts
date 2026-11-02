@@ -150,8 +150,8 @@ type DriverScreenTab = 'active_route' | 'available_routes' | 'delivery_details' 
                 }
 
                 @if (ecosystem.isSimulationMode() || route.status === 'in_progress') {
-                  <div class="relative h-[320px] rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl bg-slate-900 group">
-                     <div #mapContainer class="w-full h-full" [class.grayscale]="ecosystem.isSimulationMode()" [class.contrast-125]="ecosystem.isSimulationMode()" [class.invert]="ecosystem.isSimulationMode()" [class.hue-rotate-180]="ecosystem.isSimulationMode()"></div>
+                  <div class="relative h-[320px] rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl bg-slate-900 group" [class.border-amber-400/60]="ecosystem.isSimulationMode()">
+                     <div #mapContainer class="w-full h-full saturate-[1.3] contrast-[1.05] brightness-[1.02]"></div>
                      @if (ecosystem.isSimulationMode()) {
                        <div class="absolute top-4 left-4 z-[1000] bg-slate-950/90 backdrop-blur-md border border-amber-400/30 px-3 py-1.5 rounded-xl">
                           <span class="text-[9px] font-black uppercase text-amber-200 tracking-widest">Demonstração simulada · sem GPS ou navegação real</span>

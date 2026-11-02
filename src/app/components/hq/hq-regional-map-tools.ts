@@ -92,7 +92,7 @@ import { MapToolsService, MapCoord } from '../../services/map-tools.service';
         <!-- RIGHT: ANALYSIS MAP -->
         <div class="lg:col-span-8">
           <div class="rounded-3xl border border-[#4d2813] overflow-hidden relative bg-stone-900 h-[450px]">
-            <div #mapContainer class="w-full h-full opacity-90 grayscale-[0.3]"></div>
+            <div #mapContainer class="w-full h-full saturate-[1.3] contrast-[1.05] brightness-[1.02]"></div>
             @if (mappableTenants().length === 0) {
               <div class="absolute inset-0 z-[500] flex items-center justify-center bg-black/55 p-6 text-center text-xs text-stone-200">
                 Nenhuma loja ativa com coordenadas cadastradas para exibir no mapa.

@@ -98,10 +98,13 @@ import { MapLibraries, MapProviderService } from '../../services/map-provider.se
                 }
               </div>
             }
-            <div class="flex flex-wrap items-end gap-2">
-              <label class="text-[10px] text-stone-400">Valor combinado com o motorista (R$)
-                <input name="driverCompensation" type="number" min="0" step="0.01" [(ngModel)]="storeDriverCompensation" class="mt-1 w-56 rounded-lg bg-[#100803] border border-[#593017] px-2 py-2 text-white" />
-              </label>
+            <div class="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-[#593017] bg-[#100803] p-3">
+              <div class="text-[10px] text-stone-300">
+                <p>Cliente financia R$ {{ selectedDeliveryTotals().customerDeliveryFeesTotal.toFixed(2) }}</p>
+                <p>Loja complementa R$ {{ selectedDeliveryTotals().storeDeliveryContributionTotal.toFixed(2) }}</p>
+                <p class="mt-1 font-bold text-emerald-300">Entregador recebe R$ {{ selectedDeliveryTotals().driverCompensation.toFixed(2) }} nesta rota</p>
+                <p class="mt-1 text-stone-500">Valor calculado dos pedidos selecionados. O pagamento continua combinado e feito pela loja.</p>
+              </div>
               <button type="button" (click)="createRoute()" [disabled]="isSaving() || selectedOrderIds().length === 0" class="rounded-lg bg-amber-600 px-4 py-2 text-xs font-black text-stone-950 disabled:opacity-50">Criar rota</button>
             </div>
           </section>
@@ -113,7 +116,11 @@ import { MapLibraries, MapProviderService } from '../../services/map-provider.se
               <article class="bg-[#200e05] border border-[#381c0c] p-3 rounded-xl space-y-2">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div><strong class="text-white text-xs">{{ route.routeCode }}</strong><p class="text-[10px] text-stone-400">{{ route.waypoints.length }} paradas · {{ route.date | date:'dd/MM/yyyy HH:mm' }}</p></div>
-                  <div class="text-right"><span class="block text-[10px] uppercase text-amber-300">{{ routeStatusLabel(route.status) }}</span><span class="text-[10px] text-stone-400">R$ {{ route.totalEarnings.toFixed(2) }} combinado</span></div>
+                  <div class="text-right"><span class="block text-[10px] uppercase text-amber-300">{{ routeStatusLabel(route.status) }}</span><span class="text-[10px] text-stone-400">R$ {{ route.totalEarnings.toFixed(2) }} combinado</span>
+                    @if (route.customerDeliveryFeesTotal !== undefined || route.storeDeliveryContributionTotal !== undefined) {
+                      <span class="block text-[9px] text-stone-500">Cliente {{ (route.customerDeliveryFeesTotal || 0).toFixed(2) }} + loja {{ (route.storeDeliveryContributionTotal || 0).toFixed(2) }}</span>
+                    }
+                  </div>
                 </div>
                 <p class="text-[10px] text-stone-500">Entregador: {{ route.driverName || 'Ainda não atribuído' }} · {{ routeStops(route) }}</p>
                 @if (route.status === 'available' && drivers().length > 0) {
@@ -147,7 +154,6 @@ export class EAppDriversWindow implements OnDestroy {
   readonly selectedOrderIds = signal<string[]>([]);
   readonly selectedDrivers = signal<Record<string, string>>({});
   accountEmails: Record<string, string> = {};
-  storeDriverCompensation = 0;
   readonly newDriver = { name: '', phone: '', vehicleType: 'moto' as StoreDriver['vehicleType'] };
   private fetchGeneration = 0;
   private readonly mapProvider = inject(MapProviderService);
@@ -197,6 +203,22 @@ export class EAppDriversWindow implements OnDestroy {
       order.tenantId === tenantId && order.type === 'delivery' && order.status === 'ready' &&
       !order.driverId && !linkedOrderIds.has(order.id)
     );
+  });
+  readonly selectedDeliveryTotals = computed(() => {
+    const selectedIds = new Set(this.selectedOrderIds());
+    const selectedOrders = this.routableOrders().filter((order) => selectedIds.has(order.id));
+    const customerDeliveryFeesTotal = selectedOrders.reduce((sum, order) => sum + Math.max(0, order.deliveryFee || 0), 0);
+    const storeDeliveryContributionTotal = selectedOrders.reduce((sum, order) => sum + Math.max(0, order.storeDeliveryContribution || 0), 0);
+    const driverCompensation = selectedOrders.reduce((sum, order) => {
+      const customerFee = Math.max(0, order.deliveryFee || 0);
+      const storeContribution = Math.max(0, order.storeDeliveryContribution || 0);
+      return sum + Math.max(0, order.driverCompensation ?? customerFee + storeContribution);
+    }, 0);
+    return {
+      customerDeliveryFeesTotal: Number(customerDeliveryFeesTotal.toFixed(2)),
+      storeDeliveryContributionTotal: Number(storeDeliveryContributionTotal.toFixed(2)),
+      driverCompensation: Number(driverCompensation.toFixed(2))
+    };
   });
 
   constructor() {
@@ -368,16 +390,19 @@ export class EAppDriversWindow implements OnDestroy {
     if (this.isSaving() || !this.canManageLogistics()) return;
     const selectedIds = new Set(this.selectedOrderIds());
     const orders = this.routableOrders().filter((order) => selectedIds.has(order.id));
-    const compensation = Number(this.storeDriverCompensation);
-    if (orders.length === 0 || !Number.isFinite(compensation) || compensation < 0) {
-      this.formError.set('Selecione ao menos um pedido e informe um valor válido.');
+    const totals = this.selectedDeliveryTotals();
+    if (orders.length === 0 || !Number.isFinite(totals.driverCompensation) || totals.driverCompensation < 0) {
+      this.formError.set('Selecione ao menos um pedido com valores de entrega válidos.');
       return;
     }
     this.isSaving.set(true);
     this.formError.set(null);
     try {
       const waypoints: DeliveryWaypoint[] = orders.map((order, index) => this.toWaypoint(order, index));
-      await this.logisticsService.createDeliveryRoute(waypoints, compensation);
+      await this.logisticsService.createDeliveryRoute(waypoints, totals.driverCompensation, {
+        customerDeliveryFeesTotal: totals.customerDeliveryFeesTotal,
+        storeDeliveryContributionTotal: totals.storeDeliveryContributionTotal
+      });
       this.selectedOrderIds.set([]);
       await this.refreshData();
       this.ecosystem.notify('Rota criada. O valor é apenas o combinado da loja com o motorista.', this.ecosystem.isSimulationMode() ? 'info' : 'success');

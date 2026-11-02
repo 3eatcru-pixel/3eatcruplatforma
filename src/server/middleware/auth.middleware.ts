@@ -335,6 +335,7 @@ export function toPublicStorefront(tenant: CompanyTenant): PublicStorefront {
     name: tenant.name,
     category: tenant.category,
     status: tenant.status,
+    aboutText: typeof tenant.aboutText === 'string' ? tenant.aboutText.trim().slice(0, 500) : undefined,
     tagline: tenant.tagline,
     badgeCategory: tenant.badgeCategory,
     supportsDelivery: tenant.supportsDelivery,

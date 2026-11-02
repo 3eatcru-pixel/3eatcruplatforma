@@ -10,6 +10,7 @@ import { adminAuth, adminDb } from '../firebase-admin';
 import { FieldValue, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { isValidCnpj } from '../utils/cnpj';
 import { getPlanDeviceLimit } from '../utils/plan-limits';
+import { roundCurrencyAmount } from '../../shared/utils/money.util';
 
 export const tenantsRouter = Router();
 
@@ -26,6 +27,23 @@ class TenantOwnerLinkError extends Error {
 function getParamId(req: Request): string {
   const p = req.params['id'];
   return Array.isArray(p) ? p[0] : (p || '');
+}
+
+interface TenantUpdatePayload extends Record<string, unknown> {
+  name?: unknown;
+  aboutText?: unknown;
+  deliveryFee?: unknown;
+  storeDeliveryContribution?: unknown;
+  minOrderValue?: unknown;
+  pixKey?: unknown;
+  isOpen?: unknown;
+  supportsDelivery?: unknown;
+  supportsTakeout?: unknown;
+  openingHours?: unknown;
+  status?: unknown;
+  plan?: unknown;
+  devicesLimit?: unknown;
+  deliveryRadiusKm?: unknown;
 }
 
 /**
@@ -196,6 +214,19 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
   const category = validCategories.includes(body['category'] as CompanyTenant['category'])
     ? body['category'] as CompanyTenant['category']
     : 'restaurant';
+  for (const field of ['deliveryFee', 'minOrderValue'] as const) {
+    const value = body[field];
+    if (value !== undefined && value !== null && value !== '' &&
+        (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+      res.status(400).json({ error: `${field} deve ser um valor numérico igual ou maior que zero.`, code: field === 'deliveryFee' ? 'INVALID_DELIVERY_FEE' : 'INVALID_MIN_ORDER_VALUE' });
+      return;
+    }
+  }
+  if (body['openingHours'] !== undefined && body['openingHours'] !== null &&
+      (typeof body['openingHours'] !== 'string' || body['openingHours'].trim().length > 60)) {
+    res.status(400).json({ error: 'O horário informado deve ter até 60 caracteres.', code: 'INVALID_OPENING_HOURS' });
+    return;
+  }
   const validPlans: CompanyTenant['plan'][] = ['Starter', 'Professional', 'Enterprise'];
   const plan = validPlans.includes(body['plan'] as CompanyTenant['plan'])
     ? body['plan'] as CompanyTenant['plan']
@@ -219,6 +250,9 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
     plan,
     status: 'trial',
     isOpen: false,
+    supportsDelivery: false,
+    supportsTakeout: true,
+    storeDeliveryContribution: 0,
     staffUids: [],
     ...(Number.isFinite(Number(body['lat'])) ? { lat: Number(body['lat']) } : {}),
     ...(Number.isFinite(Number(body['lng'])) ? { lng: Number(body['lng']) } : {}),
@@ -237,13 +271,13 @@ tenantsRouter.post('/', requireHqAdmin, async (req: Request, res: Response) => {
     phone: typeof body['phone'] === 'string' ? body['phone'].trim().slice(0, 32) : '',
     createdAt: new Date().toISOString(),
     deliveryRadiusKm: Number(body['deliveryRadiusKm']) || 5.0,
-    openingHours: typeof body['openingHours'] === 'string' ? body['openingHours'].slice(0, 60) : '10:00 às 22:00',
+    ...(typeof body['openingHours'] === 'string' && body['openingHours'].trim()
+      ? { openingHours: body['openingHours'].trim() }
+      : {}),
     activeDevicesCount: 0,
     devicesLimit: initialDeviceLimit,
-    minOrderValue: Number(body['minOrderValue']) || 25,
-    deliveryFee: Number.isFinite(Number(body['deliveryFee'])) && Number(body['deliveryFee']) >= 0
-      ? Number(body['deliveryFee'])
-      : 5,
+    ...(typeof body['minOrderValue'] === 'number' ? { minOrderValue: body['minOrderValue'] } : {}),
+    ...(typeof body['deliveryFee'] === 'number' ? { deliveryFee: roundCurrencyAmount(body['deliveryFee']) } : {}),
     deliveryFleetType: 'own',
     storeSlug: typeof body['storeSlug'] === 'string' && body['storeSlug'].trim() ? body['storeSlug'].trim().slice(0, 80) : id,
     themeColor: 'amber'
@@ -474,24 +508,36 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
       return;
     }
 
-    const updates = { ...req.body };
-    // Ownership and staff membership are changed only by dedicated identity flows.
-    delete updates.ownerUid;
-    delete updates.staffUids;
-    // Ignore the retired tenant-level percentage; online delivery charges the fixed deliveryFee only.
-    delete updates.serviceFeePercent;
-    // Store deliveries remain store-managed until the platform network is activated.
-    delete updates.deliveryFleetType;
-    if (req.user?.role !== 'hq_admin') {
-      delete updates.status;
-      delete updates.plan;
-      delete updates.devicesLimit;
-      delete updates.cnpj;
-      delete updates.id;
-      delete updates.createdAt;
-      delete updates.ownerUid;
-      delete updates.staffUids;
-      delete updates.isSimulated;
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+      ? req.body as Record<string, unknown>
+      : {};
+    const isHqAdmin = req.user?.role === 'hq_admin';
+    const storeProfileFields = [
+      'name', 'aboutText', 'deliveryFee', 'storeDeliveryContribution', 'minOrderValue', 'pixKey', 'isOpen',
+      'supportsDelivery', 'supportsTakeout', 'openingHours'
+    ];
+    const hqGovernanceFields = ['status', 'plan', 'devicesLimit', 'deliveryRadiusKm'];
+    const allowedFields = new Set(isHqAdmin
+      ? [...storeProfileFields.filter((field) => field !== 'storeDeliveryContribution'), ...hqGovernanceFields]
+      : storeProfileFields);
+    const ignoredLegacyFields = new Set(['ownerUid', 'staffUids', 'serviceFeePercent', 'deliveryFleetType']);
+    const rejectedFields = Object.keys(body).filter((field) => !allowedFields.has(field) && !ignoredLegacyFields.has(field));
+    if (rejectedFields.length > 0) {
+      res.status(400).json({
+        error: 'A atualização contém campos fora das permissões deste perfil.',
+        code: 'INVALID_TENANT_UPDATE_FIELDS',
+        fields: rejectedFields
+      });
+      return;
+    }
+
+    const updates: TenantUpdatePayload = {};
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(body, field)) updates[field] = body[field];
+    }
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: 'Informe ao menos um campo editável.', code: 'EMPTY_TENANT_UPDATE' });
+      return;
     }
 
     const validPlans: CompanyTenant['plan'][] = ['Starter', 'Professional', 'Enterprise'];
@@ -504,17 +550,73 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
       res.status(400).json({ error: 'Status de tenant inválido.', code: 'INVALID_TENANT_STATUS' });
       return;
     }
+    if ('name' in updates) {
+      if (typeof updates.name !== 'string' || !updates.name.trim() || updates.name.trim().length > 120) {
+        res.status(400).json({ error: 'O nome da loja deve conter de 1 a 120 caracteres.', code: 'INVALID_TENANT_NAME' });
+        return;
+      }
+      updates.name = updates.name.trim();
+    }
+    if ('aboutText' in updates) {
+      if (updates.aboutText === null) {
+        // Null removes this optional public field.
+      } else if (typeof updates.aboutText !== 'string' || updates.aboutText.length > 500) {
+        res.status(400).json({ error: 'A descrição pública pode ter até 500 caracteres.', code: 'INVALID_TENANT_ABOUT_TEXT' });
+        return;
+      } else if (!updates.aboutText.trim()) {
+        updates.aboutText = null;
+      } else {
+        updates.aboutText = updates.aboutText.trim();
+      }
+    }
     if ('deliveryFee' in updates &&
+        updates.deliveryFee !== null &&
         (typeof updates.deliveryFee !== 'number' || !Number.isFinite(updates.deliveryFee) || updates.deliveryFee < 0)) {
       res.status(400).json({ error: 'A taxa de entrega deve ser um valor igual ou maior que zero.', code: 'INVALID_DELIVERY_FEE' });
       return;
     }
+    if (typeof updates.deliveryFee === 'number') updates.deliveryFee = roundCurrencyAmount(updates.deliveryFee);
+    if ('storeDeliveryContribution' in updates &&
+        updates.storeDeliveryContribution !== null &&
+        (typeof updates.storeDeliveryContribution !== 'number' || !Number.isFinite(updates.storeDeliveryContribution) || updates.storeDeliveryContribution < 0)) {
+      res.status(400).json({ error: 'O complemento pago pela loja deve ser um valor igual ou maior que zero.', code: 'INVALID_STORE_DELIVERY_CONTRIBUTION' });
+      return;
+    }
+    if (typeof updates.storeDeliveryContribution === 'number') {
+      updates.storeDeliveryContribution = roundCurrencyAmount(updates.storeDeliveryContribution);
+    }
     if ('pixKey' in updates) {
-      if (typeof updates.pixKey !== 'string' || updates.pixKey.trim().length > 77) {
+      if (updates.pixKey === null) {
+        // Null removes the optional payment key.
+      } else if (typeof updates.pixKey !== 'string' || updates.pixKey.trim().length > 77) {
         res.status(400).json({ error: 'Informe uma chave Pix com até 77 caracteres.', code: 'INVALID_TENANT_PIX_KEY' });
         return;
+      } else if (!updates.pixKey.trim()) {
+        updates.pixKey = null;
+      } else {
+        updates.pixKey = updates.pixKey.trim();
       }
-      updates.pixKey = updates.pixKey.trim();
+    }
+    if ('minOrderValue' in updates &&
+        updates.minOrderValue !== null &&
+        (typeof updates.minOrderValue !== 'number' || !Number.isFinite(updates.minOrderValue) || updates.minOrderValue < 0)) {
+      res.status(400).json({ error: 'O pedido mínimo deve ser um valor igual ou maior que zero.', code: 'INVALID_MIN_ORDER_VALUE' });
+      return;
+    }
+    if ('supportsDelivery' in updates && typeof updates.supportsDelivery !== 'boolean') {
+      res.status(400).json({ error: 'supportsDelivery deve ser booleano.', code: 'INVALID_DELIVERY_SUPPORT' });
+      return;
+    }
+    if ('supportsTakeout' in updates && typeof updates.supportsTakeout !== 'boolean') {
+      res.status(400).json({ error: 'supportsTakeout deve ser booleano.', code: 'INVALID_TAKEOUT_SUPPORT' });
+      return;
+    }
+    if ('openingHours' in updates) {
+      if (typeof updates.openingHours !== 'string' || updates.openingHours.length > 60) {
+        res.status(400).json({ error: 'O horário informado deve ter até 60 caracteres.', code: 'INVALID_OPENING_HOURS' });
+        return;
+      }
+      updates.openingHours = updates.openingHours.trim();
     }
     if ('devicesLimit' in updates &&
         (typeof updates.devicesLimit !== 'number' || !Number.isInteger(updates.devicesLimit) || updates.devicesLimit < 1 || updates.devicesLimit > 999)) {
@@ -529,6 +631,10 @@ tenantsRouter.patch('/:id', requireTenantAccess(), async (req: Request, res: Res
     if ('isOpen' in updates && typeof updates.isOpen !== 'boolean') {
       res.status(400).json({ error: 'O campo isOpen deve ser booleano.', code: 'INVALID_STORE_OPEN_STATE' });
       return;
+    }
+
+    for (const field of ['deliveryFee', 'storeDeliveryContribution', 'minOrderValue', 'aboutText', 'pixKey']) {
+      if (updates[field] === null) updates[field] = FieldValue.delete();
     }
 
     await docRef.update(updates);

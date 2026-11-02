@@ -7,6 +7,7 @@ import {
   EcosystemPillar,
   ActiveEcosystemTab,
   CompanyTenant,
+  TenantUpdate,
   POSDevice,
   ProductItem,
   OrderTransaction,
@@ -28,6 +29,7 @@ import {
 } from '../models/ecosystem.model';
 
 import { FinancialCoreEngine } from '../core/engines/financial-core.engine';
+import { roundCurrencyAmount } from '../../shared/utils/money.util';
 import { LogisticsCoreEngine } from '../core/engines/logistics-core.engine';
 import { InventoryCoreEngine } from '../core/engines/inventory-core.engine';
 import { OrderWorkflowCoreEngine } from '../core/engines/order-workflow-core.engine';
@@ -486,6 +488,14 @@ export class EcosystemService {
       operatorName: order.operatorName || this.currentSession()?.name
     };
 
+    if (order.type === 'delivery') {
+      const tenant = this.tenants().find((candidate) => candidate.id === tenantId);
+      const storeDeliveryContribution = roundCurrencyAmount(tenant?.storeDeliveryContribution ?? 0);
+      const customerDeliveryFee = roundCurrencyAmount(order.deliveryFee ?? 0);
+      orderPayload.storeDeliveryContribution = storeDeliveryContribution;
+      orderPayload.driverCompensation = roundCurrencyAmount(customerDeliveryFee + storeDeliveryContribution);
+    }
+
     if (!this.isSimulationMode() && !this.offlineSync.isOnline()) {
       const offlineId = `off-ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const offlineOrder: OrderTransaction = {
@@ -496,6 +506,9 @@ export class EcosystemService {
         type: order.type || 'pos-counter',
         items: order.items || [],
         subtotal: order.subtotal || 0,
+        ...(orderPayload.deliveryFee !== undefined ? { deliveryFee: orderPayload.deliveryFee } : {}),
+        ...(orderPayload.storeDeliveryContribution !== undefined ? { storeDeliveryContribution: orderPayload.storeDeliveryContribution } : {}),
+        ...(orderPayload.driverCompensation !== undefined ? { driverCompensation: orderPayload.driverCompensation } : {}),
         tax: order.tax || 0,
         discount: order.discount || 0,
         total: order.total || 0,
@@ -561,7 +574,7 @@ export class EcosystemService {
     return this.tenantsService.createTenant(tenant);
   }
 
-  async updateTenant(id: string, updates: Partial<CompanyTenant>) {
+  async updateTenant(id: string, updates: TenantUpdate) {
     return this.tenantsService.updateTenant(id, updates);
   }
 

@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { DeliveryRoute, DeliveryWaypoint, StoreDriver } from '../models/ecosystem.model';
+import { DeliveryCompensationBreakdown, DeliveryRoute, DeliveryWaypoint, StoreDriver } from '../models/ecosystem.model';
 import { SecurityService } from './security.service';
 
 @Injectable({ providedIn: 'root' })
@@ -119,7 +119,11 @@ export class LogisticsSimulationService {
     return simulated;
   }
 
-  createRoute(waypoints: DeliveryWaypoint[], storeDriverCompensation = 0): DeliveryRoute {
+  createRoute(
+    waypoints: DeliveryWaypoint[],
+    storeDriverCompensation = 0,
+    compensationBreakdown?: DeliveryCompensationBreakdown
+  ): DeliveryRoute {
     const tenantId = this.security.currentSession()?.tenantId;
     if (!tenantId) throw new Error('Selecione uma unidade para criar uma rota.');
     const now = new Date().toISOString();
@@ -132,6 +136,7 @@ export class LogisticsSimulationService {
       totalDistanceKm: waypoints.reduce((sum, waypoint) => sum + (waypoint.distanceKm || 0), 0),
       estimatedDuration: `${waypoints.reduce((sum, waypoint) => sum + (waypoint.etaMinutes || 0), 0)} min`,
       totalEarnings: storeDriverCompensation,
+      ...compensationBreakdown,
       waypoints: waypoints.map((waypoint, index) => ({
         ...waypoint,
         sequenceNumber: index + 1,

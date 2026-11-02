@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { roundCurrencyAmount } from '../../../shared/utils/money.util';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,14 +20,14 @@ import { EcosystemService } from '../../services/ecosystem.service';
           </div>
           <div>
             <h2 class="text-sm font-serif font-black text-white">Minha Loja • Gerenciador da Vitrine</h2>
-            <p class="text-[10px] text-stone-400">Gerencie os dados da vitrine pública (/p/:id) e do cardápio desta loja. O marketplace geral da plataforma é configurado pelo HQ.</p>
+            <p class="text-[10px] text-stone-400">Edite o perfil e as condições dos pedidos desta loja. O catálogo de produtos e o marketplace geral são gerenciados em outros módulos.</p>
           </div>
         </div>
 
         <button
           type="button"
           (click)="saveChanges()"
-          [disabled]="isSaving() || !hasChanges()"
+          [disabled]="isSaving() || !tenantId() || !hasChanges()"
           class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <mat-icon class="text-sm">save</mat-icon>
           <span>{{ isSaving() ? 'Salvando…' : hasChanges() ? 'Salvar alterações' : 'Tudo salvo' }}</span>
@@ -45,6 +46,7 @@ import { EcosystemService } from '../../services/ecosystem.service';
               <input
                 id="store-name-input"
                 type="text"
+                maxlength="120"
                 [value]="storeName()"
                 (input)="storeName.set($any($event.target).value)"
                 class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
@@ -52,26 +54,77 @@ import { EcosystemService } from '../../services/ecosystem.service';
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label for="store-taxa-input" class="text-[11px] text-stone-400 block font-bold">Taxa de Entrega Padrão (R$):</label>
+                <label for="store-taxa-input" class="text-[11px] text-stone-400 block font-bold">Taxa paga pelo cliente (R$):</label>
                 <input
                   id="store-taxa-input"
                   type="number"
-                  step="0.50"
-                  [value]="deliveryFee()"
-                  (input)="deliveryFee.set(+$any($event.target).value)"
+                  min="0"
+                  step="0.01"
+                  [value]="deliveryFee() ?? ''"
+                  (input)="setOptionalAmount('deliveryFee', $any($event.target).value)"
                   class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
               </div>
 
+              <div>
+                <label for="store-store-contribution-input" class="text-[11px] text-stone-400 block font-bold">Complemento pago pela loja (R$):</label>
+                <input
+                  id="store-store-contribution-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [value]="storeDeliveryContribution() ?? ''"
+                  (input)="setOptionalAmount('storeDeliveryContribution', $any($event.target).value)"
+                  class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-emerald-700/40 bg-emerald-950/30 p-3 text-[11px] text-stone-300 space-y-1">
+              <p>O entregador recebe o total combinado: <strong class="text-emerald-300">R$ {{ driverCompensation().toFixed(2) }}</strong></p>
+              <p>Cliente: R$ {{ (deliveryFee() ?? 0).toFixed(2) }} · Complemento da loja: R$ {{ (storeDeliveryContribution() ?? 0).toFixed(2) }}</p>
+              <p class="text-[10px] text-stone-500">Exemplo: cliente R$ 4,00 + loja R$ 4,00 = R$ 8,00 para o entregador. O cliente paga apenas a parte dele no checkout; o complemento da loja é pago diretamente ao entregador. O sistema registra o combinado, mas não faz o repasse.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
               <div>
                 <label for="store-min-order-input" class="text-[11px] text-stone-400 block font-bold">Pedido Mínimo (R$):</label>
                 <input
                   id="store-min-order-input"
                   type="number"
-                  step="1.00"
-                  [value]="minOrder()"
-                  (input)="minOrder.set(+$any($event.target).value)"
+                  min="0"
+                  step="0.01"
+                  [value]="minOrder() ?? ''"
+                  (input)="setOptionalAmount('minOrder', $any($event.target).value)"
                   class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
               </div>
+              <p class="self-end text-[10px] text-stone-500">Deixe taxa e pedido mínimo em branco se ainda não estiverem definidos. Sem taxa cadastrada, o checkout de entrega permanece indisponível.</p>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300">
+                <input type="checkbox" [checked]="supportsDelivery()" (change)="supportsDelivery.set($any($event.target).checked)" class="accent-amber-500" />
+                <span>A loja oferece entrega própria</span>
+              </label>
+              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300">
+                <input type="checkbox" [checked]="supportsTakeout()" (change)="supportsTakeout.set($any($event.target).checked)" class="accent-amber-500" />
+                <span>A loja aceita retirada no balcão</span>
+              </label>
+              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300 sm:col-span-2">
+                <input type="checkbox" [checked]="isOpen()" (change)="isOpen.set($any($event.target).checked)" class="accent-amber-500" />
+                <span>A loja está aberta para receber pedidos online</span>
+              </label>
+            </div>
+
+            <div>
+              <label for="store-hours-input" class="text-[11px] text-stone-400 block font-bold">Horário informado aos clientes:</label>
+              <input
+                id="store-hours-input"
+                type="text"
+                maxlength="60"
+                [value]="openingHours()"
+                (input)="openingHours.set($any($event.target).value)"
+                placeholder="Ex.: Seg a sáb, 11h às 22h"
+                class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
+              <p class="text-[10px] text-stone-500 mt-1">Este horário é informativo; a abertura e o fechamento para pedidos são controlados separadamente.</p>
             </div>
 
             <div>
@@ -79,8 +132,10 @@ import { EcosystemService } from '../../services/ecosystem.service';
               <textarea
                 id="store-desc-input"
                 rows="2"
+                maxlength="500"
                 [value]="description()"
                 (input)="description.set($any($event.target).value)"
+                placeholder="Conte aos clientes o que torna sua loja especial."
                 class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500"></textarea>
             </div>
           </div>
@@ -118,28 +173,77 @@ export class EAppStoreManagerWindow {
   readonly ecosystem = inject(EcosystemService);
   readonly isSaving = signal(false);
 
-  readonly tenant = this.ecosystem.currentTenant();
-  readonly tenantId = signal<string>(this.tenant.id);
-  readonly storeName = signal<string>(this.tenant.name);
-  readonly deliveryFee = signal<number>(this.tenant.deliveryFee ?? 7.50);
-  readonly minOrder = signal<number>(this.tenant.minOrderValue ?? 20.00);
-  readonly description = signal<string>(this.tenant.aboutText || 'Especialidades culinárias artesanais e delivery rápido.');
-  readonly pixKey = signal<string>(this.tenant.pixKey ?? '');
+  readonly tenant = this.ecosystem.currentTenant;
+  readonly tenantId = signal<string>(this.tenant()?.id ?? '');
+  readonly storeName = signal<string>(this.tenant()?.name ?? '');
+  readonly deliveryFee = signal<number | null>(this.tenant()?.deliveryFee ?? null);
+  readonly storeDeliveryContribution = signal<number | null>(this.tenant()?.storeDeliveryContribution ?? 0);
+  readonly minOrder = signal<number | null>(this.tenant()?.minOrderValue ?? null);
+  readonly description = signal<string>(this.tenant()?.aboutText ?? '');
+  readonly pixKey = signal<string>(this.tenant()?.pixKey ?? '');
+  readonly supportsDelivery = signal<boolean>(this.tenant()?.supportsDelivery === true);
+  readonly supportsTakeout = signal<boolean>(this.tenant()?.supportsTakeout !== false);
+  readonly isOpen = signal<boolean>(this.tenant()?.isOpen === true);
+  readonly openingHours = signal<string>(this.tenant()?.openingHours ?? '');
+  readonly driverCompensation = computed(() => Number(((this.deliveryFee() ?? 0) + (this.storeDeliveryContribution() ?? 0)).toFixed(2)));
   private readonly savedValues = signal(this.currentValues());
   readonly hasChanges = computed(() => JSON.stringify(this.currentValues()) !== JSON.stringify(this.savedValues()));
+
+  constructor() {
+    effect(() => {
+      const tenant = this.tenant();
+      if (!tenant) return;
+      this.tenantId.set(tenant.id);
+      this.storeName.set(tenant.name ?? '');
+      this.deliveryFee.set(tenant.deliveryFee ?? null);
+      this.storeDeliveryContribution.set(tenant.storeDeliveryContribution ?? 0);
+      this.minOrder.set(tenant.minOrderValue ?? null);
+      this.description.set(tenant.aboutText ?? '');
+      this.pixKey.set(tenant.pixKey ?? '');
+      this.supportsDelivery.set(tenant.supportsDelivery === true);
+      this.supportsTakeout.set(tenant.supportsTakeout !== false);
+      this.isOpen.set(tenant.isOpen === true);
+      this.openingHours.set(tenant.openingHours ?? '');
+      this.savedValues.set({
+        name: (tenant.name ?? '').trim(),
+        deliveryFee: tenant.deliveryFee ?? null,
+        storeDeliveryContribution: tenant.storeDeliveryContribution ?? 0,
+        minOrderValue: tenant.minOrderValue ?? null,
+        aboutText: (tenant.aboutText ?? '').trim(),
+        pixKey: (tenant.pixKey ?? '').trim(),
+        supportsDelivery: tenant.supportsDelivery === true,
+        supportsTakeout: tenant.supportsTakeout !== false,
+        isOpen: tenant.isOpen === true,
+        openingHours: (tenant.openingHours ?? '').trim()
+      });
+    });
+  }
 
   private currentValues() {
     return {
       name: this.storeName().trim(),
       deliveryFee: this.deliveryFee(),
+      storeDeliveryContribution: this.storeDeliveryContribution(),
       minOrderValue: this.minOrder(),
       aboutText: this.description().trim(),
-      pixKey: this.pixKey().trim()
+      pixKey: this.pixKey().trim(),
+      supportsDelivery: this.supportsDelivery(),
+      supportsTakeout: this.supportsTakeout(),
+      isOpen: this.isOpen(),
+      openingHours: this.openingHours().trim()
     };
   }
 
   appUrl() {
-    return window.location.origin;
+    return typeof window === 'undefined' ? '' : window.location.origin;
+  }
+
+  setOptionalAmount(field: 'deliveryFee' | 'storeDeliveryContribution' | 'minOrder', rawValue: string) {
+    const parsedValue = rawValue.trim() === '' ? null : Number(rawValue);
+    const value = parsedValue === null ? null : roundCurrencyAmount(parsedValue);
+    if (field === 'deliveryFee') this.deliveryFee.set(value);
+    else if (field === 'storeDeliveryContribution') this.storeDeliveryContribution.set(value);
+    else this.minOrder.set(value);
   }
 
   async saveChanges() {
@@ -148,26 +252,24 @@ export class EAppStoreManagerWindow {
     if (!this.hasChanges()) return;
 
     const values = this.currentValues();
-    const name = values.name;
-    const deliveryFee = this.deliveryFee();
-    const minOrderValue = this.minOrder();
-    const pixKey = values.pixKey;
-    if (!name || !Number.isFinite(deliveryFee) || deliveryFee < 0 ||
-        !Number.isFinite(minOrderValue) || minOrderValue < 0 || pixKey.length > 77) {
-      this.ecosystem.notify('Informe nome, taxa, pedido mínimo e chave PIX válidos.', 'warning');
+    const tenantId = this.tenantId();
+    if (!tenantId || !values.name || values.name.length > 120 ||
+        (values.deliveryFee !== null && (!Number.isFinite(values.deliveryFee) || values.deliveryFee < 0)) ||
+        (values.storeDeliveryContribution !== null && (!Number.isFinite(values.storeDeliveryContribution) || values.storeDeliveryContribution < 0)) ||
+        (values.minOrderValue !== null && (!Number.isFinite(values.minOrderValue) || values.minOrderValue < 0)) ||
+        values.pixKey.length > 77 || values.openingHours.length > 60 || values.aboutText.length > 500) {
+      this.ecosystem.notify('Revise o nome, os valores opcionais, a descrição, o horário e a chave PIX.', 'warning');
       return;
     }
 
     this.isSaving.set(true);
     try {
-      await this.ecosystem.updateTenant(this.tenantId(), {
-        name,
-        deliveryFee,
-        minOrderValue,
-        aboutText: values.aboutText,
-        pixKey
+      await this.ecosystem.updateTenant(tenantId, {
+        ...values,
+        aboutText: values.aboutText || null,
+        pixKey: values.pixKey || null
       });
-      this.savedValues.set(values);
+      if (this.tenantId() === tenantId) this.savedValues.set(values);
       this.ecosystem.notify(
         this.ecosystem.isSimulationMode()
           ? 'Alterações salvas somente na simulação.'

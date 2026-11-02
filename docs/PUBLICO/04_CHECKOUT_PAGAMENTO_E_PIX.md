@@ -14,7 +14,22 @@ O checkout da vitrine cria o pedido e chama POST /api/payments/process para PIX 
 - **Liquidação por loja:** recebimento por cartão exige uma conta de adquirência conectada a cada tenant, ainda não integrada. PIX e dinheiro ficam sob responsabilidade da loja; o HQ não recebe nem repassa valores de pedidos.
 - **Conclusão financeira:** a API só aceita `status: completed` quando há uma transação aprovada que corresponda ao pedido, tenant e valor. O entregador pode atualizar o andamento até `delivered`, mas não conclui a liquidação financeira. Cancelar pedido já pago exige fluxo de estorno, ainda não implementado; a API retorna `409 REFUND_REQUIRED`.
 
-O campo serviceFeePercent legado não entra no checkout. A entrega usa o valor fixo deliveryFee configurado pela loja. A comissão futura de 8% da rede própria da plataforma permanece em coming_soon e não é cobrada neste fluxo.
+## Divisão manual do custo da entrega
+
+Em Minha Loja, o proprietário/operador configura dois valores fixos por pedido de delivery:
+
+- **Taxa paga pelo cliente (`deliveryFee`):** entra no total do pedido e é mostrada no checkout.
+- **Complemento pago pela loja (`storeDeliveryContribution`):** não aumenta o total do cliente; fica registrado como parte que a loja combina pagar diretamente ao entregador.
+- **Remuneração combinada do entregador:** `deliveryFee + storeDeliveryContribution`, gravada como snapshot no pedido. Ao juntar pedidos numa rota, os snapshots são somados.
+
+Exemplo: cliente paga R$ 4,00, loja complementa R$ 4,00 e o entregador recebe R$ 8,00 como valor combinado. O pagamento continua fora do sistema: o dinheiro/PIX da venda chega diretamente à loja e ela paga a equipe de entrega. O Store OS registra o combinado, mas não desconta o complemento da venda nem transfere saldo ao motorista. A configuração é fixa por entrega, definida manualmente; não estima distância nem usa IA. Para delivery, o servidor exige que a loja tenha habilitado a modalidade e configurado a taxa cobrada do cliente; valor ausente não vira frete padrão.
+
+O campo legado `serviceFeePercent` não entra no checkout. A comissão futura de 8% pertence exclusivamente à rede própria da plataforma, permanece em `coming_soon` e não é incluída nessa divisão da frota da loja.
+
+### Referências consultadas
+
+- A documentação oficial do iFood descreve que, na entrega própria, a loja define a taxa cobrada do cliente e que pode assumir o custo da taxa em promoções de entrega parceira: [Plano Entrega Flex](https://blog-parceiros.ifood.com.br/plano-entrega-flex/) e [configuração da loja no iFood](https://blog-parceiros.ifood.com.br/jornada-de-ativacao/).
+- O adendo oficial do DoorDash Storefront separa taxa de entrega do comerciante e do cliente e permite ajustar a parcela cobrada do cliente: [Storefront Product Addendum](https://help.doordash.com/es-us/merchants/article/merchant-terms-of-service-us-english-storefront-product-addendum). Esse é um padrão de divisão consultado, não uma tarifa ou regra importada para o 3EATCRU.
 
 ## Limites para operação
 
@@ -24,4 +39,4 @@ Antes de produção, validar as chaves Pix das lojas, automatizar confirmação 
 
 ## Validação
 
-Nesta revisão, o build de produção passou e `npm run test:ci` passou com 100/100 testes. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks ou conciliação financeira real.
+Nesta revisão, lint, 100/100 testes e build de produção passaram. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks, pagamento do complemento da loja ou conciliação financeira real.

@@ -8,6 +8,7 @@ import {
   ProductItem
 } from '../../shared/models/ecosystem.model';
 import { adminDb } from '../firebase-admin';
+import { roundCurrencyAmount } from '../../shared/utils/money.util';
 import {
   AuthUser,
   isTenantStaffRole,
@@ -230,7 +231,7 @@ export async function executeCommercialOrder(
         } satisfies CommercialEngineError;
       }
 
-      if (orderType === 'delivery' && tenant.supportsDelivery === false) {
+      if (orderType === 'delivery' && tenant.supportsDelivery !== true) {
         throw {
           status: 422,
           code: 'MODALITY_NOT_SUPPORTED',
@@ -440,11 +441,26 @@ export async function executeCommercialOrder(
     }
 
     const configuredDeliveryFee = tenant.deliveryFee;
-    const deliveryFee = isDelivery
-      ? typeof configuredDeliveryFee === 'number' && Number.isFinite(configuredDeliveryFee) && configuredDeliveryFee >= 0
-        ? configuredDeliveryFee
-        : 5.0
-      : 0;
+    if (isDelivery &&
+        (typeof configuredDeliveryFee !== 'number' || !Number.isFinite(configuredDeliveryFee) || configuredDeliveryFee < 0)) {
+      throw {
+        status: 422,
+        code: 'DELIVERY_FEE_NOT_CONFIGURED',
+        message: 'A loja precisa configurar a taxa cobrada do cliente antes de aceitar entregas.'
+      } satisfies CommercialEngineError;
+    }
+    const deliveryFee = isDelivery ? roundCurrencyAmount(configuredDeliveryFee!) : 0;
+    const configuredStoreContribution = tenant.storeDeliveryContribution ?? 0;
+    if (isDelivery &&
+        (typeof configuredStoreContribution !== 'number' || !Number.isFinite(configuredStoreContribution) || configuredStoreContribution < 0)) {
+      throw {
+        status: 422,
+        code: 'INVALID_STORE_DELIVERY_CONTRIBUTION',
+        message: 'A loja precisa configurar um complemento válido para o entregador.'
+      } satisfies CommercialEngineError;
+    }
+    const storeDeliveryContribution = isDelivery ? roundCurrencyAmount(configuredStoreContribution) : 0;
+    const driverCompensation = roundCurrencyAmount(deliveryFee + storeDeliveryContribution);
     const rawTax = Math.max(0, Number(body['tax'] || 0));
     const tax = canOperatePos && !isNaN(rawTax) ? Math.min(rawTax, calculatedSubtotal * 0.2) : 0;
     const total = Number((calculatedSubtotal + deliveryFee + tax - discount).toFixed(2));
@@ -593,6 +609,7 @@ export async function executeCommercialOrder(
       items: validatedItems,
       subtotal: calculatedSubtotal,
       deliveryFee,
+      ...(isDelivery ? { storeDeliveryContribution, driverCompensation } : {}),
       tax,
       discount,
       total,

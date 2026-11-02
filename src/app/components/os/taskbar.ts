@@ -229,7 +229,7 @@ export class TaskbarComponent {
       'finance': 'account_balance_wallet',
       'store-manager': 'storefront',
       'whatsapp': 'chat',
-      'ifood': 'delivery_dining',
+      'delivery-marketplaces': 'delivery_dining',
       'drivers': 'alt_route',
       'rh': 'badge',
       'history': 'history',

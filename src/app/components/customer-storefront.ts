@@ -157,6 +157,9 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                 </span>
               </div>
               <p class="text-xs text-stone-300 font-serif mt-1">{{ activeStore().tagline || activeStore().category }}</p>
+              @if (activeStore().aboutText) {
+                <p class="text-xs text-stone-300 mt-1 max-w-2xl">{{ activeStore().aboutText }}</p>
+              }
               
               <div class="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-amber-500 font-mono">
                 <span class="flex items-center gap-1">
@@ -402,9 +405,9 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                     <button
                       type="button"
                       (click)="orderType.set('delivery')"
-                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder() || activeStore().supportsDelivery !== true"
                       [class]="orderType() === 'delivery' ? 'bg-amber-600 text-stone-950 font-black shadow' : 'text-stone-700 hover:text-stone-900 font-bold'"
-                      class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer">
+                      class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                       <mat-icon class="text-xs">delivery_dining</mat-icon>
                       <span>Delivery</span>
                     </button>
@@ -422,9 +425,9 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                     <button
                       type="button"
                       (click)="orderType.set('takeout')"
-                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder()"
+                      [disabled]="isSubmittingOrder() || !!paymentTargetOrder() || activeStore().supportsTakeout === false"
                       [class]="orderType() === 'takeout' ? 'bg-amber-600 text-stone-950 font-black shadow' : 'text-stone-700 hover:text-stone-900 font-bold'"
-                      class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer">
+                      class="py-1.5 px-1 rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                       <mat-icon class="text-xs">shopping_bag</mat-icon>
                       <span>Balcão</span>
                     </button>
@@ -519,7 +522,7 @@ const EMPTY_PUBLIC_STOREFRONT: PublicStorefront = {
                 <button
                   type="button"
                   (click)="placeOnlineOrder()"
-                  [disabled]="!isStoreReady() || activeStore().isOpen !== true || (orderType() === 'delivery' && (activeStore().supportsDelivery !== true || deliveryFeeAmount() === null)) || isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
+                  [disabled]="!isStoreReady() || activeStore().isOpen !== true || (orderType() === 'delivery' && (activeStore().supportsDelivery !== true || deliveryFeeAmount() === null)) || (orderType() === 'takeout' && activeStore().supportsTakeout === false) || isSubmittingOrder() || (selectedPaymentMethod() === 'pix' && !activeStore().pixAvailable)"
                   class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold py-2.5 px-5 rounded-xl shadow-lg border border-amber-400/50 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
                   <mat-icon class="text-sm">{{ isSubmittingOrder() ? 'hourglass_top' : 'check_circle' }}</mat-icon>
                   <span>{{ isSubmittingOrder() ? 'Enviando…' : paymentTargetOrder() ? 'Repetir pagamento' : 'Enviar pedido e pagar' }}</span>
@@ -854,6 +857,11 @@ export class CustomerStorefrontComponent {
 
       if (this.orderType() === 'delivery' && this.activeStore().supportsDelivery !== true) {
         this.ecosystem.notify('A loja não confirmou disponibilidade de entrega.', 'warning');
+        return;
+      }
+
+      if (this.orderType() === 'takeout' && this.activeStore().supportsTakeout === false) {
+        this.ecosystem.notify('Esta loja não está aceitando pedidos para retirada no balcão.', 'warning');
         return;
       }
 

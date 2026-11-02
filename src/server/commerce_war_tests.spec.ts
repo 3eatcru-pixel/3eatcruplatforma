@@ -393,6 +393,46 @@ describe('3eatcru — Suite de Testes de Guerra Comercial (Omnichannel & Offline
     });
   });
 
+  it('Guerra 1.1: checkout cobra somente a parte do cliente e calcula a remuneração com a contribuição da loja', async () => {
+    const tenant = getCol('tenants').get('tenant-alpha');
+    getCol('tenants').set('tenant-alpha', { ...tenant, storeDeliveryContribution: 4 });
+    getCol('products').set('prod-delivery-split', {
+      id: 'prod-delivery-split',
+      tenantId: 'tenant-alpha',
+      name: 'Pedido de teste',
+      description: 'Teste de divisão do frete',
+      sku: 'DELIVERY-SPLIT-01',
+      barcode: 'DELIVERY-SPLIT-01',
+      price: 10,
+      costPrice: 3,
+      stock: 5,
+      minStock: 0,
+      category: 'Lanches',
+      availableOnline: true
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await apiJson(baseUrl, '/api/orders', 'POST', {
+        token: 'token-consumer',
+        body: {
+          tenantId: 'tenant-alpha',
+          type: 'delivery',
+          channel: 'Customer Storefront',
+          paymentMethod: 'cash',
+          storeDeliveryContribution: 99,
+          driverCompensation: 999,
+          items: [{ productId: 'prod-delivery-split', quantity: 1 }]
+        }
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body['deliveryFee']).toBe(5);
+      expect(response.body['storeDeliveryContribution']).toBe(4);
+      expect(response.body['driverCompensation']).toBe(9);
+      expect(response.body['total']).toBe(15);
+    });
+  });
+
   it('Guerra 2 (Cenário Coca-Cola Offline + Online): PDV A vende offline, PDV B vende online primeiro -> reconexão de PDV A gera conflito auditável sem loop nem estoque negativo', async () => {
     getCol('products').set('prod-coca', {
       id: 'prod-coca',

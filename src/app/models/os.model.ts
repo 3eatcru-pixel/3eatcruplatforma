@@ -1,7 +1,7 @@
 export type OSAppId = 
   | 'pos' | 'tables' | 'kds' | 'inventory' | 'finance' | 'appstore' 
   | 'browser' | 'settings' | 'system' | 'tasks' | 'whatsapp' | 'instagram' 
-  | 'ifood' | 'agenda' | 'calculator' | 'notes' | 'services' | 'docs' 
+  | 'delivery-marketplaces' | 'agenda' | 'calculator' | 'notes' | 'services' | 'docs'
   | 'reports' | 'history' | 'crm' | 'store-manager' | 'rh' | 'drivers' | 'admin-hub' | 'calendar'
   | 'suppliers' | 'reconciliation' | 'stock-audit' | 'google-drive' | 'waiter-sim' | 'driver-sim' | 'consumer-sim';
 

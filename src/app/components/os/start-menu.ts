@@ -315,7 +315,7 @@ export class StartMenuComponent {
     { id: 'finance', title: 'eApp Caixa & DRE', icon: 'account_balance_wallet', category: 'gestao', color: 'from-emerald-500 to-teal-700' },
     { id: 'store-manager', title: 'eApp Minha Loja', icon: 'storefront', category: 'vendas', color: 'from-amber-400 via-orange-500 to-amber-600' },
     { id: 'whatsapp', title: 'eApp WhatsApp', icon: 'chat', category: 'vendas', color: 'from-emerald-600 to-emerald-800' },
-    { id: 'ifood', title: 'eApp Portal iFood', icon: 'delivery_dining', category: 'vendas', color: 'from-rose-600 to-red-800' },
+    { id: 'delivery-marketplaces', title: 'eApp Pedidos de Marketplaces', icon: 'delivery_dining', category: 'vendas', color: 'from-sky-500 via-cyan-600 to-indigo-700' },
     { id: 'drivers', title: 'eApp Hub Drivers', icon: 'alt_route', category: 'operacao', color: 'from-emerald-500 via-teal-600 to-emerald-800' },
     { id: 'rh', title: 'eApp RH & Pessoal', icon: 'badge', category: 'gestao', color: 'from-amber-600 via-orange-600 to-amber-800' },
     { id: 'history', title: 'eApp Histórico Vendas', icon: 'history', category: 'gestao', color: 'from-indigo-500 to-indigo-700' },

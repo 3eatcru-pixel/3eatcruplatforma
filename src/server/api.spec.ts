@@ -143,6 +143,8 @@ describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
       id: 'tenant-1',
       name: 'Bistrô Central',
       legalName: 'Bistro Central S.A.',
+      aboutText: '  Cozinha da casa  ',
+      storeDeliveryContribution: 4,
       cnpj: '12.345.678/0001-99',
       category: 'restaurant',
       plan: 'Enterprise',
@@ -169,6 +171,7 @@ describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
 
     const pubStore = toPublicStorefront(privateTenant) as unknown as Record<string, unknown>;
     expect(pubStore['name']).toBe('Bistrô Central');
+    expect(pubStore['aboutText']).toBe('Cozinha da casa');
     expect(pubStore['cnpj']).toBeUndefined();
     expect(pubStore['contactEmail']).toBeUndefined();
     expect(pubStore['phone']).toBeUndefined();
@@ -181,6 +184,7 @@ describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
     expect(pubStore['isOpen']).toBeUndefined();
     expect(pubStore['estimatedDeliveryMinutes']).toBeUndefined();
     expect(pubStore['deliveryFee']).toBeUndefined();
+    expect(pubStore['storeDeliveryContribution']).toBeUndefined();
     expect(pubStore['deliveryRadiusKm']).toBe(6);
     expect(pubStore['pixKey']).toBeUndefined();
     expect(pubStore['address']).toEqual({

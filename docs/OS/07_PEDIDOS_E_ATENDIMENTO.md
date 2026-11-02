@@ -5,6 +5,7 @@
 | Domínio | Implementação | Estado de interface |
 |---|---|---|
 | Pedidos | OrdersService e src/server/routes/orders.router.ts | KDS e Histórico integrados; a janela consulta até 200 pedidos recentes da unidade. No modo simulado, as mudanças ficam em memória local. |
+| Marketplaces externos | `features/delivery-marketplaces/`, OrdersService e `marketplace-delivery.router.ts` | eApp lista plugins e consulta a fila persistida pelo tenant; um serviço interno deduplica eventos de adapters verificados. Os adapters de plataforma, ingestão externa e integração com o KDS ainda não existem. Consulte [integrações de marketplaces](../INTEGRACAO/05_PLUGINS_MARKETPLACES_DELIVERY.md). |
 | Mesas | TablesService, `eapp-tables.ts` e src/server/routes/tables.router.ts | Mapa integrado ao desktop; consulta, cadastro de mesa e abertura/liberação respeitam tenant, papel, capacidade e saldo. O modo simulado fornece quatro mesas locais. |
 | Reservas | AppointmentsService, `eapp-reservations.ts` e src/server/routes/reservations.router.ts | eApp Agenda integrado; lista por data, registra, confirma, acomoda e atualiza reservas com sincronização transacional da mesa. No modo simulado, as transições atualizam localmente a mesa associada. |
 | App Garçom | src/app/components/waiter-app.ts, rota /waiter | Aplicação standalone, não uma janela de gestão do Store OS. No modo simulado usa mesas e pedidos locais. |

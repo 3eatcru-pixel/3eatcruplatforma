@@ -1,6 +1,6 @@
 import { Injectable, inject, computed, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { DeliveryRoute, DeliveryWaypoint, StoreDriver } from '../models/ecosystem.model';
+import { DeliveryCompensationBreakdown, DeliveryRoute, DeliveryWaypoint, StoreDriver } from '../models/ecosystem.model';
 import { firstValueFrom } from 'rxjs';
 import { FirebaseService } from '../core/firebase/firebase.service';
 import { SecurityService } from './security.service';
@@ -171,16 +171,21 @@ export class LogisticsService {
     return this.deliveryRoutes();
   }
 
-  async createDeliveryRoute(waypoints: DeliveryWaypoint[], storeDriverCompensation = 0): Promise<DeliveryRoute> {
+  async createDeliveryRoute(
+    waypoints: DeliveryWaypoint[],
+    storeDriverCompensation = 0,
+    compensationBreakdown?: DeliveryCompensationBreakdown
+  ): Promise<DeliveryRoute> {
     this.syncExecutionMode();
     if (this.lastModeIsSimulation) {
-      return this.simulation.createRoute(waypoints, storeDriverCompensation);
+      return this.simulation.createRoute(waypoints, storeDriverCompensation, compensationBreakdown);
     }
 
     const generation = this.modeGeneration;
     const data = await firstValueFrom(this.http.post<DeliveryRoute>('/api/logistics/routes', {
       waypoints,
-      storeDriverCompensation
+      storeDriverCompensation,
+      ...(compensationBreakdown || {})
     }));
     this.assertRealMode(generation);
     this.replaceRoute(data);

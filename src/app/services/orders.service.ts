@@ -22,6 +22,7 @@ export class OrdersService {
   private lastModeIsSimulation = this.security.isSimulated();
   private lastTenantId = this.security.currentSession()?.tenantId;
   private latestFetchId = 0;
+  private latestExternalFetchId = 0;
   private modeGeneration = 0;
 
   readonly pendingOrdersCount = computed(
@@ -94,6 +95,33 @@ export class OrdersService {
     return data;
   }
 
+  async fetchExternalOrders(tenantId?: string, limit = 100): Promise<ExternalOrder[]> {
+    this.syncExecutionMode();
+    const activeTenantId = tenantId || this.security.currentSession()?.tenantId;
+    if (!activeTenantId) {
+      this.externalOrders.set([]);
+      return [];
+    }
+    const pageLimit = Number.isFinite(limit) ? Math.min(200, Math.max(1, Math.floor(limit))) : 100;
+    if (this.lastModeIsSimulation) {
+      return this.externalOrders()
+        .filter((order) => order.tenantId === activeTenantId)
+        .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
+        .slice(0, pageLimit);
+    }
+
+    const fetchId = ++this.latestExternalFetchId;
+    const generation = this.modeGeneration;
+    const data = await firstValueFrom(this.http.get<ExternalOrder[]>(`/api/marketplace-delivery/orders?limit=${pageLimit}`));
+    this.syncExecutionMode();
+    if (fetchId !== this.latestExternalFetchId || generation !== this.modeGeneration || this.lastModeIsSimulation) {
+      return this.externalOrders();
+    }
+    const scopedOrders = (data || []).filter((order) => order.tenantId === activeTenantId);
+    this.externalOrders.set(scopedOrders);
+    return scopedOrders;
+  }
+
   async createOrder(order: Partial<OrderTransaction>): Promise<OrderTransaction> {
     this.syncExecutionMode();
     if (this.lastModeIsSimulation) {
@@ -156,6 +184,7 @@ export class OrdersService {
     this.lastTenantId = tenantId;
     this.modeGeneration += 1;
     this.latestFetchId += 1;
+    this.latestExternalFetchId += 1;
     if (this.ordersSubscription) {
       this.ordersSubscription();
       this.ordersSubscription = null;

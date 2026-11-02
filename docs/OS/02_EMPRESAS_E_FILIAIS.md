@@ -2,12 +2,12 @@
 
 ## 📌 1. Visão Geral da Arquitetura Multiunidade
 
-No Store OS, uma sessão operacional pertence a **UMA unidade física específica (um único `tenantId`)**. Se um grupo empresarial possui múltiplas filiais (ex: Matriz Jardins e Filial Itaim), cada filial opera como um ambiente estritamente isolado: estoques independentes, mapas de mesas próprios, caixas físicos individuais e relatórios contábeis separados.
+No Store OS, uma sessão operacional pertence a **UMA unidade física específica (um único `tenantId`)**. A vinculação de responsável atual também é individual: o fluxo de identidade não permite que a mesma conta seja proprietária de várias lojas. A operação multiunidade de um grupo — com troca de filial dentro da mesma conta — ainda não está implementada.
 
 ```text
                ┌────────────────────────────────────────────────────────┐
-               │         PROPRIETÁRIO MULTI-LOJA (tenant_owner)         │
-               │         E-mail vinculado a múltiplos tenants           │
+               │         RESPONSÁVEL DA LOJA (tenant_owner)             │
+               │         Sessão vinculada a um tenant                    │
                └───────────────────────────┬────────────────────────────┘
                                            │
                          ┌─────────────────┴─────────────────┐
@@ -23,15 +23,16 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
 
 ## 🔬 2. Análise Sob as Quatro Perspectivas
 
-### Perspectiva 1: O que deveria fazer (Responsabilidade Funcional)
-- Permitir que o gestor configure os dados da sua própria loja (Nome Fantasia, Horário de Funcionamento, Telefone, Raio de Entrega, Taxa de Entrega, Cores do Tema e Logotipo).
-- Impedir que operadores de uma filial acessem ou visualizem relatórios de outra filial do mesmo grupo.
-- Permitir que um proprietário com múltiplos estabelecimentos alterne a unidade ativa do Store OS sem necessidade de deslogar do sistema.
-- Garantir que cada movimentação de estoque ou de caixa seja rigorosamente atribuída ao `tenantId` correspondente.
+### Perspectiva 1: Responsabilidade do módulo Minha Loja
+- Permitir ao proprietário ou operador editar o nome e a descrição pública, o horário informativo, a disponibilidade para pedidos, as modalidades de entrega/retirada, o pedido mínimo, a chave PIX e a divisão fixa do custo da entrega entre cliente e loja.
+- Deixar taxa, pedido mínimo, descrição e chave PIX realmente sem cadastro quando estiverem vazios; não preencher valores de exemplo.
+- Criar lojas novas sem taxa, pedido mínimo ou horário inventado; a entrega começa desativada e a retirada fica habilitada.
+- Não misturar a edição do catálogo de produtos, endereço e identidade visual com os campos que a tela atualmente oferece.
+- Manter todos os registros e alterações vinculados ao `tenantId` da sessão. Multiunidade continua fora do fluxo implementado.
 
 ### Perspectiva 2: Como foi implementado (Realidade do Código)
 - **Modelo de Dados do Estabelecimento (`CompanyTenant`):**
-  - Armazenado em `src/shared/models/ecosystem.model.ts:4` com atributos de filial:
+  - Definido em `src/shared/models/ecosystem.model.ts` com atributos de loja:
     - `id`, `name`, `legalName`, `cnpj`, `category`, `plan`, `status`
     - `ownerUid`, `staffUids`
     - `address`: Objeto estruturado com logradouro, número, bairro, cidade, UF e CEP.
@@ -39,22 +40,22 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
     - `supportsDelivery`, `supportsTakeout`, `supportsReservation`
 - **Isolamento de Dados no Servidor (`src/server/core/commerce.engine.ts:87`):**
   - A função `resolveAuthoritativeTenantId` extrai obrigatoriamente o `tenantId` contido nas claims do usuário autenticado. Se o cliente tentar enviar um payload contendo outro `tenantId`, o servidor rejeita a transação com `403 TENANT_MISMATCH`.
-- **Interface de Configuração da Unidade:**
-  - O ID `store-manager` abre Minha Loja no desktop; `settings` abre preferências locais do desktop. Hardware e periféricos permanecem sem integração.
-  - O endpoint de tenants existe; isso não significa que a edição esteja disponível por uma tela do Store OS.
-- **Seletor de Unidades no Ecossistema:**
-  - Implementado em `src/app/services/ecosystem.service.ts:currentTenant`, onde o signal reativo mantém a unidade física ativa.
+- **Interface Minha Loja:**
+  - O ID `store-manager` abre `src/app/components/eapps/eapp-store-manager.ts` no desktop. `settings` mantém somente preferências locais.
+  - A tela edita nome, descrição pública, horário informativo, estado de abertura, entrega/retirada, taxa paga pelo cliente, complemento da loja ao entregador, pedido mínimo e PIX. Produtos, raio, endereço, telefone e identidade visual não são editados por esta tela.
+- **Escopo da sessão:**
+  - `EcosystemService.resolveOperationalTenantId()` fixa as operações de proprietário e operador no `tenantId` autenticado. Trocar a loja pública visualizada não concede acesso de edição a outro tenant.
 
 ### Perspectiva 3: Como se conecta (Topologia de Integração)
 - **Entrada:** `PATCH /api/tenants/:id` disparado pela aba de configurações da loja.
-- **Proteção do HQ:**
-  - Como documentado no HQ, campos como `status`, `plan` e `devicesLimit` são limpos pelo backend quando a requisição parte do lojista (`tenants.router.ts:192`). O lojista pode editar livremente: horário, raio de entrega, contato, telefone, bandeiras de entrega e slug público.
+- **Proteção de campos:**
+  - `PATCH /api/tenants/:id` aceita uma lista explícita de campos de perfil para proprietário/operador e acrescenta `status`, `plan`, `devicesLimit` e `deliveryRadiusKm` apenas para `hq_admin`. Campos fora da lista são rejeitados; vínculo de responsável/equipe e valores legados de comissão/frota não são alterados por este endpoint.
 - **Impacto no Marketplace Regional:**
   - Ao marcar `isOpen: false` no Store OS, a loja é imediatamente rotulada como "Fechada" no Marketplace e no Storefront do consumidor, bloqueando checkout online com código `422 STORE_CLOSED`.
 
 ### Perspectiva 4: Validação
 
-A suíte geral passou com 100/100 testes, mas usa mocks. Não houve homologação real de troca de unidade e isolamento entre filiais com dados do Firestore.
+A auditoria de 2026-11-02 encontrou e corrigiu a descrição que não chegava à vitrine, valores de exemplo nos formulários e no provisionamento, diferenças de estado inicial entre simulação/produção e a falta de allowlist no PATCH. A execução atual de `npm run check` passou com lint, 100/100 testes e build de produção. A suíte usa mocks e não substitui homologação com Firebase real. A troca multiunidade não foi homologada porque não é suportada pelo vínculo atual.
 
 ---
 
@@ -63,8 +64,8 @@ A suíte geral passou com 100/100 testes, mas usa mocks. Não houve homologaçã
 | Recurso Multiunidade | Classificação | Arquivo de Evidência | Observações |
 |---|---|---|---|
 | Isolamento Absoluto de Dados por Tenant | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:87` | Impossível ler ou gravar dados entre tenants distintos. |
-| Endpoint de alteração de dados da loja | 🟡 **Integrado parcialmente** | `src/server/routes/tenants.router.ts` e `src/app/components/eapps/eapp-store-manager.ts` | Minha Loja edita perfil, entrega e chave PIX; `settings` mantém preferências locais e não configura dados da loja. A chave PIX é limitada a 77 caracteres, mas não tem validação de formato ou titularidade nem confirmação bancária automática. |
+| Endpoint de alteração de dados da loja | 🟢 **Integrado com escopo validado** | `src/server/routes/tenants.router.ts` e `src/app/components/eapps/eapp-store-manager.ts` | Minha Loja edita nome, descrição pública, horário informativo, aberto/fechado, modalidades, parcela paga pelo cliente, complemento da loja ao entregador, pedido mínimo e chave PIX. Valores opcionais podem ser removidos. O pagamento do motorista permanece direto pela loja. A chave PIX tem limite de 77 caracteres, sem validação de formato, titularidade ou confirmação bancária automática. |
 | Controle de Abertura/Fechamento da Loja (`isOpen`) | 🟢 **Implementado e comprovado** | `src/server/core/commerce.engine.ts:221` | Loja fechada bloqueia pedidos online via código `422 STORE_CLOSED`. |
-| Proteção de Campos Corporativos pelo Servidor | 🟢 **Implementado e comprovado** | `src/server/routes/tenants.router.ts:194` | Lojista não consegue burlar plano ou limites de hardware. |
-| Seletor Rápido de Filiais no Topo do Desktop | 🟡 **Implementado parcialmente** | `src/app/services/ecosystem.service.ts` | O serviço suporta alternância de tenant; componente de dropdown visual entre filiais na barra de tarefas está ativo para donos multi-loja. |
+| Proteção de Campos Corporativos pelo Servidor | 🟢 **Allowlist por perfil** | `src/server/routes/tenants.router.ts` | Campos fora da lista permitida são recusados; o HQ pode alterar os campos de governança previstos. |
+| Acesso multiunidade pela mesma conta | ⚪ **Ainda não implementado** | `src/server/routes/tenants.router.ts` e fluxo de vínculo de responsável | A conta de responsável fica vinculada a um tenant; selecionar outra loja pública não muda o escopo da sessão. |
 | Transferência de Estoque Entre Filiais (Inter-company transfer) | 🔵 **Planejado, ainda não implementado** | `src/shared/models/ecosystem.model.ts` | Movimentação entre filiais da mesma rede prevista para a versão corporativa. |

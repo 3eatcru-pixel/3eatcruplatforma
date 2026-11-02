@@ -78,6 +78,7 @@ Contratos de comunicação, segurança Zero-Trust e resiliência offline.
 - 📡 [02 — API e Eventos](./INTEGRACAO/02_API_E_EVENTOS.md)
 - 🛡️ [03 — Segurança Multi-Tenant](./INTEGRACAO/03_SEGURANCA_MULTITENANT.md)
 - 🧪 [04 — Testes e Recuperação](./INTEGRACAO/04_TESTES_E_RECUPERACAO.md)
+- 🍔 [05 — Plugins de Marketplaces de Delivery](./INTEGRACAO/05_PLUGINS_MARKETPLACES_DELIVERY.md)
 - ☁️ [Pilar 7 — Núcleo Backend, Offline e Segurança](./PILAR_7_NUCLEO_BACKEND_OFFLINE_E_SEGURANCA.md)
 
 ---

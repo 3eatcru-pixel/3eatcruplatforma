@@ -163,6 +163,7 @@ export interface PublicStorefront {
   name: string;
   category: string;
   status: 'active' | 'suspended' | 'trial';
+  aboutText?: string;
   tagline?: string;
   badgeCategory?: string;
   supportsDelivery?: boolean;
@@ -235,7 +236,7 @@ export interface CompanyTenant {
   pixAvailable?: boolean;
   /** @deprecated Legacy value ignored by checkout; delivery uses the store's fixed deliveryFee. */
   serviceFeePercent?: number;
-  openingHours: string;
+  openingHours?: string;
   fichaCode?: string;
   lat?: number;
   lng?: number;
@@ -249,6 +250,8 @@ export interface CompanyTenant {
   isOpen?: boolean;
   estimatedDeliveryMinutes?: string;
   deliveryFee?: number;
+  /** Store-funded portion added to the customer fee to form the per-delivery driver commitment. */
+  storeDeliveryContribution?: number;
   logo?: string;
   coverImage?: string;
   icon?: string;
@@ -271,6 +274,14 @@ export interface CompanyTenant {
   /** Internal version used to serialize device registration against the tenant quota. */
   deviceInventoryVersion?: number;
 }
+
+export type TenantUpdate = Omit<Partial<CompanyTenant>, 'deliveryFee' | 'storeDeliveryContribution' | 'minOrderValue' | 'aboutText' | 'pixKey'> & {
+  deliveryFee?: number | null;
+  storeDeliveryContribution?: number | null;
+  minOrderValue?: number | null;
+  aboutText?: string | null;
+  pixKey?: string | null;
+};
 
 export interface RegionalMarketplaceConfig {
   heroTitle: string;
@@ -422,7 +433,12 @@ export interface OrderTransaction {
   customerPhone?: string;
   items: CartItem[];
   subtotal: number;
+  /** Amount charged to the customer for delivery. Does not include the store contribution. */
   deliveryFee?: number;
+  /** Snapshot of the store-funded contribution for this delivery. */
+  storeDeliveryContribution?: number;
+  /** Snapshot of the total route compensation commitment: customer fee + store contribution. */
+  driverCompensation?: number;
   tax: number;
   discount: number;
   total: number;
@@ -493,6 +509,8 @@ export interface DeliveryRoute {
   estimatedDuration: string;
   /** Valor de rota definido pela loja; não confirma nem registra pagamento ao entregador. */
   totalEarnings: number;
+  customerDeliveryFeesTotal?: number;
+  storeDeliveryContributionTotal?: number;
   waypoints: DeliveryWaypoint[];
   status: 'available' | 'accepted' | 'at_store' | 'in_progress' | 'completed';
   totalDeliveredCount: number;
@@ -500,6 +518,11 @@ export interface DeliveryRoute {
   isSimulated?: boolean;
   mode?: 'real' | 'simulation';
   staffUids?: string[];
+}
+
+export interface DeliveryCompensationBreakdown {
+  customerDeliveryFeesTotal: number;
+  storeDeliveryContributionTotal: number;
 }
 
 export interface DeliveryWaypoint {
@@ -665,16 +688,51 @@ export interface ClockEvent {
   type: 'in' | 'out';
 }
 
+export type DeliveryMarketplaceProviderId = 'ifood' | '99food' | 'rappi';
+
+export type ExternalMarketplaceOrderStatus =
+  | 'received'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'dispatched'
+  | 'completed'
+  | 'cancelled'
+  | 'requires_review';
+
+export interface ExternalMarketplaceOrderItem {
+  externalProductId?: string;
+  sku?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+  modifiers?: string[];
+}
+
 export interface ExternalOrder {
   id: string;
+  tenantId: string;
   orderId?: string;
-  source: 'ifood' | 'whatsapp' | 'ubereats' | 'rappi';
-  externalId?: string;
+  source: DeliveryMarketplaceProviderId | 'whatsapp' | 'ubereats';
+  externalId: string;
+  externalEventId: string;
+  externalMerchantId: string;
   customerName: string;
+  customerPhone?: string;
   total: number;
-  status: string;
-  items: string[];
-  createdAt?: string;
+  currency: 'BRL';
+  status: ExternalMarketplaceOrderStatus;
+  sourceStatus?: string;
+  sourceUpdatedAt: string;
+  items: ExternalMarketplaceOrderItem[];
+  deliveryMode: 'delivery' | 'pickup';
+  deliveryAddress?: string;
+  paymentMethod?: string;
+  createdAt: string;
+  receivedAt: string;
+  updatedAt: string;
 }
 
 export type OperationalSegmentProfileId =

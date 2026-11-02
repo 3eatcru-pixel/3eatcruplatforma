@@ -11,6 +11,9 @@ Os fluxos de negócio atualmente conectados neste checkout utilizam o **Cloud Fi
 │  /products/{productId}            ──► Catálogo ERP da loja (com custo e fornecedor)    │
 │  /public_catalog/{productId}      ──► Catálogo sanitizado para o marketplace público   │
 │  /orders/{orderId}                ──► Pedidos omnichannel (PDV, Mesa, Balcão, Delivery)│
+  │  /tenants/{tenantId}/marketplace_delivery_orders/{orderId} ─► Pedidos externos por loja│
+  │  /marketplace_delivery_event_receipts/{eventHash} ─► Deduplicação de eventos recebidos │
+  │  /marketplace_delivery_connections/{merchantHash} ─► Vínculo privado merchant→tenant  │
 │  /payment_transactions/{txId}     ──► Registros autoritativos de gateways (Pix/Cartão) │
 │  /tables/{tableId}                ──► Mesas do salão e ocupação em tempo real           │
 │  /reservations/{resId}            ──► Reservas de mesas e fila de espera               │
@@ -47,6 +50,9 @@ O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calc
     - `ProductItem`: Atributos mercantis e fiscais.
     - `PublicStorefront` e `PublicCatalogProduct`: Projeções públicas e higienizadas.
     - `OrderTransaction`: Cabeçalho do pedido, itens (`CartItem`), descontos, taxas e canal.
+    - `ExternalOrder`: Pedido recebido de marketplace de delivery, identificado por provedor, merchant externo e tenant. Fica numa subcoleção separada; não baixa estoque, não cria pagamento e não entra no KDS automaticamente.
+    - `marketplace_delivery_connections`: vínculo server-side do merchant externo com o tenant; a API expõe somente provedor, estado e timestamps, nunca credenciais.
+    - `marketplace_delivery_event_receipts`: marcador idempotente de evento para impedir repetição de pedidos ao reprocessar webhooks/polling.
     - `PaymentTransactionRecord`: Registro do adquirente (Stripe, Pix, Dinheiro).
     - `TableInfo`: Identificador físico da mesa, capacidade, status e comanda ativa.
     - `FinancialRecord`: Movimentação contábil categorizada.

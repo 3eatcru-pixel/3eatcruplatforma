@@ -11,6 +11,7 @@ import {
 import { authRegisterRateLimiter } from '../middleware/rate-limiter.middleware';
 import { isValidCnpj } from '../utils/cnpj';
 import { getPlanDeviceLimit } from '../utils/plan-limits';
+import { roundCurrencyAmount } from '../../shared/utils/money.util';
 
 export { isValidCnpj } from '../utils/cnpj';
 
@@ -208,6 +209,20 @@ authRouter.post('/register-merchant', requireAuth, authRegisterRateLimiter, asyn
     ? reqCategory
     : 'restaurant';
 
+  for (const field of ['deliveryFee', 'minOrderValue'] as const) {
+    const value = body[field];
+    if (value !== undefined && value !== null && value !== '' &&
+        (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+      res.status(400).json({ error: `${field} deve ser um valor numérico igual ou maior que zero.`, code: field === 'deliveryFee' ? 'INVALID_DELIVERY_FEE' : 'INVALID_MIN_ORDER_VALUE' });
+      return;
+    }
+  }
+  if (body['openingHours'] !== undefined && body['openingHours'] !== null &&
+      (typeof body['openingHours'] !== 'string' || body['openingHours'].trim().length > 60)) {
+    res.status(400).json({ error: 'O horário informado deve ter até 60 caracteres.', code: 'INVALID_OPENING_HOURS' });
+    return;
+  }
+
   let initialDeviceLimit: number;
   try {
     initialDeviceLimit = await getPlanDeviceLimit('Starter');
@@ -232,15 +247,18 @@ authRouter.post('/register-merchant', requireAuth, authRegisterRateLimiter, asyn
     phone: rawPhone.slice(0, 32),
     createdAt: nowIso,
     deliveryRadiusKm: 5.0,
-    openingHours: String(body['openingHours'] || '09:00 às 22:00').slice(0, 60),
+    ...(typeof body['openingHours'] === 'string' && body['openingHours'].trim()
+      ? { openingHours: body['openingHours'].trim() }
+      : {}),
     activeDevicesCount: 1,
     devicesLimit: initialDeviceLimit,
-    minOrderValue: 20,
-    deliveryFee: 5,
+    ...(typeof body['minOrderValue'] === 'number' ? { minOrderValue: body['minOrderValue'] } : {}),
+    ...(typeof body['deliveryFee'] === 'number' ? { deliveryFee: roundCurrencyAmount(body['deliveryFee']) } : {}),
     deliveryFleetType: 'own',
     isOpen: false,
     supportsDelivery: false,
     supportsTakeout: true,
+    storeDeliveryContribution: 0,
     supportsReservation: false,
     storeSlug: tenantId,
     themeColor: 'amber'

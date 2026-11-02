@@ -35,7 +35,26 @@ export interface OSPreferences {
 }
 
 const PREFS_STORAGE_KEY = '3eatcru_os_prefs';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+
+function migrateLegacyAppId(id: unknown): OSAppId | null {
+  if (typeof id !== 'string') return null;
+  if (id === 'ifood') return 'delivery-marketplaces';
+  return id as OSAppId;
+}
+
+function migrateWindowIds(windows: Partial<OSWindow>[]): Partial<OSWindow>[] {
+  return windows.map((window) => {
+    const legacyId = window.id as string | undefined;
+    const migratedId = migrateLegacyAppId(window.id);
+    if (!migratedId) return window;
+    return {
+      ...window,
+      id: migratedId,
+      ...(legacyId === 'ifood' ? { title: 'Pedidos de Marketplaces', icon: 'delivery_dining' } : {})
+    };
+  });
+}
 
 export const SEGMENT_PROFILE_PRESETS: Record<
   OperationalSegmentProfileId,
@@ -52,7 +71,7 @@ export const SEGMENT_PROFILE_PRESETS: Record<
       'tables',
       'kds',
       'agenda',
-      'ifood',
+      'delivery-marketplaces',
       'drivers',
       'inventory',
       'finance',
@@ -247,7 +266,7 @@ export class OsPreferencesService {
       const saved = localStorage.getItem(key) ?? (key !== PREFS_STORAGE_KEY ? null : null);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<OSPreferences>;
-        if (parsed && (parsed.version === SCHEMA_VERSION || parsed.version === 1)) {
+        if (parsed && [1, 2, SCHEMA_VERSION].includes(parsed.version || 0)) {
           const profile: OperationalSegmentProfileId =
             parsed.operationalProfile && SEGMENT_PROFILE_PRESETS[parsed.operationalProfile]
               ? parsed.operationalProfile
@@ -259,15 +278,19 @@ export class OsPreferencesService {
             operationalProfile: profile,
             customProfileChosen: Boolean(parsed.customProfileChosen),
             shortcuts: Array.isArray(parsed.shortcuts) && parsed.shortcuts.length > 0
-              ? parsed.shortcuts
+              ? [...new Set(parsed.shortcuts.map(migrateLegacyAppId).filter((id): id is OSAppId => id !== null))]
               : [...preset.shortcuts],
             favorites: Array.isArray(parsed.favorites) && parsed.favorites.length > 0
-              ? parsed.favorites
+              ? [...new Set(parsed.favorites.map(migrateLegacyAppId).filter((id): id is OSAppId => id !== null))]
               : [...preset.favorites],
-            workspaces: Array.isArray(parsed.workspaces) ? parsed.workspaces : [],
+            workspaces: Array.isArray(parsed.workspaces) ? parsed.workspaces.map((workspace) => ({
+              ...workspace,
+              windows: Array.isArray(workspace.windows) ? migrateWindowIds(workspace.windows) : [],
+              activeWinId: migrateLegacyAppId(workspace.activeWinId)
+            })) : [],
             currentWorkspaceId: parsed.currentWorkspaceId ?? null,
-            sessionWindows: Array.isArray(parsed.sessionWindows) ? parsed.sessionWindows : undefined,
-            sessionActiveWinId: parsed.sessionActiveWinId ?? null
+            sessionWindows: Array.isArray(parsed.sessionWindows) ? migrateWindowIds(parsed.sessionWindows) : undefined,
+            sessionActiveWinId: migrateLegacyAppId(parsed.sessionActiveWinId)
           };
         }
       }

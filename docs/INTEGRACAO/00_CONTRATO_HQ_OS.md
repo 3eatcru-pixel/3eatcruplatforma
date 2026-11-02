@@ -35,8 +35,8 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 
 ### Perspectiva 2: Como foi implementado (Realidade do Código)
 - **Filtro de Governança no Backend (`src/server/routes/tenants.router.ts`):**
-  - O Store OS pode alterar seus dados comerciais (nome, telefone, horário, taxa de entrega, raio de atuação).
-  - O Lojista **não pode alterar:** `status`, `plan`, `devicesLimit` ou `cnpj`. `ownerUid` e `staffUids` são removidos do payload de PATCH para qualquer papel e são mantidos por fluxos de identidade dedicados. `serviceFeePercent` é um campo legado ignorado; o checkout usa `deliveryFee` como valor fixo de entrega.
+  - Proprietário/operador pode alterar nome, descrição pública, horário informativo, disponibilidade, modalidades, taxa paga pelo cliente (`deliveryFee`), complemento da loja ao entregador (`storeDeliveryContribution`), pedido mínimo e chave PIX. O PATCH aceita somente esses campos e rejeita os demais; campos como `status`, `plan`, `devicesLimit`, `deliveryRadiusKm` e `cnpj` não são editáveis pelo lojista.
+  - `ownerUid` e `staffUids` não são alterados pelo PATCH e são mantidos por fluxos de identidade dedicados. `serviceFeePercent` é um campo legado ignorado; o checkout soma ao total do cliente somente `deliveryFee`. O compromisso de remuneração é a soma de `deliveryFee + storeDeliveryContribution`, sem transferência automática ao motorista. Lojas novas não recebem taxa, pedido mínimo ou horário de exemplo.
 - **Efeito do Bloqueio pelo HQ (`src/server/core/commerce.engine.ts`):**
   - Quando o HQ altera `status: 'suspended'` em `/tenants/{id}`, a máquina de vendas `executeCommercialOrder` trava imediatamente qualquer nova venda com `403 TENANT_INACTIVE`.
   - A loja é retirada automaticamente da listagem pública (`tenants.router.ts`).

@@ -11,15 +11,15 @@ Fontes de referência no código:
 - Rotas: src/app/app.routes.ts.
 - Serviços e APIs: src/app/services/ e src/server/routes/.
 
-## Estado verificado em 2026-11-01
+## Estado verificado em 2026-11-02
 
-O registro contém 33 IDs. O desktop possui 21 eApps operacionais integrados e três simuladores; oito integrações externas ou administrativas continuam como próximas etapas explícitas. O PDV operacional fica em rota standalone. O estado de cada ID é descrito abaixo.
+O registro contém 33 IDs. O desktop possui 21 eApps operacionais integrados, três simuladores, um catálogo de plugins de delivery sem conectores ativos e sete atalhos que ainda dependem de integrações externas ou administrativas. O PDV operacional fica em rota standalone. O estado de cada ID é descrito abaixo.
 
 | IDs | Estado no Store OS | Implementação encontrada |
 |---|---|---|
 | pos | 🟡 Rota standalone | /pos carrega src/app/components/pos-terminal.ts; a janela do desktop encaminha para essa rota. Subcomponentes em src/app/components/eapps/pos/. |
 | waiter-sim, driver-sim, consumer-sim | 🔵 Simuladores | Molduras de demonstração em src/app/components/eapps/eapp-*-sim.ts, reutilizando as telas de garçom, entregador e marketplace. |
-| store-manager | 🟡 eApp integrado | Minha Loja abre pelo desktop e permite editar os dados da vitrine individual da unidade, taxa, pedido mínimo e chave PIX da conta da loja. O marketplace público geral (banner, praça, raio e curadoria) é gerenciado pelo HQ. O servidor limita a chave a 77 caracteres, mas não verifica formato ou titularidade. |
+| store-manager | 🟡 eApp integrado | Minha Loja abre pelo desktop e edita nome, descrição pública, horário informativo, aberto/fechado, entrega/retirada, taxa paga pelo cliente, complemento pago pela loja ao entregador, pedido mínimo e chave PIX. A remuneração combinada é a soma das duas parcelas e fica registrada nos pedidos/rotas; pagamento real segue por conta da loja. Lojas novas iniciam sem horário, taxa ou pedido mínimo de exemplo; valores opcionais podem ser removidos. O catálogo de produtos é outro módulo; banner, praça, raio de descoberta e curadoria do marketplace geral são gerenciados pelo HQ. O PATCH valida a lista de campos por perfil; a chave PIX tem limite de 77 caracteres, sem validação de formato ou titularidade. |
 | tables | 🟡 eApp integrado — operação de salão | Consulta e atualiza mesas da unidade, permite abrir/liberar mesa e cadastrar mesas para proprietário/operador. O servidor valida tenant, status, capacidade e impede liberação com saldo aberto; reservas controlam os estados `reserved`. |
 | agenda | 🟡 eApp integrado — reservas | Lista por data, registra reserva manual, confirma, acomoda, cancela e marca não comparecimento via `AppointmentsService`; atribuição e ocupação de mesa são transacionais no servidor. Não liquida comandas nem libera uma mesa ocupada ao encerrar reserva. |
 | kds | 🟡 eApp integrado — escopo operacional | Carrega pedidos da unidade; proprietário/operador pode avançar `pending` → `preparing` → `ready`; garçom tem consulta sem alteração. Cancelamento e conclusão financeira continuam em fluxos autorizados separados. |
@@ -29,6 +29,7 @@ O registro contém 33 IDs. O desktop possui 21 eApps operacionais integrados e t
 | reports | 🟡 eApp integrado — resumo comercial | Soma pedidos concluídos com pagamento aprovado, calcula ticket médio e agrupa por canal dentro dos 200 pedidos mais recentes. Não é DRE, margem ou conciliação. |
 | crm | 🟡 eApp integrado — resumo de clientes | Agrupa clientes identificados nos pedidos pagos recentes da unidade. Não altera pontos nem envia campanhas; política de fidelidade e provedores ainda não estão configurados. |
 | drivers | 🟡 eApp integrado — logística da loja | Cadastra frota própria, cria rotas com pedidos prontos e permite atribuição a motorista da mesma unidade. O valor da rota é o combinado da loja e não registra pagamento. |
+| delivery-marketplaces | 🟡 eApp e fila persistida — conectores pendentes | Centraliza metadados de plugins iFood, 99Food e Rappi. As APIs de leitura de fila e estado da conexão e a persistência idempotente interna existem; ainda não há webhook, polling, OAuth nem adapter que alimente a fila. As rotas são restritas a proprietário/operador e usam o tenant da sessão. iFood é plugin, não janela própria. |
 | settings | 🟡 eApp integrado — preferências locais | Persiste tema, perfil operacional, atalhos e workspaces por usuário/unidade. Não configura hardware. |
 | calculator | 🟡 eApp integrado — utilitário local | Calculadora de uma operação, sem persistência ou vínculo com lançamentos comerciais. |
 | docs | 🟡 eApp integrado — manual estático | Apresenta guias operacionais embutidos; a fonte canônica de especificações continua na documentação do repositório. |
@@ -40,7 +41,7 @@ O registro contém 33 IDs. O desktop possui 21 eApps operacionais integrados e t
 | services | 🟡 eApp integrado — ordens de serviço | Abre O.S. e avança estados operacionais por unidade. Não registra cobrança nem pagamento. |
 | rh | 🟡 eApp integrado — equipe e ponto | Cadastro básico de equipe e registro manual de entrada/saída; sem CPF, salário, folha ou integração trabalhista. |
 | notes | 🟡 eApp integrado — notas privadas | Notas persistidas por usuário e filtro opcional da unidade ativa; não são compartilhadas entre operadores. |
-| reconciliation, whatsapp, ifood, instagram, google-drive, admin-hub, appstore, browser | ⚪ Próxima etapa / dependência externa | Ainda sem fluxo integrado de produção. Provedores, OAuth, conectividade física, escopo administrativo e/ou superfície segura de navegação precisam ser definidos e homologados. |
+| reconciliation, whatsapp, instagram, google-drive, admin-hub, appstore, browser | ⚪ Próxima etapa / dependência externa | Ainda sem fluxo integrado de produção. Provedores, OAuth, conectividade física, escopo administrativo e/ou superfície segura de navegação precisam ser definidos e homologados. |
 
 As telas /waiter, /driver, /hq e as vitrines públicas são rotas próprias, não janelas do Store OS. A existência dessas rotas não altera o estado dos IDs homônimos no desktop.
 
@@ -50,7 +51,7 @@ Os arquivos abaixo ainda são protótipos ou dependem de configuração externa;
 
 | Arquivo | Limite verificado |
 |---|---|
-| `eapp-ifood.ts` | Demonstração com pedidos estáticos e estado local; não possui API, webhook ou despacho conectado. |
+| `features/delivery-marketplaces/` | eApp com catálogo de plugins e fila persistida, vazia enquanto os adapters não forem conectados. iFood, 99Food e Rappi ainda não têm conector de produção; veja [o contrato e as dependências](../INTEGRACAO/05_PLUGINS_MARKETPLACES_DELIVERY.md). |
 | `eapp-google-drive.ts` | Lista arquivos de exemplo; o botão de backup fica desabilitado e não chama o serviço de Drive. |
 | `GoogleDriveService` e seletor compartilhado | OAuth só marca conexão ativa após obter token e carregar arquivos. Sem token, a lista e uploads são locais/demonstrativos; não estão conectados ao desktop do lojista. |
 | `eapp-whatsapp.ts` | Contatos e mensagens locais de demonstração; não envia mensagens externas. |

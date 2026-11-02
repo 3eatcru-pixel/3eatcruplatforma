@@ -34,6 +34,7 @@ import { EAppSuppliersWindow } from './eapps/eapp-suppliers';
 import { EAppCalendarWindow } from './eapps/eapp-calendar';
 import { EAppTasksWindow } from './eapps/eapp-tasks';
 import { EAppStockAuditWindow } from './eapps/eapp-stock-audit';
+import { DeliveryMarketplacesWindowComponent } from '../features/delivery-marketplaces/components/delivery-marketplaces-window';
 
 // OS Shell Components
 import { DesktopIconComponent } from './os/desktop-icon';
@@ -77,6 +78,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
     EAppCalendarWindow,
     EAppTasksWindow,
     EAppStockAuditWindow,
+    DeliveryMarketplacesWindowComponent,
     DesktopIconComponent,
     TaskbarComponent,
     StartMenuComponent,
@@ -204,6 +206,7 @@ import { OsWindowShellComponent } from './os/os-window-shell';
                   @case ('calendar') { @defer (on timer(0ms)) { <app-eapp-calendar /> } }
                   @case ('tasks') { @defer (on timer(0ms)) { <app-eapp-tasks /> } }
                   @case ('stock-audit') { @defer (on timer(0ms)) { <app-eapp-stock-audit /> } }
+                  @case ('delivery-marketplaces') { @defer (on timer(0ms)) { <app-delivery-marketplaces-window /> } }
                   @default {
                     <section class="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-3 text-center text-stone-300">
                       <span class="rounded-full border border-amber-700/60 bg-amber-950/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-300">Em breve</span>

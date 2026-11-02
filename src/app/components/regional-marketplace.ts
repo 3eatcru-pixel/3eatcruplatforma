@@ -637,7 +637,7 @@ type SortOption = 'distance' | 'name' | 'fee';
                 </div>
 
                 <div class="relative w-full h-[450px] bg-[#f5ebd9] rounded-xl border border-[#e6d8be] overflow-hidden shadow-inner">
-                  <div #mapContainer class="w-full h-full grayscale sepia contrast-[1.1] opacity-90"></div>
+                  <div #mapContainer class="w-full h-full saturate-[1.35] contrast-[1.05] brightness-[1.02]"></div>
                   
                   <!-- Tactical Legend Overlay -->
                   <div class="absolute top-4 right-4 z-[1000] bg-[#faf7f0]/90 backdrop-blur border border-[#ded4c2] p-3 rounded-xl shadow-lg pointer-events-none">

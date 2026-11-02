@@ -16,7 +16,7 @@ export const OS_APPS_REGISTRY: Record<OSAppId, OSAppDefinition> = {
   'stock-audit': { label: 'eApp Inventário Cego', title: 'eApp: Auditoria de Estoque & Contagem Cega', icon: 'fact_check', colorClass: 'from-amber-500 to-orange-700' },
   'store-manager': { label: 'eApp Minha Loja', title: 'eApp: Gerenciador da Loja Pública', icon: 'storefront', colorClass: 'from-amber-400 via-orange-500 to-amber-600' },
   whatsapp: { label: 'eApp WhatsApp', title: 'eApp: WhatsApp Business', icon: 'chat', colorClass: 'from-emerald-600 to-emerald-800' },
-  ifood: { label: 'eApp iFood', title: 'eApp: Portal iFood', icon: 'delivery_dining', colorClass: 'from-rose-600 to-red-800' },
+  'delivery-marketplaces': { label: 'eApp Delivery de Terceiros', title: 'eApp: Pedidos de Marketplaces', icon: 'delivery_dining', colorClass: 'from-sky-500 via-cyan-600 to-indigo-700' },
   instagram: { label: 'eApp Instagram', title: 'eApp: Instagram Business', icon: 'camera_alt', colorClass: 'from-amber-600 via-rose-700 to-amber-800' },
   tasks: { label: 'eApp Tarefas OS', title: 'eApp: Tarefas OS', icon: 'task_alt', colorClass: 'from-rose-600 to-rose-800' },
   calendar: { label: 'eApp Calendário', title: 'eApp: Calendário & Agenda Operacional', icon: 'calendar_month', colorClass: 'from-amber-500 to-orange-600' },

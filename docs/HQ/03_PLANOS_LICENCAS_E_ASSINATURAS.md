@@ -32,4 +32,4 @@ Novos tenants dos fluxos de cadastro começam em trial e fechados. A ativação 
 | Acesso à rede da plataforma para lojas sem frota própria | Coming soon; inclusão no plano/regra adicional, preço e operação ainda não definidos |
 | Auditoria de excesso de registros do inventário | Implementada na varredura sob demanda |
 
-Nesta revisão, a suíte automatizada passou com 94/94 testes e o build de produção passou. Esses resultados não comprovam cobrança recorrente nem integração de planos com Firestore real; a assinatura SaaS continua sem cobrança automatizada.
+Nesta revisão, a suíte automatizada passou com 96/96 testes e o build de produção passou. Esses resultados não comprovam cobrança recorrente nem integração de planos com Firestore real; a assinatura SaaS continua sem cobrança automatizada.

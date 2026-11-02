@@ -22,4 +22,4 @@ O motor do servidor valida pedido, loja, disponibilidade dos produtos e valores 
 - A rota pública confirmada é /p/:id; não documentar /loja/:slug como rota atual.
 - A proteção do catálogo precisa ser avaliada no endpoint público; o navegador não deve receber dados internos do ERP.
 - O KDS tem janela integrada no Store OS para consultar pedidos e avançar o preparo até `ready`; isso não comprova estação física, hardware de cozinha ou homologação operacional. Consulte [Aplicativos e módulos](../OS/03_APLICATIVOS_E_MODULOS.md).
-- O build de produção e a suíte geral passaram nesta revisão (94/94 testes). Não houve teste ponta a ponta nem homologação específica do catálogo e checkout com dados reais.
+- O build de produção e a suíte geral passaram nesta revisão (96/96 testes). Não houve teste ponta a ponta nem homologação específica do catálogo e checkout com dados reais.

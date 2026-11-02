@@ -38,4 +38,4 @@ Auditoria de 2026-11-01: o registro de atalhos possui 33 IDs; 21 eApps operacion
 
 ## Validação
 
-Nesta revisão, lint passou, a suíte passou com 94/94 testes e o build de produção passou. Os testes usam mocks e não substituem homologação operacional nem validação com Firebase real.
+Nesta revisão, lint passou, a suíte passou com 96/96 testes e o build de produção passou. Os testes usam mocks e não substituem homologação operacional nem validação com Firebase real.

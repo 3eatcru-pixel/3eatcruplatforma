@@ -7,6 +7,7 @@ import { isTenantStaffRole, requireAuth, requireRoles } from '../middleware/auth
 import { adminDb } from '../firebase-admin';
 import { transitionCommercialOrderStatus } from '../core/commerce.engine';
 import { paymentProcessRateLimiter } from '../middleware/rate-limiter.middleware';
+import { getPaymentConfirmationRejection } from '../utils/payment-confirmation';
 
 export const paymentsRouter = Router();
 
@@ -534,69 +535,79 @@ paymentsRouter.post('/:id/confirm', async (req: Request, res: Response) => {
 
     const confirmedAt = new Date().toISOString();
 
-    await adminDb.runTransaction(async (transaction) => {
+    const confirmation = await adminDb.runTransaction(async (transaction) => {
       const freshTxSnap = await transaction.get(txRef);
       if (!freshTxSnap.exists) {
-        throw { status: 404, code: 'PAYMENT_NOT_FOUND', message: 'Transação não encontrada.' };
+        return { kind: 'rejected' as const, rejection: { status: 404, code: 'PAYMENT_NOT_FOUND', error: 'Transação não encontrada.' } };
       }
       const freshTx = freshTxSnap.data() as PaymentTransactionRecord;
-      if (freshTx.status === 'approved') {
-        throw { status: 409, code: 'ALREADY_APPROVED', message: 'Transação já foi confirmada anteriormente.' };
+      const isFreshCallerAuthorized =
+        caller.role === 'hq_admin' ||
+        ((caller.role === 'tenant_owner' || caller.role === 'operator') && caller.tenantId === freshTx.tenantId);
+      if (!isFreshCallerAuthorized) {
+        return { kind: 'rejected' as const, rejection: { status: 403, code: 'FORBIDDEN', error: 'Sem permissão para confirmar esta transação.' } };
       }
+
+      if (!freshTx.orderId) {
+        return { kind: 'rejected' as const, rejection: { status: 404, code: 'ORDER_NOT_FOUND', error: 'A transação não possui pedido vinculado.' } };
+      }
+
+      const orderRef = adminDb.collection('orders').doc(freshTx.orderId);
+      const orderSnap = await transaction.get(orderRef);
+      const orderData = orderSnap.exists ? orderSnap.data() as OrderTransaction : undefined;
+      const rejection = getPaymentConfirmationRejection(freshTx, orderData);
+      if (rejection) return { kind: 'rejected' as const, rejection };
 
       transaction.update(txRef, {
         status: 'approved',
         confirmedAt,
         confirmedByUid: caller.id
       });
-
-      if (tx.orderId) {
-        const orderRef = adminDb.collection('orders').doc(tx.orderId);
-        const orderSnap = await transaction.get(orderRef);
-        if (orderSnap.exists) {
-          const orderData = orderSnap.data() as OrderTransaction;
-          if (Math.abs(orderData.total - tx.amount) <= 0.05) {
-            transaction.update(orderRef, {
-              paymentTransactionId: tx.id,
-              paymentStatus: 'approved'
-            });
-          }
-        }
-      }
+      transaction.update(orderRef, {
+        paymentTransactionId: freshTx.id,
+        paymentStatus: 'approved'
+      });
+      return { kind: 'confirmed' as const, payment: freshTx, order: orderData! };
     });
 
+    if (confirmation.kind === 'rejected') {
+      res.status(confirmation.rejection.status).json({
+        error: confirmation.rejection.error,
+        code: confirmation.rejection.code
+      });
+      return;
+    }
+
     let settledOrder: OrderTransaction | null = null;
-    if (tx.orderId) {
-      const orderSnap = await adminDb.collection('orders').doc(tx.orderId).get();
-      if (orderSnap.exists) {
-        const orderData = orderSnap.data() as OrderTransaction;
-        if (
-          orderData.type === 'pos-counter' &&
-          orderData.status !== 'completed' &&
-          orderData.status !== 'cancelled' &&
-          (caller.role === 'hq_admin' ||
-            ((caller.role === 'tenant_owner' || caller.role === 'operator') && caller.tenantId === tx.tenantId))
-        ) {
-          settledOrder = await transitionCommercialOrderStatus({
-            orderId: tx.orderId,
-            newStatus: 'completed',
-            user: caller
-          });
-        }
-      }
+    if (
+      confirmation.order.type === 'pos-counter' &&
+      confirmation.order.status !== 'completed' &&
+      confirmation.order.status !== 'cancelled' &&
+      (caller.role === 'hq_admin' ||
+        ((caller.role === 'tenant_owner' || caller.role === 'operator') && caller.tenantId === tx.tenantId))
+    ) {
+      settledOrder = await transitionCommercialOrderStatus({
+        orderId: confirmation.payment.orderId,
+        newStatus: 'completed',
+        user: caller
+      });
     }
 
     res.json({
-      transactionId: tx.id,
+      transactionId: confirmation.payment.id,
       status: 'approved',
-      environment: tx.environment,
-      mode: tx.mode,
+      environment: confirmation.payment.environment,
+      mode: confirmation.payment.mode,
       confirmedAt,
       ...(settledOrder ? { order: settledOrder } : {})
     });
   } catch (err) {
     console.error('Payment Confirm Error:', err);
-    res.status(500).json({ error: 'Falha ao confirmar transação de pagamento.', code: 'PAYMENT_CONFIRM_FAILED' });
+    const error = err as { status?: number; code?: string; message?: string };
+    res.status(error.status || 500).json({
+      error: error.message || 'Falha ao confirmar transação de pagamento.',
+      ...(error.code ? { code: error.code } : { code: 'PAYMENT_CONFIRM_FAILED' })
+    });
   }
 });
 

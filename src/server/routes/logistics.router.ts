@@ -10,6 +10,10 @@ import {
 import { isTenantManagerRole, requireAuth } from '../middleware/auth.middleware';
 import { adminDb } from '../firebase-admin';
 import { Query, Transaction, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import {
+  isPlatformDeliveryTenantUnavailable,
+  PLATFORM_DELIVERY_NETWORK_READY
+} from '../utils/platform-delivery-readiness';
 
 export const logisticsRouter = Router();
 
@@ -145,6 +149,14 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
     : String(req.user?.tenantId || '').trim();
   if (!assignedTenantId) {
     res.status(400).json({ error: 'tenantId obrigatório para criar rota.' });
+    return;
+  }
+
+  if (isPlatformDeliveryTenantUnavailable(assignedTenantId)) {
+    res.status(409).json({
+      error: 'A rede própria de entregadores da plataforma ainda está em breve.',
+      code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE'
+    });
     return;
   }
 
@@ -311,6 +323,14 @@ logisticsRouter.post('/drivers', async (req: Request, res: Response) => {
     : String(caller.tenantId || '').trim();
   const driverType: StoreDriver['driverType'] = isHq && body.driverType === 'platform' ? 'platform' : 'private';
 
+  if (!PLATFORM_DELIVERY_NETWORK_READY && (driverType === 'platform' || isPlatformDeliveryTenantUnavailable(assignedTenantId))) {
+    res.status(409).json({
+      error: 'A rede própria de entregadores da plataforma ainda está em breve.',
+      code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE'
+    });
+    return;
+  }
+
   if (!assignedTenantId) {
     res.status(400).json({ error: 'tenantId é obrigatório para cadastrar entregador.' });
     return;
@@ -392,6 +412,20 @@ logisticsRouter.patch('/drivers/:id', async (req: Request, res: Response) => {
       const nextDriverType = updates.driverType === 'platform' || updates.driverType === 'private'
         ? updates.driverType
         : existing.driverType;
+      if ((nextDriverType === 'platform') !== (nextTenantId === 'marketplace')) {
+        res.status(400).json({ error: 'Entregadores da plataforma devem pertencer à frota marketplace.' });
+        return;
+      }
+      const requestsPlatformFleet =
+        (updates.driverType === 'platform' && existing.driverType !== 'platform') ||
+        (updates.tenantId === 'marketplace' && existing.tenantId !== 'marketplace');
+      if (!PLATFORM_DELIVERY_NETWORK_READY && (requestsPlatformFleet || isPlatformDeliveryTenantUnavailable(nextTenantId))) {
+        res.status(409).json({
+          error: 'A rede própria de entregadores da plataforma ainda está em breve.',
+          code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE'
+        });
+        return;
+      }
       if (nextDriverType === 'platform' && nextTenantId !== 'marketplace') {
         res.status(400).json({ error: 'Entregadores da plataforma devem pertencer à frota marketplace.' });
         return;
@@ -532,6 +566,17 @@ logisticsRouter.post('/routes/:id/accept', async (req: Request, res: Response) =
 
       const driverProfile = driverSnap.exists ? (driverSnap.data() as StoreDriver) : undefined;
 
+      if (
+        !PLATFORM_DELIVERY_NETWORK_READY &&
+        (driverProfile?.driverType === 'platform' || driverProfile?.tenantId === 'marketplace' || route.tenantId === 'marketplace')
+      ) {
+        throw {
+          status: 409,
+          code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE',
+          message: 'A rede própria de entregadores da plataforma ainda está em breve.'
+        };
+      }
+
       // Current driver app serves registered store drivers only; platform pooling is still coming soon.
       if (caller.role === 'driver') {
         if (!driverProfile || driverProfile.driverType !== 'private' || !driverProfile.tenantId) {
@@ -631,6 +676,13 @@ logisticsRouter.post('/routes/:id/arrive', async (req: Request, res: Response) =
       if (!doc.exists) throw { status: 404, message: 'Rota não encontrada.' };
 
       const route = doc.data() as DeliveryRoute;
+      if (isPlatformDeliveryTenantUnavailable(route.tenantId)) {
+        throw {
+          status: 409,
+          code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE',
+          message: 'A rede própria de entregadores da plataforma ainda está em breve.'
+        };
+      }
       if (!canActOnAssignedRoute(req, route)) {
         throw { status: 403, message: 'Acesso negado a esta rota.' };
       }
@@ -660,6 +712,13 @@ logisticsRouter.post('/routes/:id/pickup', async (req: Request, res: Response) =
       if (!doc.exists) throw { status: 404, message: 'Rota não encontrada.' };
 
       const route = doc.data() as DeliveryRoute;
+      if (isPlatformDeliveryTenantUnavailable(route.tenantId)) {
+        throw {
+          status: 409,
+          code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE',
+          message: 'A rede própria de entregadores da plataforma ainda está em breve.'
+        };
+      }
       if (!canActOnAssignedRoute(req, route)) {
         throw { status: 403, message: 'Acesso negado a esta rota.' };
       }
@@ -694,6 +753,13 @@ logisticsRouter.post(
         if (!doc.exists) throw { status: 404, message: 'Rota não encontrada.' };
 
         const route = doc.data() as DeliveryRoute;
+        if (isPlatformDeliveryTenantUnavailable(route.tenantId)) {
+          throw {
+            status: 409,
+            code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE',
+            message: 'A rede própria de entregadores da plataforma ainda está em breve.'
+          };
+        }
         if (!canActOnAssignedRoute(req, route)) {
           throw { status: 403, message: 'Acesso negado a esta rota.' };
         }

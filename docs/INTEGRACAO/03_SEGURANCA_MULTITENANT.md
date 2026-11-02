@@ -86,7 +86,7 @@ O ecossistema combina validação de Firebase ID Tokens, middlewares de autoriza
 - **Prevenção de Evasão:** Tentativas de consultar `/api/financials`, `/api/orders` ou `/api/products` sem token ou com token de outro tenant resultam em interrupção imediata da requisição.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta revisão, `npm run test:ci` passou com 94/94 testes e executou `src/server/security_phase1.spec.ts` e `src/server/commerce_war_tests.spec.ts`. Os testes usam mocks; as regras do Firestore não foram exercitadas no emulador.
+- Nesta revisão, `npm run test:ci` passou com 96/96 testes e executou `src/server/security_phase1.spec.ts` e `src/server/commerce_war_tests.spec.ts`. Os testes usam mocks; as regras do Firestore não foram exercitadas no emulador.
 
 ---
 

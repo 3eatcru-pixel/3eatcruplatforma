@@ -2,13 +2,14 @@
 
 Este repositório contém a implementação web do ecossistema 3EATCRU. O estado dos módulos e seus limites estão no [mapa de maturidade](./MODULE_STATUS.md).
 
-> **Estado em 2026-11-01:** auditoria e correções locais concluídas para os módulos descritos em `MODULE_STATUS.md`. Lint, suíte CI e build de produção foram executados nesta revisão; Firebase real, provedores externos e hardware ainda dependem de homologação.
+> **Auditoria em andamento (2026-11-01):** consulte `MODULE_STATUS.md` e `docs/INTEGRACAO/04_TESTES_E_RECUPERACAO.md` para o estado verificado. Este aviso não declara o ecossistema consolidado nem homologado.
 
 ## Arquitetura implementada
 
 - Frontend Angular 21 com SSR.
 - API Express 5 integrada ao servidor SSR.
 - Firebase Authentication, Firebase Admin SDK e Cloud Firestore.
+- Há um scaffold isolado de PostgreSQL/Drizzle em `src/db/`, sem uso pelas rotas ou serviços atuais; o Firestore continua sendo a persistência ativa do fluxo de negócio.
 - Modelos compartilhados em src/shared.
 
 A stack descrita acima é a que está implementada neste checkout. O repositório não está estruturado como Next.js/React.
@@ -43,7 +44,8 @@ O índice canônico é [docs/INDEX.md](./docs/INDEX.md). O arquivo [docs/00_INDI
 ## Comandos disponíveis
 
 - Requer Node.js 24.12+ conforme a engine de `@firebase/app` travada no lockfile; Firebase Admin requer Node 22+ e Angular 21 também é atendido por essa versão.
-- `npm start` / `npm run dev`: servidor de desenvolvimento na porta 3000. Os hooks `prestart`/`predev` conferem o `package-lock.json` e as dependências locais; rodam `npm ci` somente se faltarem ou divergirem. A primeira inicialização sem `node_modules` pode levar alguns minutos; os starts seguintes reutilizam a instalação.
+- `npm start` / `npm run dev`: executam `ng serve` na porta 3000. Não há hooks de instalação automática; após clone ou restauração sem `node_modules`, rode `npm ci` antes de iniciar.
+- `node server/server.mjs`: entrypoint de produção separado; compila se o bundle SSR não existir e inicia na porta de `PORT` (ou 3000). As dependências precisam estar instaladas antes.
 - `npm ci`: instalação manual e reproduzível a partir do lockfile, útil para build, testes e lint antes de iniciar a aplicação.
 - npm run lint: lint configurado no projeto.
 - npm run test:ci: testes configurados para execução sem watch.

@@ -17,6 +17,7 @@ import { adminDb } from '../firebase-admin';
 import { Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { isValidCnpj } from '../utils/cnpj';
 import { DEFAULT_DEVICE_LIMITS } from '../utils/plan-limits';
+import { resolvePlatformDeliveryCommissionStatus } from '../utils/platform-delivery-readiness';
 
 export const hqRouter = Router();
 
@@ -107,7 +108,7 @@ async function getHqSettings(): Promise<GlobalHqSettings> {
     return {
       ...DEFAULT_HQ_SETTINGS,
       ...saved,
-      platformDeliveryCommissionStatus: saved.platformDeliveryCommissionStatus === 'active' ? 'active' : 'coming_soon'
+      platformDeliveryCommissionStatus: resolvePlatformDeliveryCommissionStatus(saved.platformDeliveryCommissionStatus)
     };
   }
   return { ...DEFAULT_HQ_SETTINGS, updatedAt: new Date().toISOString() };

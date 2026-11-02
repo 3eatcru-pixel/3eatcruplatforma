@@ -10,6 +10,8 @@ Este documento resume a implementação presente no repositório. O índice can�
 - Cloud Firestore para dados de negócio.
 - Modelos compartilhados no diretório src/shared.
 
+Há código PostgreSQL/Drizzle isolado em `src/db/`, sem chamadas das rotas ou serviços. Ele não participa da persistência ativa; este checkout não comprova conexão com Cloud SQL nem migração aplicada.
+
 A implementação deste checkout é Angular/Express. Não há migração para Next.js/React concluída.
 
 ## Ambientes do produto

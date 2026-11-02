@@ -24,4 +24,4 @@ No modo simulado, pedidos, mesas e reservas não são enviados à API nem à fil
 
 ## Validação
 
-O build de produção e a suíte geral passaram nesta revisão (94/94 testes). Não houve homologação operacional em restaurante; KDS, Mesas, Agenda, Calendário e Histórico estão integrados nos escopos descritos.
+O build de produção e a suíte geral passaram nesta revisão (96/96 testes). Não houve homologação operacional em restaurante; KDS, Mesas, Agenda, Calendário e Histórico estão integrados nos escopos descritos.

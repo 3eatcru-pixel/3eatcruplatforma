@@ -54,10 +54,10 @@ A relação entre o **HQ Central** e o **Store OS Lojista** é regida por um con
 - **Receita dos pedidos:** Pertence à loja e não deve transitar pela conta do HQ. O PIX usa a chave cadastrada no tenant. Cartão real está bloqueado até que cada loja tenha uma conta de adquirência conectada.
 - **Assinatura do lojista:** É paga ao HQ pelo uso do Store OS e pela cota de dispositivos do plano. A cobrança recorrente automática ainda não existe.
 - **Serviço futuro de entregadores do HQ:** Para loja sem motorista próprio, será uma opção comercial do HQ quando a frota própria e a inteligência operacional estiverem prontas. Preço e contratação estão pendentes.
-- **Comissão da plataforma:** O estado `platformDeliveryCommissionStatus` começa como `coming_soon`. Não há cálculo nem cobrança ativos. O futuro processo de 8% ficará separado do plano SaaS e do caixa do lojista e dependerá da rede própria e da inteligência operacional.
+- **Comissão da plataforma:** O estado `platformDeliveryCommissionStatus` fica em `coming_soon` enquanto a rede própria e a inteligência operacional não estiverem prontas. A trava do servidor também ignora valores `active` antigos salvos no Firestore. Não há cálculo nem cobrança ativos. O futuro processo de 8% ficará separado do plano SaaS e do caixa do lojista.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta auditoria, `npm run test:ci` passou com 94/94 testes; as suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. A execução usa mocks e não homologa Firebase real, PSP ou hardware.
+- Nesta auditoria, `npm run test:ci` passou com 96/96 testes; as suítes `src/server/commerce_war_tests.spec.ts` e `src/server/security_phase1.spec.ts` cobrem cenários de isolamento, idempotência, tenant inativo e autorização do HQ. A execução usa mocks e não homologa Firebase real, PSP ou hardware.
 
 ---
 

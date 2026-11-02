@@ -14,7 +14,7 @@ A coleção /devices pode conter cadastros legados com status e campos de teleme
 - POST /api/hq/devices/:id/restart registra uma solicitação em audit_logs e não reinicia o equipamento.
 - A tela de motoristas mostra campos armazenados. O HQ não consulta GPS em tempo real; localização e bateria são campos informados pelo app. Novos cadastros não recebem horário de GPS nem aprovação documental automática.
 
-Motoristas cadastrados pelas lojas são do tipo `private`. O lojista administra a operação e decide quanto pagar; o App do Entregador facilita o uso de rotas e a baixa das entregas, mas não processa pagamento. Novas lojas iniciam com entrega própria; valores legados de `deliveryFleetType` não ativam uma rede 3EAT. O tipo `platform` com `tenantId: marketplace` fica reservado para a futura frota da plataforma, cuja comissão está em breve. Gestores de loja não podem marcar seus motoristas como parte dessa rede.
+Motoristas cadastrados pelas lojas são do tipo `private`. O lojista administra a operação e decide quanto pagar; o App do Entregador facilita o uso de rotas e a baixa das entregas, mas não processa pagamento. Novas lojas iniciam com entrega própria; valores legados de `deliveryFleetType` não ativam uma rede 3EAT. O tipo `platform` com `tenantId: marketplace` fica reservado para a futura frota da plataforma. Enquanto a rede estiver em breve, a API rejeita cadastros e rotas da frota `marketplace`, conversão e atribuição de motoristas da plataforma e transições de rotas legadas dessa frota. Gestores de loja não podem marcar seus motoristas como parte dessa rede.
 
 ## Limites
 

@@ -1,7 +1,7 @@
 import { defineConfig } from 'drizzle-kit';
 import * as dotenv from 'dotenv';
 
-// Load environment variables from .env file
+// Load local environment variables for Drizzle CLI operations only.
 dotenv.config();
 
 const sqlHost = process.env['SQL_HOST'];
@@ -30,8 +30,8 @@ export default defineConfig({
   schemaFilter: ['public'],
   dbCredentials: {
     host: sqlHost,
-    user: user,
-    password: password,
+    user,
+    password,
     database: sqlDbName,
     ssl: false,
   },

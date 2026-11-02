@@ -2,7 +2,7 @@
 
 ## 📌 1. Visão Geral do Modelo de Persistência
 
-O ecossistema 3EATCRU utiliza o **Cloud Firestore** em modo Enterprise como fonte oficial e única da verdade (Single Source of Truth). Para garantir performance de leitura, segurança multiempresa e escalabilidade para milhares de unidades, a arquitetura emprega **desnormalização calculada**, evitando cruzamento de coleções pesadas e indexando o `tenantId` como chave de particionamento lógico.
+Os fluxos de negócio atualmente conectados neste checkout utilizam o **Cloud Firestore** como persistência ativa. O código PostgreSQL/Drizzle em `src/db/` é um scaffold isolado, não importado pelas rotas ou serviços da aplicação, portanto não constitui uma segunda fonte operacional da verdade. Este repositório não comprova conexão com Cloud SQL ou aplicação de migrações. Para os fluxos ativos, a arquitetura emprega desnormalização e escopo por `tenantId` conforme descrito abaixo.
 
 ```text
                                   MODELO DE COLEÇÕES FIRESTORE
@@ -67,7 +67,7 @@ O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calc
   - O Marketplace consulta lojas públicas onde `status === 'active'`.
 
 ### Perspectiva 4: Como foi validado (Comprovação Empírica)
-- Nesta revisão, `npm run test:ci` passou com 94/94 testes, incluindo `src/server/api.spec.ts` e `src/server/security_phase1.spec.ts`. Os mocks não substituem validação das regras no emulador ou no Firestore real.
+- Nesta revisão, `npm run test:ci` passou com 96/96 testes, incluindo `src/server/api.spec.ts` e `src/server/security_phase1.spec.ts`. Os mocks não substituem validação das regras no emulador ou no Firestore real.
 
 ---
 

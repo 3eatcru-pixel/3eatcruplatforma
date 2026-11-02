@@ -1,6 +1,6 @@
 # Auditoria de mapeamento — HQ e Store OS
 
-Atualizado em 2026-11-01 por leitura estática e validação local. `npm run lint` passou, `npm run test:ci` passou com 94/94 testes e o build de produção passou; os resultados usam mocks e não declaram homologação. O mapa detalhado está em MODULE_STATUS.md e docs/OS/03_APLICATIVOS_E_MODULOS.md.
+Atualizado em 2026-11-01 por leitura estática e validação local. `npm run lint` passou, `npm run test:ci` passou com 96/96 testes e o build de produção passou; os resultados usam mocks e não declaram homologação. O mapa detalhado está em MODULE_STATUS.md e docs/OS/03_APLICATIVOS_E_MODULOS.md.
 
 ## HQ Central
 

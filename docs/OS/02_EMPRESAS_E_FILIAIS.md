@@ -54,7 +54,7 @@ No Store OS, uma sessão operacional pertence a **UMA unidade física específic
 
 ### Perspectiva 4: Validação
 
-A suíte geral passou com 94/94 testes, mas usa mocks. Não houve homologação real de troca de unidade e isolamento entre filiais com dados do Firestore.
+A suíte geral passou com 96/96 testes, mas usa mocks. Não houve homologação real de troca de unidade e isolamento entre filiais com dados do Firestore.
 
 ---
 

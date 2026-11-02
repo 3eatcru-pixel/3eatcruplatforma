@@ -12,7 +12,7 @@ Motoristas cadastrados pela loja ficam sob responsabilidade do lojista: a loja d
 
 A comissão de 8% será aplicável somente ao processo futuro de entregas executadas pela rede própria de entregadores da plataforma. O HQ deve mantê-la no estado `coming_soon` até a implantação dessa rede e da inteligência operacional. O recurso fica separado das vendas, do caixa e dos pagamentos de motoristas do Store OS.
 
-Esse estado é persistido em `hq_settings/global.platformDeliveryCommissionStatus` e o padrão do servidor é `coming_soon`. Enquanto estiver nesse estado:
+Esse estado é persistido em `hq_settings/global.platformDeliveryCommissionStatus` e o padrão do servidor é `coming_soon`. Uma trava de prontidão no backend força esse estado até a rede e a inteligência operacional existirem; um valor `active` legado salvo no Firestore é ignorado. Enquanto estiver nesse estado:
 
 - a configuração do HQ usa `POST /api/hq/system/platform-delivery-commission` para salvar `coming_soon`; a API rejeita a ativação antecipada;
 - `GET /api/hq/overview` continua retornando os agregados gerais de pedidos, mas retorna `null` para valores de comissão e métricas da rede;

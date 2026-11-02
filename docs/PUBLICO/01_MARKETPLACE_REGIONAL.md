@@ -4,4 +4,4 @@ O marketplace regional é uma interface web em /home. A rota /marketplace redire
 
 O cliente pode solicitar geolocalização do navegador para estimar distâncias. A interface mobile responsiva não comprova PWA instalável nem app nativo. A configuração regional e os dados públicos das lojas dependem das rotas /api/hq/regional e /api/tenants/public.
 
-O build de produção e a suíte geral passaram nesta revisão (94/94 testes). Não houve teste ponta a ponta nem homologação específica do fluxo regional com dados reais.
+O build de produção e a suíte geral passaram nesta revisão (96/96 testes). Não houve teste ponta a ponta nem homologação específica do fluxo regional com dados reais.

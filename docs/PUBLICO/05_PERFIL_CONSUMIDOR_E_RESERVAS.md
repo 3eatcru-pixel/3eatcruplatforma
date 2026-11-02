@@ -14,4 +14,4 @@ O servidor expõe rotas públicas e autenticadas em /api/reservations. O roteado
 
 ## Estado da validação
 
-O build de produção passou e a suíte geral passou com 94/94 testes. Não houve teste ponta a ponta específico de perfil e reservas nem homologação com Firebase real.
+O build de produção passou e a suíte geral passou com 96/96 testes. Não houve teste ponta a ponta específico de perfil e reservas nem homologação com Firebase real.

@@ -19,6 +19,8 @@ Este arquivo preserva o **histórico de evolução técnica e correções de bug
 - **Problema**: A confirmação de transações pendentes (`POST /api/payments/:id/confirm`) atualizava o registro de pagamento e o pedido em chamadas separadas.
 - **Solução**: Agrupada a atualização em uma transação atômica do Firestore (`adminDb.runTransaction`), impedindo estados inconsistentes onde o pagamento ficava aprovado mas o pedido permanecia pendente.
 
+Na revisão atual, a confirmação também valida dentro da transação que o pagamento e o pedido seguem pendentes, o pedido existe, pertence ao mesmo tenant, não foi cancelado, pago ou estornado, conserva o valor e está vinculado exatamente à tentativa confirmada.
+
 ### 3. Redirecionamento da Rota de Marketplace
 - **Problema**: Documentos antigos apontavam para `/marketplace` como rota primária.
 - **Solução**: Estabelecido `/home` como a rota oficial do Marketplace Regional, mantendo o redirecionamento automático de `/marketplace` para `/home`.

@@ -1,6 +1,6 @@
 # Segurança, testes e maturidade — estado verificado
 
-Atualizado em 2026-11-01 por leitura estática e validação local. Nesta revisão, lint passou, a suíte passou com 94/94 testes e o build de produção passou. Os testes usam mocks; implantação e homologação real continuam pendentes.
+Atualizado em 2026-11-01 por leitura estática e validação local. Nesta revisão, lint passou, a suíte passou com 96/96 testes e o build de produção passou. Os testes usam mocks; implantação e homologação real continuam pendentes.
 
 ## Controles encontrados
 
@@ -18,7 +18,7 @@ As regras Firestore impedem gravação direta do cliente em audit_logs. O backen
 
 ## Inventário de testes
 
-Existem arquivos de teste em src/app e src/server. Nesta revisão, `npm run test:ci` passou com 94/94 testes; essa contagem não comprova cobertura de todas as rotas nem integração real com Firebase, PSP ou hardware.
+Existem arquivos de teste em src/app e src/server. Nesta revisão, `npm run test:ci` passou com 96/96 testes; essa contagem não comprova cobertura de todas as rotas nem integração real com Firebase, PSP ou hardware.
 
 Comandos disponíveis no package.json:
 

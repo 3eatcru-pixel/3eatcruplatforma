@@ -2,7 +2,7 @@
 
 Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS / Omnichannel**. Caminhos e capacidades descritos aqui devem existir no repositório; presença de serviço/API não significa que exista uma tela integrada ao Store OS.
 
-**ESTADO DA AUDITORIA (2026-11-01)**: após as correções, lint e build de produção passaram e a suíte CI passou com 94/94 testes (10 arquivos). O bundle inicial mede 604,53 kB brutos (129,08 kB estimados em transferência), sem aviso de limite. O entrypoint canônico de produção para o Cloud Run `/server/server.mjs` foi configurado e testado em execução real com porta dinâmica (`0.0.0.0:${PORT}`), com `package-lock.json` 100% sincronizado com `npm ci` aprovado sem discrepâncias. Dev server ativo e respondendo na porta 3000 e proxy 8080.
+**VALIDAÇÃO LOCAL (2026-11-01)**: `npm run lint` passou; `npm run test:ci` passou com 96/96 testes (10 arquivos); `npm run build` passou com bundle inicial de 604,53 kB brutos (129,08 kB estimados em transferência) e avisos CommonJS de Leaflet/gRPC. `npm ci --dry-run` passou. Em cópia limpa sem `node_modules`, `npm ci --include=dev --no-audit --no-fund` instalou 933 pacotes e o build de produção passou. `node server/server.mjs` em `PORT=3102` respondeu HTTP 200 em `/api/health`, no ambiente `development`. Isso valida apenas este checkout; não comprova execução no Cloud Run, persistência do wrapper externo `/app/package.json`, conexão com Cloud SQL ou homologação externa.
 
 ## Legenda Oficial de Classificação
 
@@ -13,6 +13,7 @@ Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS 
 | 🔵 **MOCK** | Demonstração | Opera com estado reativo local (Signals) ou dados simulados para demonstração comercial de UX sem persistência dedicada no backend. |
 | ⚪ **PLACEHOLDER** | Interface ausente ou não integrada | A janela do Store OS não existe/está conectada. O domínio pode ter serviços e endpoints próprios; avaliar esses itens separadamente. |
 | 🔴 **DISABLED** | Não usar em produção | Recursos legados desativados ou substituídos. |
+| 🧪 **EXPERIMENTAL / ISOLADO** | Código presente sem integração ao fluxo ativo | Não considerar persistência de produção enquanto rotas/serviços e validação operacional não o consumirem. |
 
 ---
 
@@ -30,16 +31,16 @@ Este documento é o mapa de estado do código da plataforma **3EATCRU ERP & POS 
 | **Reservations Router** (`routes/reservations.router.ts`) | 🟢 **REAL** | Reservas de mesa e fila de espera (`/api/reservations` + `/api/reservations/public`) com isolamento multi-tenant, RBAC por papel e transação ACID sincronizando ocupação/liberação de mesas (`/tables/{tableId}`). |
 | **Financials Router** (`routes/financials.router.ts`) | 🟢 **REAL** | Livro-razão por empresa (`income` / suprimento, `expense` / sangria, bloqueio de `sale` manual e estornos automáticos pelo `CommerceEngine`). |
 | **Universal Payment Proxy** (`routes/payments.router.ts`) | 🟡 **BETA** | Registra transações em `/payment_transactions`. PIX live pode ir direto à chave da loja, cadastrada em Minha Loja, mas a confirmação é manual. Dinheiro/voucher ficam sob gestão da loja. Cartão real é bloqueado enquanto não houver adquirente conectada ao tenant; a chave Stripe global não é usada para cobrar pedidos das lojas. Repetir a mesma tentativa pendente reutiliza a transação; trocar o meio fica bloqueado. Não há expiração/cancelamento automático, idempotência no PSP ou conciliação. |
-| **Logistics Router** (`routes/logistics.router.ts`) | 🟢 **REAL** | Rotas e entregadores (`/routes*`, `/drivers*`) desacoplados do `/api/hq`, aceite transacional com validação estrita de empresa/frota (`403 TENANT_MISMATCH`), vínculo `driverId` propagado aos pedidos e listagem restrita a pedidos atribuídos (`driverId === uid`). |
+| **Logistics Router** (`routes/logistics.router.ts`) | 🟢 **REAL** | Rotas e motoristas privados da loja (`/routes*`, `/drivers*`) com aceite transacional e isolamento por tenant. Cadastro/conversão de motoristas `platform`, criação/atribuição e transições operacionais de rotas `marketplace` ficam bloqueados até a rede estar pronta; remuneração dos motoristas próprios não é processada pelo sistema. |
 | **CRM Router** (`routes/crm.router.ts`) | 🟡 **BETA** | Diretório consumidor restrito ao HQ; campanhas são escopadas por loja e só permitem rascunhos. Pontos e envio externo retornam configuração pendente, sem alterar saldos ou alegar envio. |
 | **HR Router** (`routes/hr.router.ts`) | 🟡 **BETA** | Cadastro básico e ponto manual restritos a proprietário/operador da unidade; CPF, salário e folha não são coletados. |
 | **Service Orders Router** (`routes/service-orders.router.ts`) | 🟡 **BETA** | Criação/listagem e transições operacionais de O.S. por unidade; não registra valores recebidos nem liquidação. |
 | **Suppliers Router** (`routes/suppliers.router.ts`) | 🟡 **BETA** | Diretório persistente de fornecedores por unidade; produtos só podem referenciar fornecedor da mesma unidade. Compras/recebimento não fazem parte do fluxo. |
 | **Stock Audits Router** (`routes/stock-audits.router.ts`) | 🟡 **BETA** | Registro transacional de contagens e divergências, validando que todos os produtos pertencem ao tenant; não altera saldo de estoque. |
 | **Tasks Router** (`routes/tasks.router.ts`) | 🟡 **BETA** | Checklist persistido por unidade, com transição de conclusão protegida; atribuições individuais ainda não existem. |
-| **HQ Governance Router** (`routes/hq.router.ts`) | 🟡 **BETA** | Exclusivo `hq_admin` (exceto `GET /regional` público): visão global SaaS, planos, comissão (`{ percent }`), MDM de terminais, auditoria estrutural e separação `hq_settings` (privado) vs `public_regional` (público). |
+| **HQ Governance Router** (`routes/hq.router.ts`) | 🟡 **BETA** | Exclusivo `hq_admin` (exceto `GET /regional` público): visão global SaaS, planos, MDM de terminais e auditoria estrutural. A comissão de 8% permanece travada em `coming_soon`, inclusive se houver valor legado `active` em `hq_settings`. |
 | **Camada Neutra Compartilhada** (`src/shared/`) | 🟢 **REAL** | Contratos tipados (`models/ecosystem.model.ts`) e motor puro de fila offline (`offline/offline-outbox.engine.ts`) compartilhados com **zero imports `src/app/` em `src/server/`**. |
-| **Cloud SQL Relational Database** (`src/db/`) | 🟢 **REAL** | Instância PostgreSQL provisionada (`ai-studio-5b3b92e9` em `us-west1`), Drizzle ORM com connection pool lazy via Object Method (`pg.Pool`), `src/db/schema.ts` sincronizado via `UpdateSchema` com 5 tabelas verificadas (`users`, `tenants`, `products`, `orders`, `audit_logs`), Drizzle Kit para migrações e helpers em `users.ts` com isolamento de erros. |
+| **PostgreSQL / Drizzle scaffold** (`src/db/`) | 🧪 **EXPERIMENTAL / ISOLADO** | Código define `pg.Pool`, esquema e helpers de usuário, mas nenhuma rota ou serviço do app importa `src/db/`; os fluxos de negócio ativos continuam usando Firestore. Este checkout não comprova conexão, migração, schema físico ou instância Cloud SQL disponível. |
 | **Arquivos Locais `.data/*.json`** | 🔴 **DISABLED** | Removidos definitivamente para eliminar duplicidade de fonte da verdade. |
 
 ---

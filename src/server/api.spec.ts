@@ -10,6 +10,12 @@ import {
   toPublicProduct,
   toPublicStorefront
 } from './middleware/auth.middleware';
+import {
+  isPlatformDeliveryTenantUnavailable,
+  PLATFORM_DELIVERY_NETWORK_READY,
+  resolvePlatformDeliveryCommissionStatus
+} from './utils/platform-delivery-readiness';
+import { getPaymentConfirmationRejection } from './utils/payment-confirmation';
 import { CompanyTenant, ProductItem } from '../shared/models/ecosystem.model';
 
 describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
@@ -40,6 +46,36 @@ describe('3eatcru Platform & Commerce Core — Unit Invariants', () => {
   it('locks cancelled state and restricts completed transitions to cancellation refund', () => {
     expect(ALLOWED_ORDER_TRANSITIONS.completed).toEqual(['cancelled']);
     expect(ALLOWED_ORDER_TRANSITIONS.cancelled).toEqual([]);
+  });
+
+  it('keeps platform delivery commission coming soon even if Firestore has a stale active value', () => {
+    expect(PLATFORM_DELIVERY_NETWORK_READY).toBe(false);
+    expect(isPlatformDeliveryTenantUnavailable('marketplace')).toBe(true);
+    expect(isPlatformDeliveryTenantUnavailable('store-1')).toBe(false);
+    expect(resolvePlatformDeliveryCommissionStatus('active')).toBe('coming_soon');
+    expect(resolvePlatformDeliveryCommissionStatus('coming_soon')).toBe('coming_soon');
+    expect(resolvePlatformDeliveryCommissionStatus(undefined)).toBe('coming_soon');
+  });
+
+  it('only confirms a pending payment when its linked order still matches', () => {
+    const payment = { id: 'tx-1', tenantId: 'shop-1', orderId: 'order-1', amount: 27.5, status: 'pending_pix' } as const;
+    const order = {
+      tenantId: 'shop-1',
+      total: 27.5,
+      status: 'pending',
+      paymentStatus: 'pending_pix',
+      paymentTransactionId: 'tx-1'
+    } as const;
+
+    expect(getPaymentConfirmationRejection(payment, order)).toBeUndefined();
+    expect(getPaymentConfirmationRejection(payment, undefined)?.code).toBe('ORDER_NOT_FOUND');
+    expect(getPaymentConfirmationRejection(payment, { ...order, status: 'cancelled' })?.code).toBe('ORDER_CANCELLED');
+    expect(getPaymentConfirmationRejection(payment, { ...order, tenantId: 'other-shop' })?.code).toBe('TENANT_MISMATCH');
+    expect(getPaymentConfirmationRejection(payment, { ...order, total: 28 })?.code).toBe('PAYMENT_AMOUNT_MISMATCH');
+    expect(getPaymentConfirmationRejection(payment, { ...order, paymentStatus: 'refunded' })?.code).toBe('ORDER_PAYMENT_REFUNDED');
+    expect(getPaymentConfirmationRejection(payment, { ...order, paymentTransactionId: 'tx-old' })?.code).toBe('PAYMENT_ATTEMPT_MISMATCH');
+    expect(getPaymentConfirmationRejection(payment, { ...order, paymentTransactionId: undefined })?.code).toBe('PAYMENT_ATTEMPT_MISMATCH');
+    expect(getPaymentConfirmationRejection({ ...payment, status: 'approved' }, order)?.code).toBe('PAYMENT_NOT_PENDING');
   });
 
   it('sanitizes private ERP fields in toPublicProduct and toPublicStorefront', () => {

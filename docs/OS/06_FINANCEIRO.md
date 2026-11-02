@@ -20,4 +20,4 @@ No modo de simulação, FinancialsService mantém os lançamentos localmente e o
 
 ## Validação
 
-O build de produção e a suíte geral passaram nesta revisão (94/94 testes). Isso não homologa o eApp com dados reais; não houve conciliação com adquirentes nem homologação contábil.
+O build de produção e a suíte geral passaram nesta revisão (96/96 testes). Isso não homologa o eApp com dados reais; não houve conciliação com adquirentes nem homologação contábil.

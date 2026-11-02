@@ -7,7 +7,7 @@ Atualizado em 2026-11-01 por leitura do cliente, API e roteador de pagamentos. E
 O checkout da vitrine cria o pedido e chama POST /api/payments/process para PIX ou dinheiro. O servidor verifica pedido, tenant, valor e autorização antes de criar a transação em payment_transactions. Repetições do mesmo meio reutilizam a tentativa pendente.
 
 - **PIX:** o lojista cadastra sua chave na tela Minha Loja; o checkout público só oferece PIX quando a chave está cadastrada. O servidor monta um BR Code para essa chave e registra a transação como pending_pix. O valor é destinado à conta da loja. A confirmação é manual e não verifica recebimento no banco ou PSP. Checkout real sem chave retorna `TENANT_PIX_KEY_NOT_CONFIGURED`; sandbox do PDV pode mostrar um endereço não roteável.
-- **Confirmação:** POST /api/payments/:id/confirm permite confirmação autenticada por hq_admin, tenant_owner ou operator do mesmo tenant. A rota não consulta um provedor para verificar o recebimento do PIX.
+- **Confirmação:** POST /api/payments/:id/confirm permite confirmação autenticada por hq_admin, tenant_owner ou operator do mesmo tenant. A rota não consulta um provedor para verificar o recebimento do PIX; antes de confirmar, confere atomicamente que o pedido existe, está pendente (sem pagamento aprovado/estornado), pertence ao mesmo tenant, mantém o mesmo valor e segue vinculado à tentativa.
 - **Webhooks:** não foi localizado endpoint de webhook de adquirente em src/server/api.ts ou em src/server/routes/payments.router.ts.
 - **Cartão:** transação real está bloqueada com `TENANT_CARD_ACCOUNT_NOT_CONFIGURED` quando há apenas uma chave global Stripe. O valor não deve ser cobrado na conta central do HQ. Cartão Mercado Pago continua não implementado; em sandbox, há somente simulação.
 - **Dinheiro:** o checkout público registra pagamento pendente para recebimento na entrega/retirada; operador da loja registra a confirmação presencial. Vouchers permanecem restritos ao fluxo operacional disponível.
@@ -24,4 +24,4 @@ Antes de produção, validar as chaves Pix das lojas, automatizar confirmação 
 
 ## Validação
 
-Nesta revisão, o build de produção passou e `npm run test:ci` passou com 94/94 testes. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks ou conciliação financeira real.
+Nesta revisão, o build de produção passou e `npm run test:ci` passou com 96/96 testes. Os testes usam mocks e não homologam recebimento PIX, adquirentes, webhooks ou conciliação financeira real.

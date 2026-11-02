@@ -24,7 +24,7 @@ O campo legado `serviceFeePercent` não é aplicado. No checkout, a cobrança de
 
 ## Motor de assinatura do HQ
 
-O painel `Pagamentos SaaS` no HQ lista lojas, plano, provedor e status da assinatura, permite gerar/abrir o checkout hospedado e cancelar a assinatura no provedor. O preço vem do plano autorizado no servidor e o e-mail vem do cadastro do tenant. Um checkout pendente é reutilizado para impedir cobranças recorrentes duplicadas. O backend mantém `platform_subscriptions`, `platform_billing_invoices` e `billing_webhook_events`; os identificadores externos e estados são persistidos sem guardar cartão ou credenciais do provedor.
+O painel `Pagamentos SaaS` no HQ lista lojas, plano, provedor e status da assinatura, permite gerar/abrir o checkout hospedado, cancelar a assinatura no provedor e consultar faturas com estado localizado. O preço vem do plano autorizado no servidor e o e-mail vem do cadastro do tenant. Um checkout pendente é reutilizado para impedir cobranças recorrentes duplicadas. O backend mantém `platform_subscriptions`, `platform_billing_invoices` e `billing_webhook_events`; os identificadores externos e estados são persistidos sem guardar cartão ou credenciais do provedor. A interface mostra faturas reconciliadas, não expõe os registros técnicos de eventos de webhook.
 
 Mercado Pago e Stripe usam credenciais apenas no servidor. O checkout requer API key e segredo de webhook configurados. O Stripe valida a assinatura com o corpo HTTP bruto; Mercado Pago valida o HMAC do `x-signature` e consulta o recurso no provedor antes de registrar a cobrança. No Mercado Pago, configure os tópicos `subscription_preapproval` e `subscription_authorized_payment`; este último busca a fatura em `/authorized_payments/{id}`. O tópico `payment` também é aceito como compatibilidade. Sem webhook assinado, o HQ não marca o pagamento como confirmado. O cancelamento só altera o estado local depois de o provedor confirmar.
 
@@ -44,7 +44,7 @@ O Store OS mantém o lançamento integral da venda do tenant em `/financials`. N
 |---|---|
 | Acesso ao Store OS pelos planos | Acesso completo em todos os planos; a cota de dispositivos diferencia cada plano |
 | Cobrança recorrente da assinatura SaaS | Checkout Stripe/Mercado Pago e registro de status/faturas implementados; credenciais e homologação live pendentes |
-| Painel HQ de assinaturas | Lista status, gera links de checkout, cancela no provedor e consulta faturas recebidas por webhook |
+| Painel HQ de assinaturas | Lista status, gera links de checkout, cancela no provedor e consulta faturas reconciliadas por webhook; eventos técnicos não são exibidos |
 | Cota de dispositivos por plano | Aplicada no cadastro de novos tenants e no registro de dispositivos |
 | Uso da rede de entregadores da plataforma | Em breve; quando ativada, comissão de 8% por entrega elegível, separada da assinatura SaaS |
 | Cadastro e operação de motoristas próprios da loja | Fluxo logístico disponível; remuneração decidida e paga pela loja |

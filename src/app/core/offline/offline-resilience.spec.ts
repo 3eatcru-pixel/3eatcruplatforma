@@ -102,7 +102,6 @@ describe('Offline Store & Multi-Layer Resilience', () => {
     // Simulate network drop for local POS contingency
     // loginAs creates a simulation session; exercise the real-mode offline queue explicitly.
     ecosystem.security.executionMode.set('real');
-    ecosystem.security.isSimulated.set(false);
     ecosystem.offlineSync.isOnline.set(false);
 
     const prod = ecosystem.products()[0]!;

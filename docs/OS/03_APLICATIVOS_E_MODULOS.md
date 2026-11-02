@@ -19,7 +19,7 @@ O registro contém 33 IDs. O desktop possui 21 eApps operacionais integrados e t
 |---|---|---|
 | pos | 🟡 Rota standalone | /pos carrega src/app/components/pos-terminal.ts; a janela do desktop encaminha para essa rota. Subcomponentes em src/app/components/eapps/pos/. |
 | waiter-sim, driver-sim, consumer-sim | 🔵 Simuladores | Molduras de demonstração em src/app/components/eapps/eapp-*-sim.ts, reutilizando as telas de garçom, entregador e marketplace. |
-| store-manager | 🟡 eApp integrado | Minha Loja abre pelo desktop e permite editar a vitrine, taxa, pedido mínimo e chave PIX da conta da loja. O servidor limita a chave a 77 caracteres, mas não verifica formato ou titularidade. |
+| store-manager | 🟡 eApp integrado | Minha Loja abre pelo desktop e permite editar os dados da vitrine individual da unidade, taxa, pedido mínimo e chave PIX da conta da loja. O marketplace público geral (banner, praça, raio e curadoria) é gerenciado pelo HQ. O servidor limita a chave a 77 caracteres, mas não verifica formato ou titularidade. |
 | tables | 🟡 eApp integrado — operação de salão | Consulta e atualiza mesas da unidade, permite abrir/liberar mesa e cadastrar mesas para proprietário/operador. O servidor valida tenant, status, capacidade e impede liberação com saldo aberto; reservas controlam os estados `reserved`. |
 | agenda | 🟡 eApp integrado — reservas | Lista por data, registra reserva manual, confirma, acomoda, cancela e marca não comparecimento via `AppointmentsService`; atribuição e ocupação de mesa são transacionais no servidor. Não liquida comandas nem libera uma mesa ocupada ao encerrar reserva. |
 | kds | 🟡 eApp integrado — escopo operacional | Carrega pedidos da unidade; proprietário/operador pode avançar `pending` → `preparing` → `ready`; garçom tem consulta sem alteração. Cancelamento e conclusão financeira continuam em fluxos autorizados separados. |
@@ -68,13 +68,15 @@ Os arquivos abaixo ainda são protótipos ou dependem de configuração externa;
 | Financeiro | FinancialsService, financials.router.ts | eApp de consulta somente leitura integrado; não é DRE nem conciliação. Operações de caixa continuam iniciadas no PDV. |
 | Relatórios e CRM | OrdersService, orders.router.ts, CrmService | eApps integrados em resumo de vendas/clientes dos 200 pedidos mais recentes; sem pontos, campanhas ou exportação. O backend de campanhas só salva rascunhos e não envia mensagens externas. |
 | Mesas e reservas | TablesService, AppointmentsService, tables.router.ts, reservations.router.ts | eApps `tables` e `agenda` integrados; status e permissões são validados pelo servidor, com conflito de horário e capacidade de mesa verificados para reservas. O App Garçom continua em rota separada. No modo simulado, mesas, reservas e pedidos ficam em memória local. |
-| Logística | LogisticsService, logistics.router.ts | eApp Hub Logística integrado para frota privada, criação de rota manual, atribuição e mapa com posições recentes compartilhadas pelo entregador autenticado durante rota em andamento. O App Entregador permanece em rota separada; não há geocodificação, cálculo de rota ou histórico GPS. O valor de rota não é pagamento. |
+| Logística | LogisticsService, logistics.router.ts | eApp Hub Logística integrado para frota privada, vínculo de conta por e-mail verificado, criação e atribuição de rotas e mapa com posições recentes compartilhadas pelo entregador autenticado durante rota em andamento. O App Entregador permanece em rota separada; não há geocodificação, cálculo de rota ou histórico GPS. O valor de rota não é pagamento. |
 | Equipe, tarefas e ordens de serviço | HrService, TasksService, ServiceOrdersService e routers dedicados | Cadastro básico de equipe/ponto, tarefas simples e fluxo operacional de O.S.; sem folha, atribuição de responsáveis, cobrança ou pagamento. |
 | Notas e calendário | NotesService, AppointmentsService e routers dedicados | Notas privadas de operador e calendário somente leitura de reservas; o eApp `agenda` mantém as operações de reserva. |
 
 ## Limite do modo simulado
 
 O modo simulado mantém pedidos, lançamentos financeiros, reservas, mesas, motoristas, rotas e produtos no estado local da sessão; a conferência de estoque pode ser calculada localmente e não é persistida. Notas, RH, fornecedores, tarefas e O.S. não enviam chamadas de leitura ou escrita real durante a simulação. Mesas e rotas recebem fixtures de demonstração para os apps do Garçom e do Entregador; esses dados são marcados como simulados e descartados ao alternar o modo de execução ou o tenant ativo. A fila offline de pedidos não recebe operações simuladas. Isso não representa persistência, sincronização com o servidor ou homologação dos módulos.
+
+A simulação cobre apenas os fluxos com tratamento local explícito. Ela não emula hardware, não executa teste de carga e não substitui a homologação de pagamento, autenticação ou integrações externas. No modo real, cada recurso depende de seu endpoint, credenciais e configuração próprios.
 
 ## Critérios para atualizar este mapa
 

@@ -202,9 +202,10 @@ type SortOption = 'distance' | 'name' | 'fee';
               <!-- SLIDER RAIO MÁXIMO -->
               <div class="space-y-2 pt-3 border-t border-[#e8dfce]">
                 <div class="flex justify-between items-center text-xs font-bold text-stone-800">
-                  <span>Raio Máximo:</span>
+                  <span>Raio da busca:</span>
                   <span class="text-amber-800 font-extrabold font-mono">{{ ecosystem.maxDiscoveryRadiusKm() }} km</span>
                 </div>
+                <p class="text-[10px] text-stone-500">O HQ define o valor inicial. Após ativar o GPS, você pode ajustar o raio desta busca.</p>
                 <input
                   type="range"
                   [disabled]="!ecosystem.marketplaceService.isRealLocationActive()"

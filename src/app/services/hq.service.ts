@@ -19,10 +19,12 @@ export interface HqTenantMetricsResponse {
 export class HqService {
   private readonly http = inject(HttpClient);
   private readonly security = inject(SecurityService);
+  private dataGeneration = 0;
 
   readonly isSimulation = computed(() => this.security.isSimulated());
   
   readonly devices = signal<POSDevice[]>([]);
+  readonly devicesStatus = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   readonly auditLogs = signal<AuditLog[]>([]);
   readonly maintenanceMode = signal<boolean>(false);
   readonly globalBroadcastMessage = signal<string | null>(null);
@@ -39,13 +41,36 @@ export class HqService {
   readonly totalActiveTenants = signal<number | null>(null);
   readonly uptimePercent = signal<number | null>(null);
 
+  resetForExecutionMode(simulation: boolean) {
+    this.dataGeneration += 1;
+    this.devices.set([]);
+    this.devicesStatus.set(simulation ? 'loaded' : 'idle');
+    this.auditLogs.set([]);
+    this.overview.set(null);
+    this.maintenanceMode.set(false);
+    this.globalBroadcastMessage.set(null);
+    this.hqCommissionRate.set(0.08);
+    this.hqEstimatedCommissionRevenue.set(null);
+    this.hqPublicSalesTotal.set(null);
+    this.totalActiveTenants.set(null);
+    this.activeSessionsCount.set(null);
+    this.avgLatencyMs.set(null);
+    this.uptimePercent.set(null);
+    this.licensePlans.set(DEFAULT_SAAS_PLANS.map((plan) => ({ ...plan, includedModules: [...plan.includedModules] })));
+    this.licensePlansStatus.set(simulation ? 'loaded' : 'idle');
+    this.licensePlansSource.set(simulation ? 'demo' : 'unknown');
+  }
+
   async getOverview(): Promise<HqOverviewResponse | null> {
     if (this.isSimulation()) {
       this.overview.set(null);
       return null;
     }
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
     try {
       const data = await firstValueFrom(this.http.get<HqOverviewResponse>('/api/hq/overview'));
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return null;
       this.overview.set(data);
       this.maintenanceMode.set(data.maintenanceMode);
       this.globalBroadcastMessage.set(data.globalBroadcastMessage);
@@ -57,6 +82,7 @@ export class HqService {
       this.totalActiveTenants.set(data.activeTenantsCount);
       return data;
     } catch {
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return null;
       this.overview.set(null);
       this.hqEstimatedCommissionRevenue.set(null);
       this.hqPublicSalesTotal.set(null);
@@ -82,12 +108,15 @@ export class HqService {
       return;
     }
 
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
     await firstValueFrom(
       this.http.patch(`/api/hq/plans/${planId}`, {
         priceMonthly: price,
         ...(maxDevices !== undefined ? { maxDevices } : {})
       })
     );
+    if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return;
     this.licensePlans.update(cur => cur.map(p => p.id === planId ? { 
       ...p, 
       priceMonthly: price, 
@@ -102,9 +131,12 @@ export class HqService {
       this.licensePlansSource.set('demo');
       return;
     }
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
     this.licensePlansStatus.set('loading');
     try {
       const response = await firstValueFrom(this.http.get<LicensePlan[]>('/api/hq/plans', { observe: 'response' }));
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return;
       const plans = response.body;
       if (!Array.isArray(plans)) throw new Error('Invalid plan catalog response.');
       this.licensePlans.set(plans);
@@ -112,6 +144,7 @@ export class HqService {
       this.licensePlansSource.set(source === 'defaults' || source === 'mixed' ? source : 'firestore');
       this.licensePlansStatus.set('loaded');
     } catch {
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return;
       this.licensePlansSource.set('unknown');
       this.licensePlansStatus.set('error');
     }
@@ -122,7 +155,10 @@ export class HqService {
       this.maintenanceMode.set(enabled);
       return;
     }
+    const modeRevision = this.security.executionModeRevision();
+    const generation = this.dataGeneration;
     await firstValueFrom(this.http.post('/api/hq/system/maintenance', { enabled }));
+    if (modeRevision !== this.security.executionModeRevision() || generation !== this.dataGeneration) return;
     this.maintenanceMode.set(enabled);
   }
 
@@ -131,7 +167,10 @@ export class HqService {
       this.globalBroadcastMessage.set(message.trim().slice(0, 500) || null);
       return;
     }
+    const modeRevision = this.security.executionModeRevision();
+    const generation = this.dataGeneration;
     const response = await firstValueFrom(this.http.post<{ globalBroadcastMessage: string | null }>('/api/hq/system/broadcast', { message }));
+    if (modeRevision !== this.security.executionModeRevision() || generation !== this.dataGeneration) return;
     this.globalBroadcastMessage.set(response.globalBroadcastMessage);
   }
 
@@ -140,17 +179,23 @@ export class HqService {
       this.hqCommissionRate.set(rate / 100);
       return;
     }
+    const modeRevision = this.security.executionModeRevision();
+    const generation = this.dataGeneration;
     await firstValueFrom(this.http.post('/api/hq/system/commission', { percent: rate }));
+    if (modeRevision !== this.security.executionModeRevision() || generation !== this.dataGeneration) return;
     this.hqCommissionRate.set(rate / 100);
   }
 
   async keepPlatformCommissionComingSoon(): Promise<void> {
+    const modeRevision = this.security.executionModeRevision();
+    const generation = this.dataGeneration;
     if (!this.isSimulation()) {
       await firstValueFrom(this.http.post<{ platformDeliveryCommissionStatus: 'coming_soon' }>(
         '/api/hq/system/platform-delivery-commission',
         { status: 'coming_soon' }
       ));
     }
+    if (modeRevision !== this.security.executionModeRevision() || generation !== this.dataGeneration) return;
 
     this.overview.update((current) => current ? {
       ...current,
@@ -165,7 +210,10 @@ export class HqService {
 
   async fetchPublicStatus(): Promise<void> {
     if (this.isSimulation()) return;
+    const modeRevision = this.security.executionModeRevision();
+    const generation = this.dataGeneration;
     const data = await firstValueFrom(this.http.get<{ maintenanceMode: boolean; globalBroadcastMessage: string | null }>('/api/hq/public-status'));
+    if (modeRevision !== this.security.executionModeRevision() || generation !== this.dataGeneration) return;
     this.maintenanceMode.set(data.maintenanceMode);
     this.globalBroadcastMessage.set(data.globalBroadcastMessage);
   }
@@ -200,35 +248,61 @@ export class HqService {
       return simulatedDevice;
     }
 
+    const modeRevision = this.security.executionModeRevision();
+    const generation = this.dataGeneration;
     const data = await firstValueFrom(this.http.post<POSDevice>('/api/hq/devices', device));
+    if (modeRevision !== this.security.executionModeRevision() || generation !== this.dataGeneration) return data;
     this.devices.update(cur => [...cur, data]);
     return data;
   }
 
   async runAudit(): Promise<SystemAuditReport> {
     if (this.isSimulation()) throw new Error('A varredura estrutural requer acesso ao servidor e não está disponível no modo de simulação.');
-    return firstValueFrom(this.http.post<SystemAuditReport>('/api/hq/audit/run', {}));
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
+    const report = await firstValueFrom(this.http.post<SystemAuditReport>('/api/hq/audit/run', {}));
+    if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) {
+      throw new Error('O ambiente mudou durante a varredura. O resultado não foi aplicado à tela atual.');
+    }
+    return report;
   }
 
   async fetchDevices(tenantId?: string): Promise<POSDevice[]> {
-    if (this.isSimulation()) return this.devices();
+    if (this.isSimulation()) {
+      this.devicesStatus.set('loaded');
+      return this.devices();
+    }
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
+    this.devicesStatus.set('loading');
     try {
-      const url = tenantId ? `/api/hq/devices?tenantId=${tenantId}` : '/api/hq/devices';
+      const url = tenantId ? `/api/hq/devices?tenantId=${encodeURIComponent(tenantId)}` : '/api/hq/devices';
       const data = await firstValueFrom(this.http.get<POSDevice[]>(url));
-      if (data && Array.isArray(data)) this.devices.set(data);
-      return data || [];
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return this.devices();
+      if (!Array.isArray(data)) throw new Error('Invalid device inventory response.');
+      this.devices.set(data);
+      this.devicesStatus.set('loaded');
+      return data;
     } catch {
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return this.devices();
+      this.devicesStatus.set('error');
       return [];
     }
   }
 
   async fetchAuditLogs(): Promise<AuditLog[]> {
+    if (this.isSimulation()) return [];
+    const generation = this.dataGeneration;
+    const modeRevision = this.security.executionModeRevision();
     try {
       const data = await firstValueFrom(this.http.get<AuditLog[]>('/api/hq/audit'));
+      if (generation !== this.dataGeneration || modeRevision !== this.security.executionModeRevision()) return this.auditLogs();
       if (data && Array.isArray(data)) this.auditLogs.set(data);
       return data || [];
     } catch {
-      return [];
+      return generation === this.dataGeneration && modeRevision === this.security.executionModeRevision()
+        ? []
+        : this.auditLogs();
     }
   }
 

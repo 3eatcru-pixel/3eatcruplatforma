@@ -78,6 +78,31 @@ import { RegionalMarketplaceConfig } from '../../models/ecosystem.model';
         </div>
       </div>
 
+      <!-- MARKETPLACE DISCOVERY DEFAULT -->
+      <div class="bg-[#170b04] border border-[#3d200f] rounded-2xl p-4 space-y-3 shadow-lg">
+        <div class="flex items-center gap-2 text-amber-400 font-serif font-black text-sm pb-2 border-b border-[#3d200f]">
+          <mat-icon class="text-base">near_me</mat-icon>
+          <span>Descoberta do Marketplace</span>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <label for="hqDefaultSearchRadius" class="text-xs text-stone-300 font-semibold">Raio inicial de busca</label>
+            <span class="text-xs text-amber-300 font-mono font-black">{{ form().defaultSearchRadiusKm }} km</span>
+          </div>
+          <input
+            id="hqDefaultSearchRadius"
+            type="range"
+            min="1"
+            max="30"
+            step="1"
+            [value]="form().defaultSearchRadiusKm"
+            (input)="updateField('defaultSearchRadiusKm', $any($event.target).valueAsNumber)"
+            class="w-full accent-amber-500 cursor-pointer">
+          <div class="flex justify-between text-[10px] text-stone-500 font-mono"><span>1 km</span><span>30 km</span></div>
+          <p class="text-[10px] text-stone-400 leading-relaxed">Define o valor inicial do filtro para o consumidor. Depois de ativar o GPS, ele pode ajustar o próprio raio. Este valor não altera a área de entrega da loja nem a análise geográfica do HQ.</p>
+        </div>
+      </div>
+
       <!-- HERO BANNER IMAGE & PRESETS -->
       <div class="bg-[#170b04] border border-[#3d200f] rounded-2xl p-4 space-y-3 shadow-lg">
         <div class="flex items-center justify-between pb-2 border-b border-[#3d200f]">

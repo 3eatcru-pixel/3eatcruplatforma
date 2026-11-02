@@ -22,12 +22,15 @@ export class TenantsService {
   readonly activeTenantId = signal<string | null>(null);
 
   constructor() {
-    effect(() => {
-      const simulated = this.isSimulation();
-      this.tenants.set(simulated ? MOCK_TENANTS : []);
-      this.publicStorefronts.set(simulated ? MOCK_TENANTS.filter(tenant => tenant.status === 'active').map(tenant => this.toDemoStorefront(tenant)) : []);
-      this.publicStorefrontsStatus.set(simulated ? 'simulation' : 'idle');
-    });
+    effect(() => this.resetForExecutionMode(this.isSimulation()));
+  }
+
+  resetForExecutionMode(simulation = this.isSimulation()): void {
+    this.tenants.set(simulation ? MOCK_TENANTS : []);
+    this.publicStorefronts.set(simulation
+      ? MOCK_TENANTS.filter(tenant => tenant.status === 'active').map(tenant => this.toDemoStorefront(tenant))
+      : []);
+    this.publicStorefrontsStatus.set(simulation ? 'simulation' : 'idle');
   }
 
   readonly currentTenant = computed(() => {
@@ -43,9 +46,11 @@ export class TenantsService {
       return storefronts;
     }
 
+    const modeRevision = this.security.executionModeRevision();
     this.publicStorefrontsStatus.set('loading');
     try {
       const data = await firstValueFrom(this.http.get<PublicStorefront[]>('/api/tenants/public'));
+      if (modeRevision !== this.security.executionModeRevision()) return this.publicStorefronts();
       if (Array.isArray(data)) {
         this.publicStorefronts.set(data);
         this.publicStorefrontsStatus.set('loaded');
@@ -53,6 +58,7 @@ export class TenantsService {
       }
       throw new Error('Resposta inválida ao carregar vitrines públicas.');
     } catch {
+      if (modeRevision !== this.security.executionModeRevision()) return this.publicStorefronts();
       this.publicStorefronts.set([]);
       this.publicStorefrontsStatus.set('error');
       return [];
@@ -65,8 +71,10 @@ export class TenantsService {
 
   async fetchAllTenants(): Promise<CompanyTenant[]> {
     if (this.isSimulation()) return this.tenants();
+    const modeRevision = this.security.executionModeRevision();
     try {
       const data = await firstValueFrom(this.http.get<CompanyTenant[]>('/api/tenants'));
+      if (modeRevision !== this.security.executionModeRevision()) return this.tenants();
       if (Array.isArray(data)) {
         this.tenants.set(data);
         return data;
@@ -74,6 +82,7 @@ export class TenantsService {
       this.tenants.set([]);
       return [];
     } catch {
+      if (modeRevision !== this.security.executionModeRevision()) return this.tenants();
       this.tenants.set([]);
       return [];
     }
@@ -108,7 +117,9 @@ export class TenantsService {
       return updated;
     }
 
+    const modeRevision = this.security.executionModeRevision();
     const data = await firstValueFrom(this.http.patch<CompanyTenant>(`/api/tenants/${id}`, updates));
+    if (modeRevision !== this.security.executionModeRevision()) return data;
     this.tenants.update(cur => cur.map(t => t.id === id ? { ...t, ...data } : t));
     await this.fetchPublicStorefronts();
     return data;

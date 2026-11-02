@@ -19,6 +19,7 @@ import { isValidCnpj } from '../utils/cnpj';
 import { hasCompletePlanCatalogValues, hasValidPlanCatalogValues, normalizePlanCatalogEntry } from '../utils/plan-catalog';
 import { resolvePlatformDeliveryCommissionStatus } from '../utils/platform-delivery-readiness';
 import { DEFAULT_SAAS_PLANS } from '../../shared/constants/saas-plans';
+import { DEFAULT_REGIONAL_MARKETPLACE_CONFIG, normalizeRegionalMarketplaceConfig } from '../../shared/constants/regional-marketplace';
 
 export const hqRouter = Router();
 
@@ -70,6 +71,44 @@ function sumOrderTotals(orders: OrderTransaction[]): number {
   return Number(orders.reduce((sum, order) => sum + order.total, 0).toFixed(2));
 }
 
+interface HqOrderMetricsSummary {
+  eligibleOrderCount: number;
+  eligibleOrderVolume: number;
+  platformDeliveryOrdersCount: number;
+  platformDeliveryGrossVolume: number;
+}
+
+async function summarizeEligibleOrders(
+  query: Query,
+  platformDriverIds?: ReadonlySet<string>
+): Promise<HqOrderMetricsSummary> {
+  let eligibleOrderCount = 0;
+  let eligibleOrderVolume = 0;
+  let platformDeliveryOrdersCount = 0;
+  let platformDeliveryGrossVolume = 0;
+
+  const documents = query.stream() as AsyncIterable<QueryDocumentSnapshot>;
+  for await (const document of documents) {
+    const order = document.data() as OrderTransaction;
+    if (!isRealEligibleOrder(order)) continue;
+
+    eligibleOrderCount += 1;
+    eligibleOrderVolume += order.total;
+
+    if (platformDriverIds && isCompletedPlatformDelivery(order, platformDriverIds)) {
+      platformDeliveryOrdersCount += 1;
+      platformDeliveryGrossVolume += order.total;
+    }
+  }
+
+  return {
+    eligibleOrderCount,
+    eligibleOrderVolume: Number(eligibleOrderVolume.toFixed(2)),
+    platformDeliveryOrdersCount,
+    platformDeliveryGrossVolume: Number(platformDeliveryGrossVolume.toFixed(2))
+  };
+}
+
 function getParamId(req: Request): string {
   const p = req.params['id'];
   return Array.isArray(p) ? p[0] : (p || '');
@@ -114,44 +153,44 @@ async function logHqAudit(
 // GET /api/hq/overview - Complete executive overview for HQ Central
 hqRouter.get('/overview', requireHqAdmin, async (_req: Request, res: Response) => {
   try {
-    const [tenantsSnap, devicesSnap, ordersSnap, settings] = await Promise.all([
-      adminDb.collection('tenants').get(),
-      adminDb.collection('devices').get(),
-      adminDb.collection('orders').get(),
+    const [tenantsSnap, devicesSnap, settings] = await Promise.all([
+      adminDb.collection('tenants').select('status').get(),
+      adminDb.collection('devices').select('status').get(),
       getHqSettings()
     ]);
 
-    const tenants = tenantsSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as CompanyTenant);
-    const devices = devicesSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as POSDevice);
-    const orders = ordersSnap.docs.map((d: QueryDocumentSnapshot) => d.data() as OrderTransaction);
-
-    const realOrders = orders.filter(isRealEligibleOrder);
-    const grossVolume = sumOrderTotals(realOrders);
-    let platformDeliveryOrdersCount: number | null = null;
-    let platformDeliveryGrossVolume: number | null = null;
+    let platformDriverIds: Set<string> | undefined;
     let estimatedCommissionRevenue: number | null = null;
     let defaultCommissionPercent: number | null = null;
     if (settings.platformDeliveryCommissionStatus === 'active') {
-      const platformDriversSnap = await adminDb.collection('drivers').where('driverType', '==', 'platform').get();
-      const platformDriverIds = new Set(platformDriversSnap.docs
+      const platformDriversSnap = await adminDb.collection('drivers')
+        .where('driverType', '==', 'platform')
+        .select('driverType', 'tenantId')
+        .get();
+      platformDriverIds = new Set(platformDriversSnap.docs
         .filter((driver) => isPlatformNetworkDriver(driver.data() as StoreDriver))
         .map((driver) => driver.id));
-      const completedPlatformDeliveries = realOrders.filter((order) =>
-        isCompletedPlatformDelivery(order, platformDriverIds)
-      );
-      platformDeliveryOrdersCount = completedPlatformDeliveries.length;
-      platformDeliveryGrossVolume = sumOrderTotals(completedPlatformDeliveries);
-      estimatedCommissionRevenue = Number((platformDeliveryGrossVolume * settings.platformCommissionRate).toFixed(2));
       defaultCommissionPercent = Number((settings.platformCommissionRate * 100).toFixed(2));
     }
 
+    const orderMetrics = await summarizeEligibleOrders(
+      adminDb.collection('orders')
+        .select('isSimulated', 'mode', 'status', 'paymentStatus', 'total', 'type', 'driverId'),
+      platformDriverIds
+    );
+    const platformDeliveryOrdersCount = platformDriverIds ? orderMetrics.platformDeliveryOrdersCount : null;
+    const platformDeliveryGrossVolume = platformDriverIds ? orderMetrics.platformDeliveryGrossVolume : null;
+    if (platformDeliveryGrossVolume !== null) {
+      estimatedCommissionRevenue = Number((platformDeliveryGrossVolume * settings.platformCommissionRate).toFixed(2));
+    }
+
     res.json({
-      tenantsCount: tenants.length,
-      activeTenantsCount: tenants.filter((t: CompanyTenant) => t.status === 'active').length,
-      totalDevices: devices.length,
-      deviceRecordsMarkedOnline: devices.filter((d: POSDevice) => d.status === 'online').length,
-      totalOrders: realOrders.length,
-      grossPlatformVolume: grossVolume,
+      tenantsCount: tenantsSnap.size,
+      activeTenantsCount: tenantsSnap.docs.filter((tenant) => tenant.get('status') === 'active').length,
+      totalDevices: devicesSnap.size,
+      deviceRecordsMarkedOnline: devicesSnap.docs.filter((device) => device.get('status') === 'online').length,
+      totalOrders: orderMetrics.eligibleOrderCount,
+      grossPlatformVolume: orderMetrics.eligibleOrderVolume,
       platformDeliveryCommissionStatus: settings.platformDeliveryCommissionStatus,
       platformDeliveryOrdersCount,
       platformDeliveryGrossVolume,
@@ -177,15 +216,15 @@ hqRouter.get('/tenants/:id/metrics', requireHqAdmin, async (req: Request, res: R
       return;
     }
 
-    const ordersSnap = await adminDb.collection('orders').where('tenantId', '==', tenantId).get();
-    const eligibleOrders = ordersSnap.docs
-      .map((document) => document.data() as OrderTransaction)
-      .filter(isRealEligibleOrder);
+    const ordersQuery = adminDb.collection('orders')
+      .where('tenantId', '==', tenantId)
+      .select('isSimulated', 'mode', 'status', 'paymentStatus', 'total');
+    const metrics = await summarizeEligibleOrders(ordersQuery);
 
     res.json({
       tenantId,
-      eligibleOrderCount: eligibleOrders.length,
-      eligibleOrderVolume: sumOrderTotals(eligibleOrders),
+      eligibleOrderCount: metrics.eligibleOrderCount,
+      eligibleOrderVolume: metrics.eligibleOrderVolume,
       capturedAt: new Date().toISOString()
     });
   } catch {
@@ -754,14 +793,7 @@ hqRouter.patch('/plans/:id', requireHqAdmin, async (req: Request, res: Response)
 hqRouter.get('/regional', async (_req: Request, res: Response) => {
   try {
     const doc = await adminDb.collection('public_regional').doc('default').get();
-    if (doc.exists) {
-      res.json(doc.data());
-    } else {
-      res.json({
-        heroTitle: 'Encontre Estabelecimentos pelo Ecossistema 3eatcru',
-        activeRegionName: 'Grande São Paulo'
-      });
-    }
+    res.json(normalizeRegionalMarketplaceConfig(doc.exists ? doc.data() : DEFAULT_REGIONAL_MARKETPLACE_CONFIG));
   } catch {
     res.status(500).json({ error: 'Failed to fetch regional config.' });
   }
@@ -769,14 +801,60 @@ hqRouter.get('/regional', async (_req: Request, res: Response) => {
 
 // POST /api/hq/regional - Save public regional marketplace config (HQ Only)
 hqRouter.post('/regional', requireHqAdmin, async (req: Request, res: Response) => {
-  const newConfig = req.body as RegionalMarketplaceConfig;
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    res.status(400).json({ error: 'A configuração regional deve ser um objeto.', code: 'INVALID_REGIONAL_CONFIG' });
+    return;
+  }
+
+  const input = body as Record<string, unknown>;
+  const allowedFields = Object.keys(DEFAULT_REGIONAL_MARKETPLACE_CONFIG);
+  if (Object.keys(input).some((field) => !allowedFields.includes(field))) {
+    res.status(400).json({ error: 'A configuração contém campos não suportados.', code: 'INVALID_REGIONAL_CONFIG_FIELDS' });
+    return;
+  }
+
+  const stringLimits: Record<string, number> = {
+    heroTitle: 120,
+    heroSubtitle: 240,
+    heroTag: 80,
+    heroBannerImage: 2048,
+    heroCtaText: 60,
+    heroAnnouncement: 280,
+    activeRegionName: 100
+  };
+  for (const [field, maxLength] of Object.entries(stringLimits)) {
+    const value = input[field];
+    if (value !== undefined && (typeof value !== 'string' || value.length > maxLength)) {
+      res.status(400).json({ error: `O campo ${field} deve ser texto com até ${maxLength} caracteres.`, code: 'INVALID_REGIONAL_CONFIG_FIELD' });
+      return;
+    }
+  }
+  if (input['showHeroAnnouncement'] !== undefined && typeof input['showHeroAnnouncement'] !== 'boolean') {
+    res.status(400).json({ error: 'showHeroAnnouncement deve ser booleano.', code: 'INVALID_REGIONAL_CONFIG_FIELD' });
+    return;
+  }
+  if (input['featuredTenantIds'] !== undefined && (!Array.isArray(input['featuredTenantIds']) || input['featuredTenantIds'].length > 100 || input['featuredTenantIds'].some((id) => typeof id !== 'string' || id.length > 120))) {
+    res.status(400).json({ error: 'featuredTenantIds deve conter até 100 IDs de loja válidos.', code: 'INVALID_REGIONAL_CONFIG_FIELD' });
+    return;
+  }
+  if (input['defaultSearchRadiusKm'] !== undefined && (typeof input['defaultSearchRadiusKm'] !== 'number' || !Number.isInteger(input['defaultSearchRadiusKm']) || input['defaultSearchRadiusKm'] < 1 || input['defaultSearchRadiusKm'] > 30)) {
+    res.status(400).json({ error: 'O raio inicial deve ser um inteiro entre 1 e 30 km.', code: 'INVALID_REGIONAL_SEARCH_RADIUS' });
+    return;
+  }
+
+  const newConfig = normalizeRegionalMarketplaceConfig(input as Partial<RegionalMarketplaceConfig>);
   try {
     await adminDb.collection('public_regional').doc('default').set(newConfig);
-    await logHqAudit(
-      'Configuração Regional Atualizada',
-      `Praça "${newConfig.activeRegionName || 'Principal'}" reconfigurada.`,
-      'info'
-    );
+    try {
+      await logHqAudit(
+        'Configuração Regional Atualizada',
+        `Praça "${newConfig.activeRegionName || 'Principal'}" reconfigurada.`,
+        'info'
+      );
+    } catch {
+      // Keep the saved marketplace configuration authoritative if audit logging fails.
+    }
     res.json({ config: newConfig });
   } catch {
     res.status(500).json({ error: 'Failed to update regional config.' });

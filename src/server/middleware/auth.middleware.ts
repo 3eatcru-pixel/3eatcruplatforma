@@ -82,6 +82,7 @@ export interface AuthUser {
   emailVerified: boolean;
   role: AppRole;
   tenantId?: string;
+  driverId?: string;
   name?: string;
 }
 
@@ -135,6 +136,7 @@ export async function authContext(req: Request, _res: Response, next: NextFuncti
 
       let role: AppRole = 'consumer';
       let tenantId: string | undefined = undefined;
+      let driverId: string | undefined = undefined;
 
       // Inferred Pillar for tests/legacy clients without header
       const effectivePillar = pillarHeader || (tokenRole === 'hq_admin' ? 'hq' : (tokenRole === 'driver' ? 'driver' : (isTenantStaffRole(tokenRole) ? 'os' : 'consumer')));
@@ -170,15 +172,27 @@ export async function authContext(req: Request, _res: Response, next: NextFuncti
         }
       } else if (effectivePillar === 'driver') {
         // Logistics Pillar: Only allow driver role
-        const driverDoc = await adminDb.collection('drivers').doc(uid).get();
-        if (driverDoc.exists) {
+        const directDriverDoc = await adminDb.collection('drivers').doc(uid).get();
+        const directDriverData = directDriverDoc.data();
+        let driverData = directDriverDoc.exists &&
+          (!directDriverData?.['userUid'] || directDriverData['userUid'] === uid)
+          ? directDriverData
+          : undefined;
+        let resolvedDriverDocId = driverData ? directDriverDoc.id : undefined;
+        if (!driverData) {
+          const linkedDriver = await adminDb.collection('drivers').where('userUid', '==', uid).limit(1).get();
+          driverData = linkedDriver.docs[0]?.data();
+          resolvedDriverDocId = linkedDriver.docs[0]?.id;
+        }
+        if (driverData) {
           role = 'driver';
-          const driverData = driverDoc.data();
           tenantId = driverData?.['tenantId'];
+          driverId = String(driverData?.['id'] || resolvedDriverDocId);
         } else if (!pillarHeader && tokenRole === 'driver') {
           // Fallback for tests
           role = 'driver';
           tenantId = decodedToken['tenantId'] as string | undefined;
+          driverId = decodedToken['driverId'] as string | undefined;
         }
       } else {
         // Consumer Pillar: Default to consumer
@@ -192,6 +206,7 @@ export async function authContext(req: Request, _res: Response, next: NextFuncti
         emailVerified,
         role,
         tenantId,
+        driverId,
         name: tokenName || (email ? email.split('@')[0] : 'Usuário')
       };
     } catch {

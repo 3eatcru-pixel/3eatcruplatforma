@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-type LeafletApi = typeof import('leaflet').default;
+type LeafletApi = typeof import('leaflet');
 type MaplibreLeafletFactory = typeof import('@maplibre/maplibre-gl-leaflet').maplibreGL;
 
 export interface MapLibraries {

@@ -75,6 +75,20 @@ export class LogisticsService {
     return data;
   }
 
+  async linkDriverAccount(driverId: string, email: string): Promise<void> {
+    this.syncExecutionMode();
+    if (this.lastModeIsSimulation) {
+      throw new Error('Vínculo de conta não está disponível na simulação.');
+    }
+    const generation = this.modeGeneration;
+    await firstValueFrom(this.http.post('/api/auth/assign-role', {
+      targetEmail: email.trim().toLowerCase(),
+      role: 'driver',
+      driverId
+    }));
+    this.assertRealMode(generation);
+  }
+
   async pingDriverGps(driverId: string, location: {
     sharing: boolean;
     routeId?: string;

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { AppRole, CompanyTenant, StoreAddress } from '../../shared/models/ecosystem.model';
+import { AppRole, CompanyTenant, StoreAddress, StoreDriver } from '../../shared/models/ecosystem.model';
 import { adminAuth, adminDb } from '../firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import {
   isHqAdminEmail,
   isTenantManagerRole,
@@ -58,6 +59,7 @@ authRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
       emailVerified: caller.emailVerified,
       role: caller.role,
       tenantId: caller.tenantId,
+      driverId: caller.driverId,
       name: caller.name,
       permissions: ROLE_PERMISSION_MATRIX[caller.role] || [],
       claimsUpdated
@@ -69,6 +71,7 @@ authRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
       emailVerified: caller.emailVerified,
       role: caller.role,
       tenantId: caller.tenantId,
+      driverId: caller.driverId,
       name: caller.name,
       permissions: ROLE_PERMISSION_MATRIX[caller.role] || [],
       claimsUpdated: false
@@ -292,8 +295,10 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
   }
 
   const targetUid = String(req.body?.targetUid || '').trim();
+  const targetEmail = String(req.body?.targetEmail || '').trim().toLowerCase();
   const requestedRole = req.body?.role as AppRole | undefined;
   const requestedTenantId = req.body?.tenantId ? String(req.body.tenantId).trim() : caller.tenantId;
+  const requestedDriverId = String(req.body?.driverId || '').trim();
 
   const validRoles: AppRole[] = [
     'hq_admin',
@@ -304,8 +309,8 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
     'consumer'
   ];
 
-  if (!targetUid || !requestedRole || !validRoles.includes(requestedRole)) {
-    res.status(400).json({ error: 'targetUid e role válido são obrigatórios.' });
+  if ((!targetUid && !targetEmail) || !requestedRole || !validRoles.includes(requestedRole)) {
+    res.status(400).json({ error: 'targetUid ou targetEmail e role válido são obrigatórios.' });
     return;
   }
 
@@ -341,32 +346,107 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
   }
 
   try {
+    const targetUser = targetUid
+      ? await adminAuth.getUser(targetUid)
+      : await adminAuth.getUserByEmail(targetEmail);
+    const resolvedTargetUid = targetUser.uid;
+    const storedUserSnap = await adminDb.collection('users').doc(resolvedTargetUid).get();
+    const storedUser = storedUserSnap.data();
+    let linkedDriverRef: import('firebase-admin/firestore').DocumentReference | null = null;
+
+    if (requestedRole === 'driver') {
+      if (!requestedDriverId || !requestedTenantId) {
+        res.status(400).json({ error: 'driverId e tenantId são obrigatórios para vincular entregador.' });
+        return;
+      }
+      if (!targetUser.emailVerified) {
+        res.status(409).json({ error: 'A conta do entregador precisa ter o e-mail verificado.', code: 'DRIVER_EMAIL_UNVERIFIED' });
+        return;
+      }
+      const roleBefore = targetUser.customClaims?.['role'] || storedUser?.['role'];
+      const tenantBefore = targetUser.customClaims?.['tenantId'] || storedUser?.['tenantId'];
+      if (roleBefore && !['consumer', 'driver'].includes(String(roleBefore))) {
+        res.status(409).json({ error: 'A conta já possui outro perfil operacional.', code: 'ACCOUNT_ROLE_CONFLICT' });
+        return;
+      }
+      if (roleBefore === 'driver' && tenantBefore && tenantBefore !== requestedTenantId) {
+        res.status(409).json({ error: 'A conta de motorista já está vinculada a outra unidade.', code: 'DRIVER_TENANT_CONFLICT' });
+        return;
+      }
+
+      linkedDriverRef = adminDb.collection('drivers').doc(requestedDriverId);
+      const driverSnap = await linkedDriverRef.get();
+      if (!driverSnap.exists) {
+        res.status(404).json({ error: 'Entregador não encontrado.', code: 'DRIVER_NOT_FOUND' });
+        return;
+      }
+      const driver = driverSnap.data() as StoreDriver;
+      if (driver.driverType !== 'private' || driver.tenantId !== requestedTenantId || driver.tenantId === 'marketplace') {
+        res.status(403).json({ error: 'Entregador deve pertencer à frota privada da mesma unidade.', code: 'DRIVER_TENANT_MISMATCH' });
+        return;
+      }
+      if (driver.userUid && driver.userUid !== resolvedTargetUid) {
+        res.status(409).json({ error: 'Este entregador já está vinculado a outra conta.', code: 'DRIVER_ACCOUNT_ALREADY_LINKED' });
+        return;
+      }
+      const existingLink = await adminDb.collection('drivers').where('userUid', '==', resolvedTargetUid).limit(1).get();
+      if (!existingLink.empty && existingLink.docs[0]?.id !== requestedDriverId) {
+        res.status(409).json({ error: 'Esta conta já está vinculada a outro entregador.', code: 'ACCOUNT_ALREADY_LINKED' });
+        return;
+      }
+    }
+
+    const previousDriverLink = requestedRole !== 'driver'
+      ? await adminDb.collection('drivers').where('userUid', '==', resolvedTargetUid).limit(1).get()
+      : null;
+
     const nowIso = new Date().toISOString();
-    const claimsPayload: Record<string, string> = { role: requestedRole };
+    const claimsPayload: Record<string, string> = {
+      ...(targetUser.customClaims as Record<string, string> || {}),
+      role: requestedRole
+    };
     if (requestedTenantId && requestedRole !== 'hq_admin' && requestedRole !== 'consumer') {
       claimsPayload['tenantId'] = requestedTenantId;
     }
+    if (requestedRole === 'driver') claimsPayload['driverId'] = requestedDriverId;
+    else delete claimsPayload['driverId'];
 
-    await adminAuth.setCustomUserClaims(targetUid, claimsPayload);
+    await adminAuth.setCustomUserClaims(resolvedTargetUid, claimsPayload);
 
     if (requestedRole === 'hq_admin') {
-      await adminDb.collection('admins').doc(targetUid).set({
-        uid: targetUid,
+      await adminDb.collection('admins').doc(resolvedTargetUid).set({
+        uid: resolvedTargetUid,
         assignedBy: caller.id,
         role: 'hq_admin',
         createdAt: nowIso
       });
     } else {
-      await adminDb.collection('admins').doc(targetUid).delete();
-      await adminDb.collection('users').doc(targetUid).set(
+      await adminDb.collection('admins').doc(resolvedTargetUid).delete();
+      await adminDb.collection('users').doc(resolvedTargetUid).set(
         {
-          uid: targetUid,
+          uid: resolvedTargetUid,
           role: requestedRole,
           ...(claimsPayload['tenantId'] ? { tenantId: claimsPayload['tenantId'] } : {}),
           updatedAt: nowIso
         },
         { merge: true }
       );
+
+      if (linkedDriverRef) {
+        await linkedDriverRef.update({ userUid: resolvedTargetUid });
+      }
+      if (previousDriverLink && !previousDriverLink.empty) {
+        await previousDriverLink.docs[0]!.ref.update({
+          userUid: FieldValue.delete(),
+          locationSharing: false,
+          gpsRouteId: FieldValue.delete(),
+          lat: FieldValue.delete(),
+          lng: FieldValue.delete(),
+          gpsAccuracyMeters: FieldValue.delete(),
+          lastGpsPing: FieldValue.delete(),
+          currentLocationName: FieldValue.delete()
+        });
+      }
 
       if (
         claimsPayload['tenantId'] &&
@@ -377,10 +457,8 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
         if (tenantSnap.exists) {
           const tData = tenantSnap.data() as CompanyTenant;
           const existingStaff = Array.isArray(tData.staffUids) ? tData.staffUids : [];
-          if (!existingStaff.includes(targetUid) && existingStaff.length < 20) {
-            await tenantRef.update({
-              staffUids: [...existingStaff, targetUid]
-            });
+          if (!existingStaff.includes(resolvedTargetUid) && existingStaff.length < 20) {
+            await tenantRef.update({ staffUids: [...existingStaff, resolvedTargetUid] });
           }
         }
       }
@@ -395,7 +473,7 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
         action: 'Papel de usuário atualizado',
         module: 'System',
         severity: 'info',
-        details: `Usuário [${targetUid}] recebeu o papel [${requestedRole}]${claimsPayload['tenantId'] ? ` no tenant [${claimsPayload['tenantId']}]` : ''}.`
+        details: `Usuário [${resolvedTargetUid}] recebeu o papel [${requestedRole}]${claimsPayload['tenantId'] ? ` no tenant [${claimsPayload['tenantId']}]` : ''}.`
       });
     } catch {
       // Role assignment remains authoritative if audit persistence is unavailable.
@@ -403,7 +481,7 @@ authRouter.post('/assign-role', requireAuth, async (req: Request, res: Response)
 
     res.json({
       success: true,
-      targetUid,
+      targetUid: resolvedTargetUid,
       role: requestedRole,
       tenantId: claimsPayload['tenantId'] || null
     });

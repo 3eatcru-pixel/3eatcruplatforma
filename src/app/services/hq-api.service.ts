@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { CompanyTenant, POSDevice, AuditLog, SystemAuditReport, LicensePlan, RegionalMarketplaceConfig, StoreDriver, ConsumerAccount } from '../models/ecosystem.model';
+import { CompanyTenant, POSDevice, AuditLog, SystemAuditReport, LicensePlan, RegionalMarketplaceConfig, StoreDriver, ConsumerAccount, ConsumerDirectoryPage } from '../models/ecosystem.model';
 import type { BillingProvider, HqBillingDashboard, PlatformSubscriptionRecord } from '../../shared/models/billing.model';
 
 export interface HqOverviewResponse {
@@ -181,8 +181,10 @@ export class HqApiService {
   }
 
   // 10. Global CRM Consumers
-  async getConsumers(): Promise<ConsumerAccount[]> {
-    return firstValueFrom(this.http.get<ConsumerAccount[]>(`${this.baseUrl}/crm/consumers`));
+  async getConsumers(pageToken?: string): Promise<ConsumerDirectoryPage> {
+    return firstValueFrom(this.http.get<ConsumerDirectoryPage>(`${this.baseUrl}/crm/consumers`, {
+      params: pageToken ? { pageToken } : {}
+    }));
   }
 
   async saveConsumer(consumer: Partial<ConsumerAccount>): Promise<ConsumerAccount> {

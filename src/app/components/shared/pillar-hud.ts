@@ -64,9 +64,9 @@ import { AppRole, PILLARS_CATALOG, PillarDefinition, SystemExecutionMode } from 
             @if (security.isRealMode()) {
               <div
                 class="flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 px-2.5 py-0.5 rounded-lg font-mono font-bold text-[10px] shadow-sm"
-                title="Conectado ao Cloud Firestore e Firebase Auth">
+                title="Usa a sessão Firebase e as APIs reais; cada área confirma a conexão ao carregar dados.">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>MODO REAL (PRODUÇÃO &amp; FIRESTORE LIVE)</span>
+                <span>MODO REAL (PRODUÇÃO)</span>
               </div>
             } @else {
               <div
@@ -80,11 +80,12 @@ import { AppRole, PILLARS_CATALOG, PillarDefinition, SystemExecutionMode } from 
             <button
               type="button"
               (click)="toggleExecutionMode()"
+              [disabled]="isChangingExecutionMode()"
               [class]="security.isRealMode() ? 'bg-[#2a170c] hover:bg-[#3d200f] text-amber-300 border-[#4d2813]' : 'bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border-emerald-600/50'"
-              class="border px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-1"
+              class="border px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-1 disabled:cursor-wait disabled:opacity-50"
               title="Clique para alternar entre Modo Real e Modo Simulação">
               <mat-icon class="text-xs">sync_alt</mat-icon>
-              <span>{{ security.isRealMode() ? 'Alternar p/ Simulação' : 'Alternar p/ Real' }}</span>
+              <span>{{ isChangingExecutionMode() ? 'TROCANDO…' : security.isRealMode() ? 'Alternar p/ Simulação' : 'Alternar p/ Real' }}</span>
             </button>
           </div>
 
@@ -271,19 +272,19 @@ import { AppRole, PILLARS_CATALOG, PillarDefinition, SystemExecutionMode } from 
               <ul class="space-y-2 text-xs text-stone-300 font-sans">
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-emerald-400 text-sm shrink-0 mt-0.5">check_circle</mat-icon>
-                  <span><strong>Cloud Firestore:</strong> Dados gravados no banco de dados real (18 coleções protegidas).</span>
+                  <span><strong>Dados:</strong> Cada recurso usa sua API real quando esse fluxo está implementado; o modo selecionado não comprova disponibilidade nem persistência de todos os módulos.</span>
                 </li>
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-emerald-400 text-sm shrink-0 mt-0.5">check_circle</mat-icon>
-                  <span><strong>Firebase Auth:</strong> Tokens JWT criptograficamente assinados verificados no backend.</span>
+                  <span><strong>Autenticação:</strong> Endpoints protegidos validam o token Firebase e determinam papel/tenant no servidor.</span>
                 </li>
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-emerald-400 text-sm shrink-0 mt-0.5">check_circle</mat-icon>
-                  <span><strong>Pagamentos:</strong> Liquidação via gateway real ou caixa físico conferido.</span>
+                  <span><strong>Pagamentos:</strong> A integração depende do recurso e das credenciais configuradas; checkout SaaS e recebimento dos pedidos da loja são fluxos separados.</span>
                 </li>
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-emerald-400 text-sm shrink-0 mt-0.5">check_circle</mat-icon>
-                  <span><strong>Operação Fiscal:</strong> Emissão NFe/NFCe e livro-razão contábil permanente.</span>
+                  <span><strong>Fiscal:</strong> Emissão de NF-e/NFC-e não está implementada. Registros exibidos pelo OS não substituem livro fiscal.</span>
                 </li>
               </ul>
 
@@ -312,7 +313,7 @@ import { AppRole, PILLARS_CATALOG, PillarDefinition, SystemExecutionMode } from 
               <ul class="space-y-2 text-xs text-stone-300 font-sans">
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-amber-400 text-sm shrink-0 mt-0.5">science</mat-icon>
-                  <span><strong>Memória Local:</strong> Dados voláteis para testes sem poluir o banco de produção.</span>
+                  <span><strong>Dados locais:</strong> Os serviços com fluxo simulado usam estado em memória; módulos sem esse fluxo continuam indisponíveis ou dependem da API real.</span>
                 </li>
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-amber-400 text-sm shrink-0 mt-0.5">science</mat-icon>
@@ -320,11 +321,11 @@ import { AppRole, PILLARS_CATALOG, PillarDefinition, SystemExecutionMode } from 
                 </li>
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-amber-400 text-sm shrink-0 mt-0.5">science</mat-icon>
-                  <span><strong>Hardware Virtual:</strong> Emulação de impressora térmica, balança e leitor de código.</span>
+                  <span><strong>Prévia:</strong> Telas demonstrativas não controlam impressora, balança, leitor ou outro hardware.</span>
                 </li>
                 <li class="flex items-start gap-2">
                   <mat-icon class="text-amber-400 text-sm shrink-0 mt-0.5">science</mat-icon>
-                  <span><strong>Ideal para Demonstrações:</strong> Apresentações comerciais e testes de estresse.</span>
+                  <span><strong>Uso:</strong> Demonstrações e verificações funcionais dos fluxos simulados; não é teste de carga nem homologação de integrações.</span>
                 </li>
               </ul>
 
@@ -400,6 +401,7 @@ export class PillarHudComponent {
   readonly isCollapsed = signal<boolean>(false);
   readonly showPillarsModal = signal<boolean>(false);
   readonly showMatrixModal = signal<boolean>(false);
+  readonly isChangingExecutionMode = signal(false);
 
   readonly pillarsCatalog = PILLARS_CATALOG;
 
@@ -441,31 +443,34 @@ export class PillarHudComponent {
     }
   }
 
-  toggleExecutionMode() {
-    this.security.toggleExecutionMode();
-    const isReal = this.security.isRealMode();
-    this.notifications.notify(
-      isReal
-        ? '🟢 MODO REAL ATIVADO: Gravando diretamente no Cloud Firestore e autenticado via Firebase.'
-        : '🧪 MODO SIMULAÇÃO ATIVADO: Operando em ambiente sandbox isolado para demonstração e homologação.',
-      isReal ? 'success' : 'info'
+  async toggleExecutionMode() {
+    if (this.isChangingExecutionMode()) return;
+    const targetMode = this.security.isRealMode() ? 'simulation' : 'real';
+    const session = this.security.currentSession();
+    await this.changeExecutionMode(
+      targetMode,
+      session?.role ?? 'tenant_owner',
+      session?.tenantId ?? (session?.role === 'hq_admin' ? 'hq' : 'tenant-sp-001'),
+      session?.tenantName ?? (session?.role === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co. Jardins')
     );
   }
 
-  setMode(mode: SystemExecutionMode) {
-    this.security.setExecutionMode(mode);
+  async setMode(mode: SystemExecutionMode) {
     this.showMatrixModal.set(false);
-    this.notifications.notify(
-      mode === 'real'
-        ? '🟢 Conectado ao Modo Real de Produção (Cloud Firestore).'
-        : '🧪 Operando em Modo Simulação (Sandbox).',
-      mode === 'real' ? 'success' : 'info'
+    const session = this.security.currentSession();
+    await this.changeExecutionMode(
+      mode,
+      session?.role ?? 'tenant_owner',
+      session?.tenantId ?? (session?.role === 'hq_admin' ? 'hq' : 'tenant-sp-001'),
+      session?.tenantName ?? (session?.role === 'hq_admin' ? '3EATCRU HQ Central' : 'Burger & Co. Jardins')
     );
   }
 
   simulateRole(role: AppRole) {
     this.security.setExecutionMode('simulation', role);
+    this.ecosystem.resetForExecutionMode(true);
     this.showMatrixModal.set(false);
+    this.showPillarsModal.set(false);
     this.notifications.notify(
       `🧪 Perfil simulado: ${role}. Ambiente sandbox ativo.`,
       'info'
@@ -482,6 +487,74 @@ export class PillarHudComponent {
       this.router.navigate(['/driver']);
     } else if (role === 'consumer') {
       this.router.navigate(['/home']);
+    }
+  }
+
+  private async changeExecutionMode(
+    mode: SystemExecutionMode,
+    role: AppRole,
+    tenantId: string,
+    tenantName: string
+  ) {
+    if (this.isChangingExecutionMode()) return;
+    this.isChangingExecutionMode.set(true);
+    try {
+      const transition = this.security.setExecutionModeAndWait(mode, role, tenantId, tenantName);
+      this.ecosystem.resetForExecutionMode(mode === 'simulation');
+      const session = await transition;
+
+      if (mode === 'real' && this.security.currentPillar() === 'hq' && session?.role !== 'hq_admin') {
+        this.notifications.notify('A sessão real não tem acesso ao HQ. Entre com uma conta hq_admin.', 'warning');
+        this.router.navigate(['/hq/login']);
+        return;
+      }
+
+      if (mode === 'real') {
+        const refreshed = await this.refreshCurrentPillar();
+        if (!refreshed) {
+          this.notifications.notify('Modo real ativado, mas não foi possível atualizar os dados desta área.', 'warning');
+          return;
+        }
+      }
+
+      this.notifications.notify(
+        mode === 'real'
+          ? '🟢 Modo real ativo. Os dados da área atual foram atualizados.'
+          : '🧪 Modo de simulação ativo. Os dados reais foram removidos da tela.',
+        mode === 'real' ? 'success' : 'info'
+      );
+    } catch {
+      this.notifications.notify('Não foi possível trocar o modo de execução.', 'error');
+    } finally {
+      this.isChangingExecutionMode.set(false);
+    }
+  }
+
+  private async refreshCurrentPillar(): Promise<boolean> {
+    switch (this.security.currentPillar()) {
+      case 'hq':
+        return this.ecosystem.syncHqFromBackend();
+      case 'os':
+      case 'waiter':
+        return this.ecosystem.syncStoreOsFromBackend();
+      case 'marketplace':
+      case 'storefront':
+      case 'consumer':
+        return this.ecosystem.syncMarketplaceFromBackend();
+      case 'driver':
+        try {
+          await Promise.all([
+            this.ecosystem.logisticsService.fetchDrivers(),
+            this.ecosystem.logisticsService.fetchDeliveryRoutes()
+          ]);
+          return true;
+        } catch {
+          return false;
+        }
+      case 'backend':
+        return true;
+      default:
+        return true;
     }
   }
 

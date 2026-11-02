@@ -3,6 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { RegionalMarketplaceConfig } from '../models/ecosystem.model';
 import { firstValueFrom } from 'rxjs';
 import { Router } from '@angular/router';
+import { DEFAULT_REGIONAL_MARKETPLACE_CONFIG, normalizeRegionalMarketplaceConfig } from '../../shared/constants/regional-marketplace';
+import { SecurityService } from './security.service';
 
 export type GeolocationStatus = 'idle' | 'locating' | 'success' | 'denied' | 'error';
 
@@ -12,27 +14,27 @@ export type GeolocationStatus = 'idle' | 'locating' | 'success' | 'denied' | 'er
 export class MarketplaceService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly security = inject(SecurityService);
   
-  readonly regionalConfig = signal<RegionalMarketplaceConfig>({
-    heroTitle: 'Ecossistema 3eatcru',
-    heroSubtitle: 'Explore lojistas locais',
-    heroTag: 'DIRETÓRIO REGIONAL',
-    heroBannerImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200',
-    heroCtaText: 'Explorar',
-    heroAnnouncement: 'Boas-vindas!',
-    showHeroAnnouncement: true,
-    featuredTenantIds: [],
-    defaultSearchRadiusKm: 15,
-    activeRegionName: 'Região não configurada'
-  });
+  readonly regionalConfig = signal<RegionalMarketplaceConfig>({ ...DEFAULT_REGIONAL_MARKETPLACE_CONFIG });
+  readonly regionalConfigStatus = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  readonly regionalConfigError = signal<string | null>(null);
 
-  readonly maxDiscoveryRadiusKm = signal<number>(30);
+  readonly maxDiscoveryRadiusKm = signal<number>(DEFAULT_REGIONAL_MARKETPLACE_CONFIG.defaultSearchRadiusKm);
   readonly userReferenceAddress = signal<string>('Localização não informada');
   readonly userReferenceCoords = signal<{ lat: number; lng: number } | null>(null);
   
   readonly geoStatus = signal<GeolocationStatus>('idle');
   readonly geoErrorMessage = signal<string | null>(null);
   readonly isRealLocationActive = signal<boolean>(false);
+
+  resetForExecutionMode(simulation: boolean) {
+    const config = { ...DEFAULT_REGIONAL_MARKETPLACE_CONFIG, featuredTenantIds: [] };
+    this.regionalConfig.set(config);
+    this.maxDiscoveryRadiusKm.set(config.defaultSearchRadiusKm);
+    this.regionalConfigError.set(null);
+    this.regionalConfigStatus.set(simulation ? 'loaded' : 'idle');
+  }
 
   requestRealUserLocation(): Promise<boolean> {
     return new Promise((resolve) => {
@@ -89,23 +91,43 @@ export class MarketplaceService {
   }
 
   async fetchRegionalConfig(): Promise<RegionalMarketplaceConfig> {
+    const modeRevision = this.security.executionModeRevision();
+    this.regionalConfigStatus.set('loading');
+    this.regionalConfigError.set(null);
     try {
-      const data = await firstValueFrom(this.http.get<RegionalMarketplaceConfig>('/api/hq/regional'));
-      this.regionalConfig.set(data);
-      return data;
-    } catch {
-      return this.regionalConfig();
+      const data = await firstValueFrom(this.http.get<Partial<RegionalMarketplaceConfig>>('/api/hq/regional'));
+      if (modeRevision !== this.security.executionModeRevision()) return this.regionalConfig();
+      const config = normalizeRegionalMarketplaceConfig(data);
+      this.regionalConfig.set(config);
+      this.maxDiscoveryRadiusKm.set(config.defaultSearchRadiusKm);
+      this.regionalConfigStatus.set('loaded');
+      return config;
+    } catch (error) {
+      if (modeRevision !== this.security.executionModeRevision()) return this.regionalConfig();
+      this.regionalConfigStatus.set('error');
+      this.regionalConfigError.set('Não foi possível carregar as configurações salvas do marketplace.');
+      throw error;
     }
   }
 
-  async updateRegionalConfig(config: Partial<RegionalMarketplaceConfig>): Promise<void> {
-    const merged = { ...this.regionalConfig(), ...config };
-    try {
-      await firstValueFrom(this.http.post('/api/hq/regional', merged));
-    } catch {
-      // Degrade gracefully
+  async updateRegionalConfig(config: Partial<RegionalMarketplaceConfig>, persist = true): Promise<boolean> {
+    const modeRevision = this.security.executionModeRevision();
+    const merged = normalizeRegionalMarketplaceConfig({ ...this.regionalConfig(), ...config });
+    if (persist) {
+      this.regionalConfigError.set(null);
+      try {
+        await firstValueFrom(this.http.post('/api/hq/regional', merged));
+      } catch {
+        if (modeRevision !== this.security.executionModeRevision()) return false;
+        this.regionalConfigError.set('Não foi possível publicar as configurações. Revise a conexão e tente novamente.');
+        return false;
+      }
+      if (modeRevision !== this.security.executionModeRevision()) return false;
     }
     this.regionalConfig.set(merged);
+    this.maxDiscoveryRadiusKm.set(merged.defaultSearchRadiusKm);
+    this.regionalConfigStatus.set('loaded');
+    return true;
   }
 
   openStorefront(tenantId: string) {

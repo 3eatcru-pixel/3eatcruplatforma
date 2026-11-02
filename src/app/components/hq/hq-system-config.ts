@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, computed, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -55,8 +55,11 @@ import { EcosystemService } from '../../services/ecosystem.service';
 
                <div class="space-y-2">
                   <label for="globalBroadcastText" class="text-[10px] font-mono font-bold text-amber-500 uppercase">Broadcast Global (Mensagem Interna)</label>
-                  <textarea id="globalBroadcastText" #broadcastArea maxlength="500" [disabled]="!canEditSettings()" placeholder="Digite um aviso para todos os lojistas..." class="w-full h-24 bg-[#1a0e07] border border-[#4d2813] rounded-xl p-3 text-xs text-white focus:border-amber-500 outline-none no-scrollbar disabled:opacity-50"></textarea>
-                  <button type="button" [disabled]="!canEditSettings()" (click)="sendBroadcast(broadcastArea)" class="w-full bg-[#3b1e0d] text-amber-400 font-black py-2 rounded-xl text-[10px] uppercase border border-amber-600/30 hover:bg-amber-900/40 transition-all cursor-pointer disabled:opacity-50">Publicar aviso</button>
+                  <textarea id="globalBroadcastText" maxlength="500" [value]="broadcastDraft()" (input)="onBroadcastInput($any($event.target).value)" [disabled]="!canEditSettings() || savingBroadcast()" placeholder="Digite um aviso para todos os lojistas..." class="w-full h-24 bg-[#1a0e07] border border-[#4d2813] rounded-xl p-3 text-xs text-white focus:border-amber-500 outline-none no-scrollbar disabled:opacity-50"></textarea>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button type="button" [disabled]="!canEditSettings() || savingBroadcast() || !broadcastDraft().trim()" (click)="sendBroadcast()" class="w-full bg-[#3b1e0d] text-amber-400 font-black py-2 rounded-xl text-[10px] uppercase border border-amber-600/30 hover:bg-amber-900/40 transition-all cursor-pointer disabled:opacity-50">{{ savingBroadcast() ? 'Salvando…' : 'Publicar aviso' }}</button>
+                    <button type="button" [disabled]="!canEditSettings() || savingBroadcast() || !ecosystem.globalBroadcastMessage()" (click)="clearBroadcast()" class="w-full bg-stone-900 text-stone-300 font-black py-2 rounded-xl text-[10px] uppercase border border-stone-600 hover:bg-stone-800 transition-all cursor-pointer disabled:opacity-50">Remover aviso atual</button>
+                  </div>
                </div>
             </div>
          </div>
@@ -88,7 +91,22 @@ export class HqSystemConfigComponent {
   readonly canEditSettings = computed(() => this.ecosystem.isSimulationMode() || this.ecosystem.hqOverview() !== null);
   readonly platformCommissionStatus = computed(() => this.ecosystem.hqOverview()?.platformDeliveryCommissionStatus ?? 'coming_soon');
   readonly savingCommissionStatus = signal(false);
+  readonly broadcastDraft = signal('');
+  readonly broadcastDirty = signal(false);
+  readonly savingBroadcast = signal(false);
   readonly unavailableMetrics = ['Latência API', 'Vazão do banco', 'Uso de armazenamento', 'Tráfego global'];
+
+  constructor() {
+    effect(() => {
+      const savedMessage = this.ecosystem.globalBroadcastMessage() ?? '';
+      if (!this.broadcastDirty()) this.broadcastDraft.set(savedMessage);
+    });
+  }
+
+  onBroadcastInput(value: string) {
+    this.broadcastDraft.set(value);
+    this.broadcastDirty.set(value !== (this.ecosystem.globalBroadcastMessage() ?? ''));
+  }
 
   async keepCommissionComingSoon() {
     if (!this.canEditSettings() || this.savingCommissionStatus()) return;
@@ -119,19 +137,37 @@ export class HqSystemConfigComponent {
     }
   }
 
-  async sendBroadcast(textarea: HTMLTextAreaElement) {
-    if (!this.canEditSettings()) return;
-    const message = textarea.value.trim();
+  async sendBroadcast() {
+    if (!this.canEditSettings() || this.savingBroadcast()) return;
+    const message = this.broadcastDraft().trim();
     if (!message) {
       this.ecosystem.notify('Digite um aviso antes de publicar.', 'warning');
       return;
     }
+    this.savingBroadcast.set(true);
     try {
       await this.ecosystem.setBroadcast(message);
-      textarea.value = '';
+      this.broadcastDirty.set(false);
       this.ecosystem.notify('Aviso publicado para o Store OS após a próxima sincronização.', 'success');
     } catch {
       this.ecosystem.notify('Falha ao publicar o aviso. O texto foi mantido para nova tentativa.', 'error');
+    } finally {
+      this.savingBroadcast.set(false);
+    }
+  }
+
+  async clearBroadcast() {
+    if (!this.canEditSettings() || this.savingBroadcast() || !this.ecosystem.globalBroadcastMessage()) return;
+    this.savingBroadcast.set(true);
+    try {
+      await this.ecosystem.setBroadcast('');
+      this.broadcastDraft.set('');
+      this.broadcastDirty.set(false);
+      this.ecosystem.notify('Aviso global removido.', 'success');
+    } catch {
+      this.ecosystem.notify('Falha ao remover o aviso. O aviso publicado continua ativo.', 'error');
+    } finally {
+      this.savingBroadcast.set(false);
     }
   }
 }

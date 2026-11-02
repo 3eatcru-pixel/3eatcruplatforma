@@ -32,6 +32,18 @@ function getParamId(req: Request): string {
   return Array.isArray(p) ? p[0] || '' : p || '';
 }
 
+function omitLiveLocation(driver: StoreDriver): StoreDriver {
+  const profile = { ...driver };
+  delete profile.lat;
+  delete profile.lng;
+  delete profile.gpsAccuracyMeters;
+  delete profile.locationSharing;
+  delete profile.gpsRouteId;
+  delete profile.lastGpsPing;
+  delete profile.currentLocationName;
+  return profile;
+}
+
 async function logLogisticsAudit(
   action: string,
   details: string,
@@ -57,9 +69,9 @@ async function logLogisticsAudit(
 
 function canActOnAssignedRoute(req: Request, route: DeliveryRoute): boolean {
   if (!req.user) return false;
-  if (req.user.role === 'hq_admin') return true;
   if (isTenantManagerRole(req.user.role) && req.user.tenantId === route.tenantId) return true;
-  if (req.user.role === 'driver' && Boolean(route.driverId) && route.driverId === req.user.id) {
+  if (req.user.role === 'driver' && Boolean(route.driverId) &&
+    (route.driverId === req.user.driverId || route.driverId === req.user.id)) {
     return true;
   }
   return false;
@@ -75,9 +87,18 @@ logisticsRouter.get('/routes', async (req: Request, res: Response) => {
     let query: Query = adminDb.collection('delivery_routes');
 
     if (req.user?.role === 'hq_admin') {
-      if (tenantId && tenantId !== 'all') {
-        query = query.where('tenantId', '==', tenantId);
+      if (!PLATFORM_DELIVERY_NETWORK_READY) {
+        res.status(409).json({
+          error: 'A rede própria de entregadores da plataforma ainda está em breve.',
+          code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE'
+        });
+        return;
       }
+      if (tenantId && tenantId !== 'all' && tenantId !== 'marketplace') {
+        res.status(403).json({ error: 'O HQ não consulta rotas da frota privada das lojas.', code: 'STORE_LOGISTICS_PRIVATE' });
+        return;
+      }
+      query = query.where('tenantId', '==', 'marketplace');
     } else if (isTenantManagerRole(req.user?.role)) {
       if (!req.user?.tenantId) {
         res.status(403).json({ error: 'Gestor sem estabelecimento vinculado.' });
@@ -90,7 +111,7 @@ logisticsRouter.get('/routes', async (req: Request, res: Response) => {
       query = query.where('tenantId', '==', req.user.tenantId);
     } else if (req.user?.role === 'driver') {
       // Only a registered store driver receives unassigned routes. Platform pooling is not active yet.
-      const driverSnap = await adminDb.collection('drivers').doc(req.user.id).get();
+      const driverSnap = await adminDb.collection('drivers').doc(req.user.driverId || req.user.id).get();
       const driverProfile = driverSnap.exists ? (driverSnap.data() as StoreDriver) : undefined;
       const candidateTenantId =
         driverProfile?.driverType === 'private'
@@ -102,7 +123,7 @@ logisticsRouter.get('/routes', async (req: Request, res: Response) => {
         boundTenantId
           ? adminDb.collection('delivery_routes').where('status', '==', 'available').where('tenantId', '==', boundTenantId).get()
           : Promise.resolve(null),
-        adminDb.collection('delivery_routes').where('driverId', '==', req.user.id).get()
+        adminDb.collection('delivery_routes').where('driverId', '==', req.user.driverId || req.user.id).get()
       ]);
 
       const seen = new Set<string>();
@@ -110,7 +131,7 @@ logisticsRouter.get('/routes', async (req: Request, res: Response) => {
       for (const docSnap of [...mySnap.docs, ...(availSnap?.docs || [])]) {
         if (!seen.has(docSnap.id)) {
           const rData = docSnap.data() as DeliveryRoute;
-          if (rData.driverId !== req.user.id && (!boundTenantId || rData.tenantId !== boundTenantId)) {
+          if (rData.driverId !== (req.user.driverId || req.user.id) && (!boundTenantId || rData.tenantId !== boundTenantId)) {
             continue;
           }
           seen.add(docSnap.id);
@@ -136,17 +157,14 @@ logisticsRouter.get('/routes', async (req: Request, res: Response) => {
  */
 logisticsRouter.post('/routes', async (req: Request, res: Response) => {
   const body = req.body || {};
-  const isHq = req.user?.role === 'hq_admin';
   const isManager = isTenantManagerRole(req.user?.role);
 
-  if (!isHq && !isManager) {
-    res.status(403).json({ error: 'Apenas gestores da loja ou HQ podem despachar rotas.' });
+  if (!isManager) {
+    res.status(403).json({ error: 'Apenas gestores da própria loja podem despachar rotas.' });
     return;
   }
 
-  const assignedTenantId = isHq
-    ? String(body.tenantId || '').trim()
-    : String(req.user?.tenantId || '').trim();
+  const assignedTenantId = String(req.user?.tenantId || '').trim();
   if (!assignedTenantId) {
     res.status(400).json({ error: 'tenantId obrigatório para criar rota.' });
     return;
@@ -160,7 +178,7 @@ logisticsRouter.post('/routes', async (req: Request, res: Response) => {
     return;
   }
 
-  if (!isHq && body.tenantId && body.tenantId !== assignedTenantId) {
+  if (body.tenantId && body.tenantId !== assignedTenantId) {
     res.status(403).json({ error: 'Não é permitido despachar rotas para outro estabelecimento.' });
     return;
   }
@@ -290,8 +308,15 @@ logisticsRouter.get('/drivers', async (req: Request, res: Response) => {
     }
 
     if (caller.role === 'hq_admin') {
-      const snap = await adminDb.collection('drivers').get();
-      res.json(snap.docs.map((d: QueryDocumentSnapshot) => d.data()));
+      if (!PLATFORM_DELIVERY_NETWORK_READY) {
+        res.status(409).json({
+          error: 'A rede própria de entregadores da plataforma ainda está em breve.',
+          code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE'
+        });
+        return;
+      }
+      const snap = await adminDb.collection('drivers').where('driverType', '==', 'platform').limit(100).get();
+      res.json(snap.docs.map((d: QueryDocumentSnapshot) => omitLiveLocation({ ...d.data(), id: d.id } as StoreDriver)));
       return;
     }
 
@@ -305,8 +330,14 @@ logisticsRouter.get('/drivers', async (req: Request, res: Response) => {
     }
 
     if (caller.role === 'driver') {
-      const snap = await adminDb.collection('drivers').where('id', '==', caller.id).get();
-      res.json(snap.docs.map((d: QueryDocumentSnapshot) => d.data()));
+      const driverId = caller.driverId || caller.id;
+      const driverDoc = await adminDb.collection('drivers').doc(driverId).get();
+      if (driverDoc.exists) {
+        res.json([{ ...driverDoc.data(), id: driverDoc.id }]);
+        return;
+      }
+      const snap = await adminDb.collection('drivers').where('userUid', '==', caller.id).limit(1).get();
+      res.json(snap.docs.map((d: QueryDocumentSnapshot) => ({ ...d.data(), id: d.id })));
       return;
     }
 
@@ -322,7 +353,7 @@ logisticsRouter.post('/drivers', async (req: Request, res: Response) => {
   const isManager = isTenantManagerRole(caller?.role);
 
   if (!caller || (!isHq && !isManager)) {
-    res.status(403).json({ error: 'Apenas HQ ou gestores de loja podem cadastrar entregadores.' });
+    res.status(403).json({ error: 'Apenas gestores da própria loja ou o HQ para a rede própria podem cadastrar entregadores.' });
     return;
   }
 
@@ -332,10 +363,12 @@ logisticsRouter.post('/drivers', async (req: Request, res: Response) => {
     return;
   }
 
-  const assignedTenantId = isHq
-    ? String(body.tenantId || '').trim()
-    : String(caller.tenantId || '').trim();
-  const driverType: StoreDriver['driverType'] = isHq && body.driverType === 'platform' ? 'platform' : 'private';
+  if (isHq && body.driverType !== 'platform') {
+    res.status(403).json({ error: 'O HQ só pode administrar a frota própria da plataforma.', code: 'HQ_STORE_FLEET_FORBIDDEN' });
+    return;
+  }
+  const assignedTenantId = isHq ? 'marketplace' : String(caller.tenantId || '').trim();
+  const driverType: StoreDriver['driverType'] = isHq ? 'platform' : 'private';
 
   if (!PLATFORM_DELIVERY_NETWORK_READY && (driverType === 'platform' || isPlatformDeliveryTenantUnavailable(assignedTenantId))) {
     res.status(409).json({
@@ -405,10 +438,21 @@ logisticsRouter.patch('/drivers/:id', async (req: Request, res: Response) => {
       return;
     }
     const existing = snap.data() as StoreDriver;
+    if (caller.role === 'hq_admin' && existing.driverType !== 'platform') {
+      res.status(403).json({ error: 'O HQ não altera cadastros da frota privada das lojas.', code: 'HQ_STORE_FLEET_FORBIDDEN' });
+      return;
+    }
+    if (caller.role === 'hq_admin' && !PLATFORM_DELIVERY_NETWORK_READY) {
+      res.status(409).json({
+        error: 'A rede própria de entregadores da plataforma ainda está em breve.',
+        code: 'PLATFORM_DELIVERY_NETWORK_UNAVAILABLE'
+      });
+      return;
+    }
     const isAllowed =
-      caller.role === 'hq_admin' ||
+      (caller.role === 'hq_admin' && existing.driverType === 'platform') ||
       (isTenantManagerRole(caller.role) && caller.tenantId === existing.tenantId) ||
-      (caller.role === 'driver' && caller.id === existing.id);
+      (caller.role === 'driver' && (caller.driverId === existing.id || caller.id === existing.id));
 
     if (!isAllowed) {
       res.status(403).json({ error: 'Acesso negado.' });
@@ -417,6 +461,14 @@ logisticsRouter.patch('/drivers/:id', async (req: Request, res: Response) => {
 
     const updates = { ...req.body };
     delete updates.id;
+    delete updates.userUid;
+    delete updates.lat;
+    delete updates.lng;
+    delete updates.gpsAccuracyMeters;
+    delete updates.locationSharing;
+    delete updates.gpsRouteId;
+    delete updates.lastGpsPing;
+    delete updates.currentLocationName;
     if (caller.role !== 'hq_admin') {
       delete updates.tenantId;
       delete updates.complianceVerified;
@@ -456,7 +508,7 @@ logisticsRouter.patch('/drivers/:id', async (req: Request, res: Response) => {
 logisticsRouter.post('/drivers/:id/ping', async (req: Request, res: Response) => {
   const caller = req.user;
   const id = getParamId(req);
-  if (!caller || caller.role !== 'driver' || caller.id !== id) {
+  if (!caller || caller.role !== 'driver' || (caller.driverId !== id && caller.id !== id)) {
     res.status(403).json({ error: 'Apenas o próprio entregador pode atualizar GPS.' });
     return;
   }
@@ -470,6 +522,10 @@ logisticsRouter.post('/drivers/:id/ping', async (req: Request, res: Response) =>
     const driver = driverSnap.data() as StoreDriver;
     if (driver.driverType !== 'private' || !driver.tenantId || driver.tenantId === 'marketplace') {
       res.status(403).json({ error: 'GPS disponível somente para entregadores próprios de uma loja.' });
+      return;
+    }
+    if ((driver.userUid && driver.userUid !== caller.id) || (!driver.userUid && driver.id !== caller.id)) {
+      res.status(403).json({ error: 'A conta autenticada não está vinculada a este cadastro de entregador.' });
       return;
     }
 
@@ -528,14 +584,11 @@ logisticsRouter.post('/drivers/:id/ping', async (req: Request, res: Response) =>
 logisticsRouter.post('/drivers/:id/clock-in', async (req: Request, res: Response) => {
   const caller = req.user;
   const id = getParamId(req);
-  if (!caller || (caller.role !== 'hq_admin' && caller.id !== id)) {
+  if (!caller || caller.role !== 'driver' || (caller.driverId || caller.id) !== id) {
     res.status(403).json({ error: 'Apenas o próprio entregador pode iniciar turno.' });
     return;
   }
-  const boundTenant =
-    caller.role === 'hq_admin'
-      ? String(req.body?.tenantId || 'marketplace')
-      : caller.tenantId || 'marketplace';
+  const boundTenant = caller.tenantId || 'marketplace';
 
   if (boundTenant === 'marketplace') {
     res.status(403).json({ error: 'A rede própria de entregadores da plataforma ainda está em breve.' });
@@ -573,7 +626,6 @@ logisticsRouter.post('/routes/:id/accept', async (req: Request, res: Response) =
   if (
     !caller ||
     (caller.role !== 'driver' &&
-      caller.role !== 'hq_admin' &&
       !isTenantManagerRole(caller.role))
   ) {
     res.status(403).json({ error: 'Apenas entregadores ou gestores habilitados podem atribuir rotas.' });
@@ -601,7 +653,7 @@ logisticsRouter.post('/routes/:id/accept', async (req: Request, res: Response) =
 
       const assignedDriverId =
         caller.role === 'driver'
-          ? caller.id
+          ? (caller.driverId || caller.id)
           : String(req.body?.driverId || '').trim();
 
       if (!assignedDriverId) {
@@ -654,6 +706,9 @@ logisticsRouter.post('/routes/:id/accept', async (req: Request, res: Response) =
             message: 'Entregador exclusivo vinculado a outro estabelecimento não pode aceitar esta rota.'
           };
         }
+        if ((driverProfile.userUid && driverProfile.userUid !== caller.id) || (!driverProfile.userUid && driverProfile.id !== caller.id)) {
+          throw { status: 403, code: 'DRIVER_ACCOUNT_MISMATCH', message: 'A conta autenticada não corresponde ao cadastro do entregador.' };
+        }
       } else if (isTenantManagerRole(caller.role)) {
         if (!driverProfile || driverProfile.driverType !== 'private' || driverProfile.tenantId !== route.tenantId) {
           throw {
@@ -661,6 +716,9 @@ logisticsRouter.post('/routes/:id/accept', async (req: Request, res: Response) =
             code: 'DRIVER_TENANT_MISMATCH',
             message: 'Gestores só podem atribuir rotas a motoristas vinculados à própria loja.'
           };
+        }
+        if (!driverProfile.userUid) {
+          throw { status: 409, code: 'DRIVER_ACCOUNT_REQUIRED', message: 'Vincule uma conta autenticada ao entregador antes de atribuir a rota.' };
         }
       }
 

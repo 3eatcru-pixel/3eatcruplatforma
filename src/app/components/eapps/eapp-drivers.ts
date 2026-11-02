@@ -69,6 +69,16 @@ import { MapLibraries, MapProviderService } from '../../services/map-provider.se
                 <article class="bg-[#200e05] border border-[#381c0c] p-3 rounded-xl flex flex-wrap items-center justify-between gap-2">
                   <div><strong class="text-white text-xs">{{ driver.name }}</strong><p class="text-[10px] text-stone-400">{{ vehicleLabel(driver.vehicleType) }} · {{ driver.phone || 'Sem telefone' }}</p></div>
                   <span [class]="driver.status === 'available' ? 'text-emerald-300' : 'text-amber-300'" class="text-[10px] font-bold uppercase">{{ driver.status === 'available' ? 'Disponível' : driver.status === 'delivering' ? 'Em rota' : 'Offline' }}</span>
+                  @if (driver.userUid) {
+                    <span class="text-[10px] text-emerald-300">Conta vinculada</span>
+                  } @else {
+                    <div class="flex flex-wrap items-end gap-2 w-full border-t border-[#381c0c] pt-2">
+                      <label class="flex-1 min-w-48 text-[10px] text-stone-400">E-mail verificado da conta do entregador
+                        <input type="email" [name]="'driver-email-' + driver.id" [ngModel]="accountEmails[driver.id] || ''" (ngModelChange)="accountEmails[driver.id] = $event" autocomplete="email" class="mt-1 w-full rounded-lg bg-[#100803] border border-[#593017] px-2 py-2 text-white" />
+                      </label>
+                      <button type="button" (click)="linkDriverAccount(driver)" [disabled]="isSaving() || !accountEmails[driver.id]?.trim()" class="rounded-lg bg-purple-700 px-3 py-2 text-[10px] font-bold text-white disabled:opacity-50">Vincular conta de motorista</button>
+                    </div>
+                  }
                 </article>
               }
             </div>
@@ -108,6 +118,7 @@ import { MapLibraries, MapProviderService } from '../../services/map-provider.se
                 <p class="text-[10px] text-stone-500">Entregador: {{ route.driverName || 'Ainda não atribuído' }} · {{ routeStops(route) }}</p>
                 @if (route.status === 'available' && drivers().length > 0) {
                   <div class="flex flex-wrap items-end gap-2 border-t border-[#381c0c] pt-2">
+                    @if (availableDrivers().length === 0) { <p class="w-full text-[10px] text-amber-300">Vincule a conta de motorista ao cadastro antes de atribuir uma rota.</p> }
                     <label class="text-[10px] text-stone-400">Atribuir para
                       <select [ngModel]="selectedDrivers()[route.id] || ''" (ngModelChange)="selectDriver(route.id, $event)" [name]="'driver-' + route.id" class="mt-1 min-w-48 rounded-lg bg-[#100803] border border-[#593017] px-2 py-2 text-white">
                         <option value="">Selecione um entregador</option>
@@ -135,6 +146,7 @@ export class EAppDriversWindow implements OnDestroy {
   readonly formError = signal<string | null>(null);
   readonly selectedOrderIds = signal<string[]>([]);
   readonly selectedDrivers = signal<Record<string, string>>({});
+  accountEmails: Record<string, string> = {};
   storeDriverCompensation = 0;
   readonly newDriver = { name: '', phone: '', vehicleType: 'moto' as StoreDriver['vehicleType'] };
   private fetchGeneration = 0;
@@ -156,7 +168,7 @@ export class EAppDriversWindow implements OnDestroy {
     if (!tenantId) return [];
     return this.logisticsService.drivers().filter((driver) => driver.tenantId === tenantId && driver.driverType === 'private');
   });
-  readonly availableDrivers = computed(() => this.drivers().filter((driver) => driver.status === 'available'));
+  readonly availableDrivers = computed(() => this.drivers().filter((driver) => driver.status === 'available' && Boolean(driver.userUid)));
   readonly liveDrivers = computed(() => {
     const now = Date.now();
     return this.drivers().filter((driver) => {
@@ -211,15 +223,16 @@ export class EAppDriversWindow implements OnDestroy {
       }
       if (!this.map) {
         const firstDriver = liveDrivers[0]!;
-        this.map = leaflet.map(container, {
+        const map = leaflet.map(container, {
           center: [firstDriver.lat!, firstDriver.lng!],
           zoom: 13,
           zoomControl: true,
           attributionControl: true,
           minZoom: 1
         });
-        this.mapProvider.addBaseLayer(maplibreGL, this.map);
-        this.markersLayer = leaflet.layerGroup().addTo(this.map);
+        this.map = map;
+        this.mapProvider.addBaseLayer(maplibreGL, map);
+        this.markersLayer = leaflet.layerGroup().addTo(map);
       }
 
       const map = this.map;
@@ -325,6 +338,27 @@ export class EAppDriversWindow implements OnDestroy {
       this.ecosystem.notify('Entregador cadastrado para esta unidade.', this.ecosystem.isSimulationMode() ? 'info' : 'success');
     } catch {
       this.formError.set('Não foi possível cadastrar o entregador.');
+    } finally {
+      this.isSaving.set(false);
+    }
+  }
+
+  async linkDriverAccount(driver: StoreDriver) {
+    if (this.isSaving() || !this.canManageLogistics()) return;
+    const email = (this.accountEmails[driver.id] || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      this.formError.set('Informe o e-mail de uma conta existente e verificada.');
+      return;
+    }
+    this.isSaving.set(true);
+    this.formError.set(null);
+    try {
+      await this.logisticsService.linkDriverAccount(driver.id, email);
+      delete this.accountEmails[driver.id];
+      await this.refreshData();
+      this.ecosystem.notify('Conta vinculada. O entregador deve entrar novamente no app para atualizar o acesso.', 'success');
+    } catch {
+      this.formError.set('Não foi possível vincular a conta. Verifique se o e-mail existe, está verificado e não pertence a outra unidade.');
     } finally {
       this.isSaving.set(false);
     }

@@ -17,17 +17,24 @@ import { CompanyTenant } from '../../models/ecosystem.model';
             <mat-icon class="text-amber-500">business</mat-icon>
             <span>Lojas Credenciadas &amp; Portfólio Multi-Tenant</span>
           </h3>
-          <p class="text-xs text-stone-400 font-geist">Controle de licenças, status operacional e acesso remoto para suporte de unidade.</p>
+          <p class="text-xs text-stone-400 font-geist">Consulte as lojas, ajuste o status administrativo e abra o Store OS em modo de inspeção.</p>
         </div>
 
         <div class="flex items-center gap-3 w-full md:w-auto">
+          <label for="hqTenantSearch" class="sr-only">Buscar por nome, CNPJ, cidade ou bairro</label>
           <input 
+            id="hqTenantSearch"
             [value]="searchQuery()" 
             (input)="searchQuery.set($any($event.target).value)"
             type="text" 
-            placeholder="CNPJ, NOME OU CIDADE..." 
+            placeholder="Nome, CNPJ, cidade ou bairro..."
             class="bg-[#0e0e10] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-stone-500 font-mono-code focus:outline-none focus:border-amber-500 w-full md:w-64">
         </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] text-stone-400" aria-live="polite">
+        <span>{{ filteredTenants().length }} de {{ ecosystem.tenants().length }} lojas</span>
+        <span>Ativa: publicada • Em teste: trial • Suspensa: fora do marketplace público</span>
       </div>
 
       <div class="grid grid-cols-1 gap-3">
@@ -40,12 +47,16 @@ import { CompanyTenant } from '../../models/ecosystem.model';
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <h4 class="font-syne font-bold text-white text-lg leading-tight">{{ tenant.name }}</h4>
-                <span [class]="tenant.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'" class="text-[9px] font-mono-code px-2 py-0.5 rounded border uppercase font-bold">
-                  {{ tenant.status === 'active' ? '● OPERACIONAL' : 'SUSPENSO' }}
+                <span [class]="statusClass(tenant)" class="text-[9px] font-mono-code px-2 py-0.5 rounded border uppercase font-bold">
+                  {{ statusLabel(tenant) }}
                 </span>
               </div>
               <div class="font-mono-code text-[11px] text-stone-400">
                 CNPJ: {{ tenant.cnpj }} • PLANO: <span class="text-amber-400 font-bold uppercase">{{ tenant.plan }}</span>
+              </div>
+              <div class="text-[11px] text-stone-500">
+                {{ tenant.address.city || 'Cidade não informada' }}{{ tenant.address.state ? ', ' + tenant.address.state : '' }}
+                @if (tenant.address.neighborhood) { <span>• {{ tenant.address.neighborhood }}</span> }
               </div>
             </div>
 
@@ -56,10 +67,13 @@ import { CompanyTenant } from '../../models/ecosystem.model';
                 GOVERNANÇA
               </button>
               <button 
-                (click)="toggleStatus(tenant)" 
-                [class]="tenant.status === 'active' ? 'border-rose-500/50 text-rose-400 hover:bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10'" 
-                class="bg-transparent border font-mono-code font-bold py-2 px-3 rounded-lg text-[10px] transition-all cursor-pointer">
-                {{ tenant.status === 'active' ? 'SUSPENDER' : 'ATIVAR' }}
+                type="button"
+                (click)="toggleStatus(tenant)"
+                [disabled]="isUpdatingStatus(tenant.id)"
+                [attr.aria-label]="statusActionLabel(tenant) + ' ' + tenant.name"
+                [class]="tenant.status === 'active' ? 'border-rose-500/50 text-rose-400 hover:bg-rose-500/10' : 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10'"
+                class="bg-transparent border font-mono-code font-bold py-2 px-3 rounded-lg text-[10px] transition-all cursor-pointer disabled:cursor-wait disabled:opacity-50">
+                {{ isUpdatingStatus(tenant.id) ? 'SALVANDO…' : statusActionLabel(tenant) }}
               </button>
             </div>
 
@@ -67,8 +81,12 @@ import { CompanyTenant } from '../../models/ecosystem.model';
               (click)="inspectRemote.emit(tenant)" 
               class="bg-black hover:bg-stone-900 text-white font-mono-code font-bold py-2.5 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-white/10 shadow">
               <mat-icon class="text-sm">desktop_windows</mat-icon>
-              <span>INSPECTION</span>
+              <span>INSPECIONAR OS</span>
             </button>
+          </div>
+        } @empty {
+          <div class="rounded-xl border border-dashed border-white/15 bg-[#111114] px-5 py-10 text-center text-sm text-stone-400">
+            {{ ecosystem.tenants().length ? 'Nenhuma loja corresponde à busca.' : 'Nenhuma loja foi carregada para este contexto.' }}
           </div>
         }
       </div>
@@ -79,19 +97,74 @@ export class HqTenantsListComponent {
   readonly ecosystem = inject(EcosystemService);
   
   readonly searchQuery = signal<string>('');
+  readonly updatingTenantStatus = signal<Set<string>>(new Set());
   
   openGovernance = output<CompanyTenant>();
   inspectRemote = output<CompanyTenant>();
 
   readonly filteredTenants = computed(() => {
-    const q = this.searchQuery().toLowerCase().trim();
+    const q = this.normalizeSearchText(this.searchQuery());
     const list = this.ecosystem.tenants();
     if (!q) return list;
-    return list.filter(t => t.name.toLowerCase().includes(q) || t.cnpj.includes(q) || t.legalName.toLowerCase().includes(q));
+    const cnpjQuery = q.replace(/\D/g, '');
+    return list.filter((tenant) => {
+      const searchFields = [
+        tenant.name,
+        tenant.legalName,
+        tenant.address?.city,
+        tenant.address?.state,
+        tenant.address?.neighborhood
+      ].filter((value): value is string => typeof value === 'string');
+      return searchFields.some((value) => this.normalizeSearchText(value).includes(q)) ||
+        Boolean(cnpjQuery) && tenant.cnpj.replace(/\D/g, '').includes(cnpjQuery);
+    });
   });
 
-  toggleStatus(tenant: CompanyTenant) {
+  statusLabel(tenant: CompanyTenant): string {
+    if (tenant.status === 'active') return '● ATIVA';
+    if (tenant.status === 'trial') return 'EM TESTE';
+    return 'SUSPENSA';
+  }
+
+  statusClass(tenant: CompanyTenant): string {
+    if (tenant.status === 'active') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+    if (tenant.status === 'trial') return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+    return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+  }
+
+  statusActionLabel(tenant: CompanyTenant): string {
+    return tenant.status === 'active' ? 'SUSPENDER' : 'ATIVAR';
+  }
+
+  isUpdatingStatus(tenantId: string): boolean {
+    return this.updatingTenantStatus().has(tenantId);
+  }
+
+  async toggleStatus(tenant: CompanyTenant) {
+    if (this.isUpdatingStatus(tenant.id)) return;
     const newStatus = tenant.status === 'active' ? 'suspended' : 'active';
-    this.ecosystem.updateTenant(tenant.id, { status: newStatus });
+    this.updatingTenantStatus.update((current) => new Set(current).add(tenant.id));
+    try {
+      await this.ecosystem.updateTenant(tenant.id, { status: newStatus });
+      const verb = newStatus === 'active' ? 'ativada' : 'suspensa';
+      this.ecosystem.notify(
+        this.ecosystem.isSimulationMode()
+          ? `Loja ${verb} somente na simulação.`
+          : `Loja ${verb} no marketplace público.`,
+        this.ecosystem.isSimulationMode() ? 'info' : 'success'
+      );
+    } catch {
+      this.ecosystem.notify('Não foi possível alterar o status desta loja. Tente novamente.', 'error');
+    } finally {
+      this.updatingTenantStatus.update((current) => {
+        const next = new Set(current);
+        next.delete(tenant.id);
+        return next;
+      });
+    }
+  }
+
+  private normalizeSearchText(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
   }
 }

@@ -18,6 +18,7 @@ interface AuthMeResponse {
   emailVerified: boolean;
   role: AppRole;
   tenantId?: string;
+  driverId?: string;
   name?: string;
   claimsUpdated?: boolean;
 }
@@ -43,9 +44,10 @@ export class SecurityService {
   readonly currentUid = signal<string | null>(null);
   readonly currentPillar = signal<EcosystemPillar>('marketplace');
   readonly authInitialized = signal<boolean>(false);
+  readonly executionModeRevision = signal(0);
 
   readonly executionMode = signal<SystemExecutionMode>('real');
-  readonly isSimulated = signal<boolean>(false);
+  readonly isSimulated = computed(() => this.executionMode() === 'simulation');
   readonly isRealMode = computed(() => this.executionMode() === 'real');
 
   setPillar(pillar: EcosystemPillar) {
@@ -74,8 +76,7 @@ export class SecurityService {
           const parsed = JSON.parse(savedSim) as UserSession;
           this.currentSession.set(parsed);
           this.token.set(parsed.token || 'simulated-token');
-          this.isSimulated.set(true);
-          this.executionMode.set('simulation');
+          this.updateExecutionMode('simulation');
           this.authInitialized.set(true);
         }
       } catch {
@@ -95,8 +96,7 @@ export class SecurityService {
     effect(() => {
       const user = this.firebase.currentUser();
       if (user) {
-        this.isSimulated.set(false);
-        this.executionMode.set('real');
+        this.updateExecutionMode('real');
         if (this.isBrowser) sessionStorage.removeItem('3eatcru_simulated_session');
         this.updateSessionFromFirebaseUser(user);
       } else if (!this.firebase.authLoading()) {
@@ -130,7 +130,7 @@ export class SecurityService {
     tenantId = 'tenant-sp-001',
     tenantName = 'Burger & Co. Jardins'
   ) {
-    this.executionMode.set(mode);
+    this.updateExecutionMode(mode);
     if (mode === 'simulation') {
       this.setSimulatedSession(
         simulatedRole,
@@ -140,7 +140,6 @@ export class SecurityService {
         tenantName
       );
     } else {
-      this.isSimulated.set(false);
       if (this.isBrowser) {
         try {
           sessionStorage.removeItem('3eatcru_simulated_session');
@@ -157,9 +156,51 @@ export class SecurityService {
     }
   }
 
+  async setExecutionModeAndWait(
+    mode: SystemExecutionMode,
+    simulatedRole: AppRole = 'tenant_owner',
+    tenantId = 'tenant-sp-001',
+    tenantName = 'Burger & Co. Jardins'
+  ): Promise<UserSession | null> {
+    if (mode === 'simulation') {
+      this.setExecutionMode(mode, simulatedRole, tenantId, tenantName);
+      return this.currentSession();
+    }
+
+    this.updateExecutionMode('real');
+    if (this.isBrowser) {
+      try {
+        sessionStorage.removeItem('3eatcru_simulated_session');
+      } catch {
+        // ignore
+      }
+    }
+    this.clearSession();
+
+    const user = this.firebase.currentUser();
+    if (!user) {
+      this.authInitialized.set(true);
+      return null;
+    }
+    return this.updateSessionFromFirebaseUser(user, true);
+  }
+
   toggleExecutionMode() {
     const next = this.executionMode() === 'real' ? 'simulation' : 'real';
-    this.setExecutionMode(next);
+    const session = this.currentSession();
+    this.setExecutionMode(
+      next,
+      session?.role ?? 'tenant_owner',
+      session?.tenantId ?? 'tenant-sp-001',
+      session?.tenantName ?? 'Burger & Co. Jardins'
+    );
+  }
+
+  private updateExecutionMode(mode: SystemExecutionMode) {
+    if (this.executionMode() !== mode) {
+      this.executionModeRevision.update((revision) => revision + 1);
+      this.executionMode.set(mode);
+    }
   }
 
   setSimulatedSession(
@@ -169,6 +210,17 @@ export class SecurityService {
     tenantId?: string,
     tenantName?: string
   ): UserSession {
+    const wasSimulation = this.executionMode() === 'simulation';
+    const previousSession = this.currentSession();
+    this.updateExecutionMode('simulation');
+    if (wasSimulation && (
+      previousSession?.role !== role ||
+      previousSession?.email !== email ||
+      previousSession?.tenantId !== tenantId
+    )) {
+      this.executionModeRevision.update((revision) => revision + 1);
+    }
+
     const session: UserSession = {
       name,
       email,
@@ -178,8 +230,8 @@ export class SecurityService {
       token: 'simulated-token'
     };
 
-    this.isSimulated.set(true);
     this.token.set('simulated-token');
+    this.currentUid.set(null);
     this.currentSession.set(session);
     this.authInitialized.set(true);
 
@@ -195,6 +247,12 @@ export class SecurityService {
   }
 
   async updateSessionFromFirebaseUser(user: User, forceRefresh = false): Promise<UserSession | null> {
+    this.updateExecutionMode('real');
+    const previousUid = this.currentUid();
+    if (previousUid && previousUid !== user.uid) {
+      this.executionModeRevision.update((revision) => revision + 1);
+    }
+
     try {
       let idToken = await user.getIdToken(forceRefresh);
       this.token.set(idToken);
@@ -203,6 +261,7 @@ export class SecurityService {
       const idTokenResult = await user.getIdTokenResult(forceRefresh);
       let role = (idTokenResult.claims['role'] as AppRole) || 'consumer';
       let tenantId = idTokenResult.claims['tenantId'] as string | undefined;
+      let driverId = idTokenResult.claims['driverId'] as string | undefined;
       let resolvedName = user.displayName || user.email?.split('@')[0] || 'Usuário';
 
       if (this.isBrowser) {
@@ -221,6 +280,7 @@ export class SecurityService {
             }
             role = serverProfile.role || role;
             tenantId = serverProfile.tenantId || tenantId;
+            driverId = serverProfile.driverId || driverId;
             resolvedName = serverProfile.name || resolvedName;
           }
         } catch {
@@ -229,10 +289,12 @@ export class SecurityService {
       }
 
       const session: UserSession = {
+        id: user.uid,
         name: resolvedName,
         email: user.email || '',
         role,
         tenantId,
+        driverId,
         tenantName: tenantId ? `Estabelecimento ${tenantId}` : 'Marketplace',
         token: idToken
       };
@@ -248,6 +310,9 @@ export class SecurityService {
   }
 
   private clearSession() {
+    if (this.currentUid() !== null || this.currentSession() !== null) {
+      this.executionModeRevision.update((revision) => revision + 1);
+    }
     this.token.set(null);
     this.currentUid.set(null);
     this.currentSession.set(null);
@@ -292,7 +357,7 @@ export class SecurityService {
   }
 
   async logout() {
-    this.isSimulated.set(false);
+    this.updateExecutionMode('real');
     if (this.isBrowser) {
       try {
         sessionStorage.removeItem('3eatcru_simulated_session');

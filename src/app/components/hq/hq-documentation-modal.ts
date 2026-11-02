@@ -143,13 +143,15 @@ export type DocSection = 'tripartite' | 'modules' | 'delivery' | 'permissions' |
               <div class="space-y-3">
                 <div class="bg-white p-4 rounded-2xl border border-[#e8dfce] space-y-2">
                   <h4 class="font-serif font-black text-amber-950 uppercase text-xs">Módulos Principais do HQ Central (/api/hq/*)</h4>
+                  <p class="text-[11px] leading-relaxed text-stone-600">No console para desktop, as áreas ficam agrupadas em Lojas e operação, Financeiro, Ecossistema e Governança. A navegação lateral e a busca Ctrl+K cobrem as mesmas 11 áreas.</p>
                   <ul class="list-disc pl-5 space-y-1.5 text-stone-700">
                     <li><strong>Portfólio de Lojas:</strong> Provisionamento em <code>trial</code>, validação de CNPJ, métricas históricas de pedidos, consulta do responsável atual e vínculo de uma conta existente com e-mail confirmado. O HQ não cria a conta nem substitui um responsável já vinculado.</li>
-                    <li><strong>Planos Comerciais SaaS:</strong> Edição de mensalidade e cota inicial para novos tenants. O cadastro de dispositivos respeita a cota definida no tenant; alterar o plano não ajusta a cota automaticamente nos tenants existentes nem inicia cobrança recorrente.</li>
-                    <li><strong>Inventário de dispositivos:</strong> Cadastro de tenant, nome e serial com bloqueio transacional ao atingir a cota; não envia comandos remotos nem recebe telemetria de hardware.</li>
+                    <li><strong>Planos e cobranças SaaS:</strong> Edição do preço mensal e cota inicial; checkout recorrente Mercado Pago ou Stripe e consulta de faturas conciliadas por webhook. Eventos técnicos ficam no servidor. Credenciais live e homologação ainda precisam ser configuradas; inadimplência não suspende tenant automaticamente.</li>
+                    <li><strong>Inventário de dispositivos:</strong> Cadastro de tenant, nome e serial com bloqueio transacional ao atingir a cota. A tela não carrega motoristas nem rotas das lojas e não envia comandos remotos nem recebe telemetria de hardware.</li>
                     <li><strong>Comissão da plataforma:</strong> Está em breve. A configuração permite manter ou restaurar esse estado; a API não permite ativar antes de existirem entregadores próprios da plataforma e a inteligência operacional estar pronta. Motoristas da loja e seus pagamentos continuam sob responsabilidade do lojista.</li>
-                    <li><strong>Portal Regional:</strong> Separação entre <code>/hq_settings/global</code> (privado) e <code>/public_regional/default</code> (banner público do Marketplace).</li>
-                    <li><strong>Auditoria estrutural:</strong> Varredura sob demanda de tenants, produtos, pedidos e inventário; não certifica todos os dados do sistema. Logs são persistidos sem garantia de imutabilidade.</li>
+                    <li><strong>Ecossistema:</strong> Catálogo informativo de módulos, prévia simulada de aplicativos, marketplace geral da plataforma e diretório paginado de contatos. O HQ configura banner, avisos, praça, raio inicial de busca e destaques do portal regional; cada loja edita o conteúdo da própria vitrine em Minha Loja. A análise geográfica do HQ só conta lojas ativas com coordenadas reais cadastradas.</li>
+                    <li><strong>Configurações e auditoria:</strong> Carregamento, publicação e remoção de aviso global, manutenção visual, proteção do estado da comissão e varredura sob demanda de tenants, produtos, pedidos e inventário. O modo vem de uma única fonte; a troca entre real e simulação limpa o estado do HQ, marketplace, diretório e tenants, invalida respostas antigas e recarrega a área ativa ao retornar ao real. O indicador mostra o caminho selecionado, não disponibilidade confirmada do Firestore. A varredura não certifica todos os dados; logs não têm garantia de imutabilidade.</li>
+                    <li><strong>Escala:</strong> O overview e as métricas por loja selecionam campos de cálculo e processam os pedidos em fluxo para limitar memória. Ainda leem o histórico completo sem paginação ou janela de datas; agregados materializados com backfill serão necessários antes de ampliar o volume.</li>
                   </ul>
                 </div>
               </div>
@@ -175,14 +177,14 @@ export type DocSection = 'tripartite' | 'modules' | 'delivery' | 'permissions' |
                   <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] space-y-1">
                     <div class="font-bold text-stone-900">2. Isolamento de Motorista</div>
                     <p class="text-stone-600 text-[11px]">
-                      Entregadores consultam e alteram exclusivamente pedidos com <code>driverId === uid</code>; pedidos sem motorista jamais ficam expostos.
+                      O motorista autenticado atua nas rotas atribuídas ao cadastro vinculado à conta; pedidos e GPS permanecem limitados à rota ativa e à loja responsável.
                     </p>
                   </div>
 
                   <div class="bg-white p-3.5 rounded-2xl border border-[#e8dfce] space-y-1">
                     <div class="font-bold text-stone-900">3. Frota Própria vs Parceira</div>
                     <p class="text-stone-600 text-[11px]">
-                      Rotas de lojas com frota <code>own</code> bloqueiam entregadores externos ou de lojas rivais com <code>403 TENANT_MISMATCH</code>.
+                      Cada unidade cria, atribui e acompanha sua própria frota. O HQ não consulta dados de rotas ou motoristas privados; a rede da plataforma continua em breve.
                     </p>
                   </div>
                 </div>
@@ -261,7 +263,7 @@ export type DocSection = 'tripartite' | 'modules' | 'delivery' | 'permissions' |
                       <li><code>01_EMPRESAS_E_TENANTS.md</code>: Cadastro e ciclo de vida de tenants.</li>
                       <li><code>02_CONTAS_E_PERMISSOES.md</code>: Identidade e controles de acesso.</li>
                       <li><code>03_PLANOS_LICENCAS_E_ASSINATURAS.md</code>: Cotas cadastradas e limites de aplicação.</li>
-                      <li><code>04_PAGAMENTOS_E_COBRANCA.md</code>: Comissão da plataforma em breve; cobrança de planos e payout ainda não automatizados.</li>
+                      <li><code>04_PAGAMENTOS_E_COBRANCA.md</code>: Assinaturas SaaS, provedores suportados e comissão futura da plataforma.</li>
                       <li><code>05_DISPOSITIVOS_E_ATIVACAO.md</code>: Inventário sem agente MDM físico localizado.</li>
                       <li><code>06_OPERACOES_E_AUDITORIA.md</code>: Escopo da varredura e da flag de manutenção.</li>
                     </ul>

@@ -270,7 +270,7 @@ import { CompanyTenant, POSDevice } from '../../models/ecosystem.model';
               (click)="openPublicStorefront(t.id)"
               class="bg-white hover:bg-stone-100 text-stone-900 border border-[#d6c7b0] px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm">
               <mat-icon class="text-sm text-emerald-600">storefront</mat-icon>
-              <span>Ver Vitrine do Consumidor (Pública)</span>
+              <span>Pré-visualizar Vitrine Pública da Loja</span>
             </button>
 
             <div class="flex items-center gap-2">

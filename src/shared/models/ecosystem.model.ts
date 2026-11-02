@@ -148,6 +148,7 @@ export const PILLARS_CATALOG: PillarDefinition[] = [
 
 export interface UserSession {
   id?: string;
+  driverId?: string;
   name: string;
   role: AppRole;
   email: string;
@@ -464,6 +465,21 @@ export interface ConsumerAccount {
   registeredAt: string;
 }
 
+/** Minimal contact fields exposed by the HQ-only consumer directory. */
+export interface ConsumerDirectoryEntry {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  updatedAt?: string;
+}
+
+export interface ConsumerDirectoryPage {
+  items: ConsumerDirectoryEntry[];
+  nextPageToken: string | null;
+  pageSize: number;
+}
+
 export interface DeliveryRoute {
   id: string;
   routeCode: string;
@@ -537,6 +553,7 @@ export interface LicensePlan {
 
 export interface StoreDriver {
   id: string;
+  userUid?: string;
   tenantId?: string;
   name: string;
   phone: string;

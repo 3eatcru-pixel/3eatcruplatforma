@@ -9,7 +9,8 @@ No pilar HQ, o middleware aceita uma claim `hq_admin` com email verificado. Tamb
 ## Controles de rota observados
 
 - As rotas privadas de `/api/hq/*` usam `requireHqAdmin`. Há endpoints públicos delimitados para status público, catálogo de planos e configuração regional.
-- `GET /api/crm/consumers` exige `hq_admin` e retorna no máximo 100 perfis, sem paginação. O diretório não calcula GMV nem frequência de pedidos.
+- As rotas `/api/logistics/*` não dão ao `hq_admin` acesso à frota privada das lojas. Quando a rede própria da plataforma estiver pronta, o acesso administrativo se limita ao tenant `marketplace`; no estado atual as consultas de frota/rotas retornam `409 PLATFORM_DELIVERY_NETWORK_UNAVAILABLE`.
+- `GET /api/crm/consumers` exige `hq_admin` e retorna 50 perfis por página ordenados pelo ID do documento. Use `pageToken` da resposta como cursor; um cursor removido ou inválido retorna `400 INVALID_PAGE_TOKEN`. A rota projeta nome, e-mail, telefone e `updatedAt`, sem expor endereço ou CPF. O diretório não calcula GMV nem frequência de pedidos.
 - `requireAuth` exige um usuário autenticado e rejeita o papel `guest`.
 - `requireTenantAccess` permite `hq_admin` ou aplica papéis de gestor e comparação com o `tenantId` da sessão. Rotas podem habilitar `waiter` explicitamente.
 - `ROLE_PERMISSION_MATRIX` lista permissões por papel e `hasPermission` consulta essa matriz. As rotas também usam middlewares específicos; a matriz não substitui essas verificações.
@@ -30,4 +31,4 @@ As alterações administrativas não têm garantia uniforme de registro: algumas
 
 ## Validação desta documentação
 
-O texto foi conferido com `src/server/api.ts`, `src/server/middleware/auth.middleware.ts`, `src/server/routes/auth.router.ts`, `src/server/routes/hq.router.ts`, `src/server/routes/crm.router.ts` e `firestore.rules`. Nesta revisão, o build passou e a suíte geral passou com 100/100 testes; a cobertura usa mocks e não valida claims contra Firebase real.
+O texto foi conferido com `src/server/api.ts`, `src/server/middleware/auth.middleware.ts`, `src/server/routes/auth.router.ts`, `src/server/routes/hq.router.ts`, `src/server/routes/crm.router.ts` e `firestore.rules`. Nesta continuação, `npm run check` passou: lint, 100/100 testes e build de produção. A suíte usa mocks e não valida claims ou streaming contra Firebase real.

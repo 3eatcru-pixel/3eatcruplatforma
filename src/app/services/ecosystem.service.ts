@@ -92,6 +92,7 @@ export class EcosystemService {
 
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
+  private lastExecutionModeResetRevision = -1;
 
   public readonly financialEngine = inject(FinancialCoreEngine);
   public readonly logisticsEngine = inject(LogisticsCoreEngine);
@@ -121,7 +122,6 @@ export class EcosystemService {
   readonly drivers = this.logisticsService.drivers;
   readonly deliveryRoutes = this.logisticsService.deliveryRoutes;
   readonly consumerAccounts = this.crmService.consumerAccounts;
-  readonly consumerAccountsStatus = this.crmService.consumerAccountsStatus;
   readonly activeConsumer = this.crmService.activeConsumer;
   readonly customers = this.crmService.customers;
   readonly tables = this.tablesService.tables;
@@ -179,6 +179,11 @@ export class EcosystemService {
   readonly lastSystemAuditReport = signal<SystemAuditReport | null>(null);
 
   constructor() {
+    effect(() => {
+      const revision = this.security.executionModeRevision();
+      this.resetForExecutionMode(this.isSimulationMode(), false, revision);
+    });
+
     effect(() => {
       const session = this.security.currentSession();
       if (session?.tenantId) {
@@ -310,6 +315,7 @@ export class EcosystemService {
       resolvedTenantId,
       tenantName
     );
+    this.resetForExecutionMode(true);
 
     if (resolvedTenantId) {
       this.currentTenantId.set(resolvedTenantId);
@@ -398,15 +404,16 @@ export class EcosystemService {
   }
 
   async syncHqFromBackend(): Promise<boolean> {
-    if (this.isSimulationMode()) return true;
+    this.resetForExecutionMode(this.isSimulationMode(), true);
+    if (this.isSimulationMode()) {
+      return true;
+    }
     try {
       await this.hqService.getOverview();
       await this.hqService.fetchPlans();
       await this.tenantsService.fetchAllTenants();
       await this.hqService.fetchDevices();
       await this.hqService.fetchAuditLogs();
-      await this.logisticsService.fetchDrivers();
-      await this.crmService.fetchConsumers();
       return true;
     } catch (err) {
       console.warn('EcosystemService.syncHqFromBackend deferred:', err);
@@ -414,8 +421,27 @@ export class EcosystemService {
     }
   }
 
+  resetForExecutionMode(
+    simulation = this.isSimulationMode(),
+    force = false,
+    revision = this.security.executionModeRevision()
+  ): void {
+    if (!force && revision === this.lastExecutionModeResetRevision) return;
+    this.lastExecutionModeResetRevision = revision;
+    this.tenantsService.resetForExecutionMode(simulation);
+    this.hqService.resetForExecutionMode(simulation);
+    this.marketplaceService.resetForExecutionMode(simulation);
+    this.crmService.resetConsumerDirectory();
+    this.systemAuditVerified.set(false);
+    this.lastSystemAuditReport.set(null);
+  }
+
   async runStructuralAuditOnBackend(): Promise<SystemAuditReport> {
+    const modeRevision = this.security.executionModeRevision();
     const report = await this.hqService.runAudit();
+    if (modeRevision !== this.security.executionModeRevision()) {
+      throw new Error('O ambiente mudou durante a varredura. O último relatório foi mantido.');
+    }
     this.lastSystemAuditReport.set(report);
     this.systemAuditVerified.set(true);
     return report;
@@ -789,9 +815,19 @@ export class EcosystemService {
     await this.hqService.lockDevice(id);
   }
 
-  async updateRegionalConfig(config: Partial<RegionalMarketplaceConfig>) {
-    await this.marketplaceService.updateRegionalConfig(config);
-    this.notify('Configuração regional do Marketplace atualizada.', 'success');
+  async updateRegionalConfig(config: Partial<RegionalMarketplaceConfig>): Promise<boolean> {
+    const saved = await this.marketplaceService.updateRegionalConfig(config, !this.isSimulationMode());
+    if (!saved) {
+      this.notify('Não foi possível publicar a configuração regional. Tente novamente.', 'error');
+      return false;
+    }
+    this.notify(
+      this.isSimulationMode()
+        ? 'Configuração atualizada somente na simulação.'
+        : 'Configuração regional do Marketplace publicada.',
+      this.isSimulationMode() ? 'info' : 'success'
+    );
+    return true;
   }
 
   async toggleStoreOpenStatus(tenantId: string, isOpen: boolean): Promise<boolean> {

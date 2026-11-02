@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
 import { HqApiService } from '../../services/hq-api.service';
-import type { BillingProvider, HqBillingDashboard, PlatformSubscriptionRecord } from '../../../shared/models/billing.model';
+import type { BillingProvider, HqBillingDashboard, PlatformBillingInvoiceRecord, PlatformSubscriptionRecord } from '../../../shared/models/billing.model';
 import type { CompanyTenant } from '../../models/ecosystem.model';
 
 @Component({
@@ -122,15 +122,24 @@ import type { CompanyTenant } from '../../models/ecosystem.model';
 
           <section class="space-y-3">
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-sm font-bold text-white">Faturas e eventos recebidos</h3>
+              <div>
+                <h3 class="text-sm font-bold text-white">Faturas conciliadas por webhook</h3>
+                <p class="mt-1 text-[10px] text-stone-400">A lista mostra faturas; os registros técnicos de eventos ficam no servidor.</p>
+              </div>
               <button type="button" (click)="loadDashboard()" [disabled]="isLoading()" class="rounded-lg border border-stone-700 px-3 py-2 text-[10px] font-bold text-stone-300 disabled:opacity-40">Atualizar</button>
             </div>
             <div class="overflow-x-auto rounded-2xl border border-stone-700 bg-stone-950/60">
               <table class="w-full min-w-[700px] text-left text-xs">
-                <thead class="border-b border-stone-700 bg-stone-900 text-[10px] uppercase text-stone-400"><tr><th class="p-3">Loja</th><th class="p-3">Provedor</th><th class="p-3">Valor</th><th class="p-3">Estado</th><th class="p-3">Data</th></tr></thead>
+                <thead class="border-b border-stone-700 bg-stone-900 text-[10px] uppercase text-stone-400"><tr><th class="p-3">Loja</th><th class="p-3">Provedor</th><th class="p-3">Valor</th><th class="p-3">Estado da fatura</th><th class="p-3">Data</th></tr></thead>
                 <tbody class="divide-y divide-stone-800">
                   @for (invoice of data.invoices; track invoice.id) {
-                    <tr><td class="p-3">{{ invoice.tenantId }}</td><td class="p-3">{{ providerLabel(invoice.provider) }}</td><td class="p-3">{{ invoice.amount | currency:invoice.currency:'symbol':'1.2-2' }}</td><td class="p-3">{{ invoice.status }}</td><td class="p-3">{{ invoice.paidAt || invoice.createdAt | date:'dd/MM/yyyy HH:mm' }}</td></tr>
+                    <tr>
+                      <td class="p-3"><strong class="text-white">{{ invoiceTenantName(invoice) }}</strong><div class="mt-1 text-[9px] text-stone-500">{{ invoice.tenantId }}</div></td>
+                      <td class="p-3">{{ providerLabel(invoice.provider) }}</td>
+                      <td class="p-3">{{ invoice.amount | currency:invoice.currency:'symbol':'1.2-2' }}</td>
+                      <td class="p-3"><span [class]="invoiceStatusClass(invoice.status)">{{ invoiceStatusLabel(invoice.status) }}</span></td>
+                      <td class="p-3">{{ invoice.paidAt || invoice.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                    </tr>
                   } @empty {
                     <tr><td colspan="5" class="p-7 text-center text-stone-500">Nenhuma fatura recebida por webhook até agora.</td></tr>
                   }
@@ -190,6 +199,26 @@ export class HqBillingComponent implements OnInit {
 
   providerLabel(provider: BillingProvider): string {
     return provider === 'stripe' ? 'Stripe' : 'Mercado Pago';
+  }
+
+  invoiceTenantName(invoice: PlatformBillingInvoiceRecord): string {
+    return this.ecosystem.tenants().find((tenant) => tenant.id === invoice.tenantId)?.name || invoice.tenantId;
+  }
+
+  invoiceStatusLabel(status: PlatformBillingInvoiceRecord['status']): string {
+    switch (status) {
+      case 'paid': return 'Paga';
+      case 'pending': return 'Pendente';
+      case 'failed': return 'Falhou';
+      case 'refunded': return 'Estornada';
+    }
+  }
+
+  invoiceStatusClass(status: PlatformBillingInvoiceRecord['status']): string {
+    if (status === 'paid') return 'rounded-full bg-emerald-950 px-2 py-1 text-[10px] font-bold text-emerald-300';
+    if (status === 'failed') return 'rounded-full bg-rose-950 px-2 py-1 text-[10px] font-bold text-rose-300';
+    if (status === 'refunded') return 'rounded-full bg-stone-800 px-2 py-1 text-[10px] font-bold text-stone-300';
+    return 'rounded-full bg-amber-950 px-2 py-1 text-[10px] font-bold text-amber-200';
   }
 
   statusLabel(status?: string): string {

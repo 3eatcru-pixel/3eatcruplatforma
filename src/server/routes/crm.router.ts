@@ -1,17 +1,72 @@
 import { Router, Request, Response } from 'express';
 import { isTenantManagerRole, requireAuth, requireHqAdmin } from '../middleware/auth.middleware';
 import { adminDb } from '../firebase-admin';
-import { Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldPath, Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
 export const crmRouter = Router();
 
 crmRouter.use(requireAuth);
 
-/** HQ-only directory; the Store OS derives tenant customer summaries from scoped orders. */
-crmRouter.get('/consumers', requireHqAdmin, async (_req: Request, res: Response) => {
+/** HQ-only, cursor-paginated contact directory; profile addresses and identity data stay private. */
+crmRouter.get('/consumers', requireHqAdmin, async (req: Request, res: Response) => {
+  const pageSize = 50;
+  const rawPageToken = req.query['pageToken'];
+  if (rawPageToken !== undefined && typeof rawPageToken !== 'string') {
+    res.status(400).json({ error: 'Cursor de consumidores inválido.', code: 'INVALID_PAGE_TOKEN' });
+    return;
+  }
+  const pageToken = rawPageToken as string | undefined;
+
+  let cursorId: string | undefined;
+  if (pageToken !== undefined) {
+    if (!/^[A-Za-z0-9_-]{1,2048}$/.test(pageToken)) {
+      res.status(400).json({ error: 'Cursor de consumidores inválido.', code: 'INVALID_PAGE_TOKEN' });
+      return;
+    }
+    try {
+      const decoded = Buffer.from(pageToken, 'base64url').toString('utf8');
+      if (!decoded || Buffer.byteLength(decoded, 'utf8') > 1500 || decoded.includes('/') ||
+        Buffer.from(decoded, 'utf8').toString('base64url') !== pageToken) {
+        throw new Error('Invalid cursor');
+      }
+      cursorId = decoded;
+    } catch {
+      res.status(400).json({ error: 'Cursor de consumidores inválido.', code: 'INVALID_PAGE_TOKEN' });
+      return;
+    }
+  }
+
   try {
-    const snap = await adminDb.collection('consumers').limit(100).get();
-    res.json(snap.docs.map((doc: QueryDocumentSnapshot) => doc.data()));
+    const collection = adminDb.collection('consumers');
+    let query = collection.orderBy(FieldPath.documentId());
+    if (cursorId) {
+      const cursor = await collection.doc(cursorId).get();
+      if (!cursor.exists) {
+        res.status(400).json({ error: 'Cursor expirou; atualize o diretório.', code: 'INVALID_PAGE_TOKEN' });
+        return;
+      }
+      query = query.startAfter(cursor);
+    }
+
+    const snap = await query.select('name', 'email', 'phone', 'updatedAt').limit(pageSize + 1).get();
+    const hasMore = snap.docs.length > pageSize;
+    const pageDocs = snap.docs.slice(0, pageSize);
+    const items = pageDocs.map((doc: QueryDocumentSnapshot) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: typeof data['name'] === 'string' ? data['name'] : '',
+        email: typeof data['email'] === 'string' ? data['email'] : '',
+        phone: typeof data['phone'] === 'string' ? data['phone'] : '',
+        ...(typeof data['updatedAt'] === 'string' ? { updatedAt: data['updatedAt'] } : {})
+      };
+    });
+
+    res.json({
+      items,
+      nextPageToken: hasMore && pageDocs.length ? Buffer.from(pageDocs[pageDocs.length - 1]!.id).toString('base64url') : null,
+      pageSize
+    });
   } catch {
     res.status(500).json({ error: 'Failed to fetch consumers.' });
   }

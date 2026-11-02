@@ -198,9 +198,9 @@ describe('HqApiService (HQ Central Dedicated Backend API)', () => {
     const getPromise = service.getConsumers();
     const getReq = httpMock.expectOne('/api/crm/consumers');
     expect(getReq.request.method).toBe('GET');
-    getReq.flush(mockConsumers);
+    getReq.flush({ items: mockConsumers, nextPageToken: null, pageSize: 50 });
     const consumers = await getPromise;
-    expect(consumers.length).toBe(1);
+    expect(consumers.items.length).toBe(1);
 
     const savePromise = service.saveConsumer({ name: 'Bruno Santos', email: 'bruno@example.com' });
     const saveReq = httpMock.expectOne('/api/crm/consumers');

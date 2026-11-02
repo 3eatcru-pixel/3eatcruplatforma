@@ -413,16 +413,31 @@ describe('3EATCRU Core Motors & Services Test Suite', () => {
     it('should start with null currentSession after logout for safety', async () => {
       await ecosystem.logout();
       expect(ecosystem.currentSession()).toBeNull();
+      expect(ecosystem.security.executionMode()).toBe('real');
+      expect(ecosystem.security.isSimulated()).toBe(false);
+      expect(ecosystem.security.isRealMode()).toBe(true);
     });
 
     it('should set currentSession on loginAs and reset it on logout', async () => {
+      ecosystem.hqService.maintenanceMode.set(true);
+      ecosystem.marketplaceService.regionalConfig.update((config) => ({
+        ...config,
+        heroTitle: 'Configuração do contexto anterior'
+      }));
+
       ecosystem.loginAs('operator', 'operador@teste.com', 'Operador Teste', 'Loja Teste', 'client');
       expect(ecosystem.currentSession()).not.toBeNull();
       expect(ecosystem.currentSession()?.role).toBe('operator');
+      expect(ecosystem.security.executionMode()).toBe('simulation');
+      expect(ecosystem.security.isSimulated()).toBe(true);
+      expect(ecosystem.security.isRealMode()).toBe(false);
+      expect(ecosystem.hqService.maintenanceMode()).toBe(false);
+      expect(ecosystem.marketplaceService.regionalConfig().heroTitle).not.toBe('Configuração do contexto anterior');
 
       await ecosystem.logout();
       expect(ecosystem.currentSession()).toBeNull();
       expect(ecosystem.activeConsumer()).toBeNull();
+      expect(ecosystem.security.executionMode()).toBe('real');
     });
 
     it('should keep the 8% platform delivery rate configured for the future while the feature is coming soon', () => {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -37,7 +37,7 @@ import { HqRegionalMapToolsComponent } from './hq-regional-map-tools';
                 HQ CENTRAL CONTROL
               </span>
             </div>
-            <p class="text-xs text-stone-400">Configure o banner hero da praça, avisos da central, raio de geolocalização e curadoria de destaques.</p>
+            <p class="text-xs text-stone-400">Gerencie o marketplace público da plataforma: banner, avisos, praça, raio e destaques. Cada loja edita sua própria vitrine em Minha Loja.</p>
           </div>
         </div>
 
@@ -53,19 +53,46 @@ import { HqRegionalMapToolsComponent } from './hq-regional-map-tools';
           <button
             type="button"
             (click)="saveRegionalConfig()"
-            class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-lg border border-amber-400/50 cursor-pointer">
+            [disabled]="!hasChanges() || isSaving()"
+            class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-lg border border-amber-400/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
             <mat-icon class="text-sm">save</mat-icon>
-            <span>Publicar Alterações no Portal</span>
+            <span>{{ isSaving() ? 'Publicando…' : 'Publicar alterações' }}</span>
           </button>
         </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+        @if (ecosystem.isSimulationMode()) {
+          <span class="rounded-lg border border-sky-800 bg-sky-950/50 px-2.5 py-1 text-sky-300">SIMULAÇÃO LOCAL</span>
+        } @else if (ecosystem.marketplaceService.regionalConfigStatus() === 'loading' || isLoading()) {
+          <span class="rounded-lg border border-amber-800 bg-amber-950/50 px-2.5 py-1 text-amber-300">CARREGANDO CONFIGURAÇÃO</span>
+        } @else if (ecosystem.marketplaceService.regionalConfigStatus() === 'error' && !canEdit()) {
+          <span class="rounded-lg border border-rose-800 bg-rose-950/50 px-2.5 py-1 text-rose-300">NÃO FOI POSSÍVEL CARREGAR</span>
+        } @else if (hasChanges()) {
+          <span class="rounded-lg border border-amber-800 bg-amber-950/50 px-2.5 py-1 text-amber-300">ALTERAÇÕES PENDENTES</span>
+        } @else {
+          <span class="rounded-lg border border-emerald-800 bg-emerald-950/50 px-2.5 py-1 text-emerald-300">CONFIGURAÇÃO PUBLICADA</span>
+        }
+        @if (ecosystem.marketplaceService.regionalConfigError(); as configError) {
+          <span class="text-rose-300">{{ configError }}</span>
+        }
       </div>
 
       <!-- METRICS TELEMETRY HUD -->
       <app-hq-regional-metrics [tenants]="ecosystem.tenants()" />
 
-      <!-- GEODETIC ANALYSIS TOOLS (NEW) -->
-      <app-hq-regional-map-tools />
-
+      @if (!canEdit()) {
+        <div class="rounded-2xl border border-amber-900/70 bg-[#170b04] p-6 text-sm text-stone-300">
+          @if (ecosystem.marketplaceService.regionalConfigStatus() === 'loading' || isLoading()) {
+            <div class="flex items-center gap-3"><mat-icon class="animate-spin text-amber-400">progress_activity</mat-icon><span>Carregando a configuração publicada antes de liberar a edição…</span></div>
+          } @else {
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <span>O editor ficou bloqueado para evitar publicar os valores padrão sobre a configuração existente.</span>
+              <button type="button" (click)="loadRegionalConfig()" class="rounded-xl border border-amber-700 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-amber-950">Tentar novamente</button>
+            </div>
+          }
+        </div>
+      } @else {
       <!-- SPLIT VIEW: EDITOR & SPOTLIGHT -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
@@ -84,10 +111,10 @@ import { HqRegionalMapToolsComponent } from './hq-regional-map-tools';
             <div class="flex items-center justify-between pb-2 border-b border-[#3d200f]">
               <div class="flex items-center gap-2 text-amber-400 font-serif font-black text-xs">
                 <mat-icon class="text-sm">visibility</mat-icon>
-                <span>Prévia ao Vivo do Banner Regional</span>
+                <span>Prévia do rascunho</span>
               </div>
-              <span class="text-[9px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono px-1.5 py-0.2 rounded font-bold">
-                SINCRONIZADO
+              <span class="text-[9px] bg-amber-950 text-amber-300 border border-amber-800 font-mono px-1.5 py-0.2 rounded font-bold">
+                {{ hasChanges() ? 'NÃO PUBLICADO' : 'PUBLICADO' }}
               </span>
             </div>
 
@@ -142,34 +169,51 @@ import { HqRegionalMapToolsComponent } from './hq-regional-map-tools';
         </div>
 
       </div>
+      }
+
+      <details class="group rounded-2xl border border-[#3d200f] bg-[#170b04] p-4">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-bold text-stone-200">
+          <span class="flex items-center gap-2"><mat-icon class="text-amber-400">map</mat-icon>Análise geográfica das lojas</span>
+          <span class="text-xs font-normal text-stone-400">Ferramenta temporária; não altera o marketplace nem a entrega das lojas</span>
+        </summary>
+        <div class="pt-4"><app-hq-regional-map-tools /></div>
+      </details>
 
     </div>
   `
 })
-export class HqRegionalManagerComponent {
+export class HqRegionalManagerComponent implements OnInit {
   readonly ecosystem = inject(EcosystemService);
+  readonly isLoading = signal(false);
+  readonly isSaving = signal(false);
 
-  readonly draftConfig = signal<RegionalMarketplaceConfig>({
-    heroTitle: '',
-    heroSubtitle: '',
-    heroTag: '',
-    heroBannerImage: '',
-    heroCtaText: '',
-    heroAnnouncement: '',
-    showHeroAnnouncement: true,
-    featuredTenantIds: [],
-    defaultSearchRadiusKm: 15,
-    activeRegionName: ''
-  });
+  readonly draftConfig = signal<RegionalMarketplaceConfig>({ ...this.ecosystem.regionalConfig(), featuredTenantIds: [...this.ecosystem.regionalConfig().featuredTenantIds] });
+  readonly savedConfig = signal<RegionalMarketplaceConfig>({ ...this.draftConfig(), featuredTenantIds: [...this.draftConfig().featuredTenantIds] });
+  readonly canEdit = computed(() => this.ecosystem.isSimulationMode() || this.ecosystem.marketplaceService.regionalConfigStatus() === 'loaded');
+  readonly hasChanges = computed(() => JSON.stringify(this.draftConfig()) !== JSON.stringify(this.savedConfig()));
 
-  constructor() {
-    effect(() => {
-      const cfg = this.ecosystem.regionalConfig();
-      this.draftConfig.set({
-        ...cfg,
-        featuredTenantIds: [...cfg.featuredTenantIds]
-      });
-    });
+  ngOnInit() {
+    void this.loadRegionalConfig();
+  }
+
+  async loadRegionalConfig() {
+    if (this.ecosystem.isSimulationMode()) {
+      const config = this.ecosystem.regionalConfig();
+      this.savedConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
+      this.draftConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
+      return;
+    }
+
+    this.isLoading.set(true);
+    try {
+      const config = await this.ecosystem.marketplaceService.fetchRegionalConfig();
+      this.savedConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
+      this.draftConfig.set({ ...config, featuredTenantIds: [...config.featuredTenantIds] });
+    } catch {
+      // The editor remains locked until a persisted configuration can be read.
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
   onFormChange(form: RegionalMarketplaceConfig) {
@@ -183,8 +227,17 @@ export class HqRegionalManagerComponent {
     }));
   }
 
-  saveRegionalConfig() {
-    this.ecosystem.updateRegionalConfig(this.draftConfig());
+  async saveRegionalConfig() {
+    if (!this.canEdit() || !this.hasChanges() || this.isSaving()) return;
+    const config = { ...this.draftConfig(), featuredTenantIds: [...this.draftConfig().featuredTenantIds] };
+    this.isSaving.set(true);
+    try {
+      if (await this.ecosystem.updateRegionalConfig(config)) {
+        this.savedConfig.set(config);
+      }
+    } finally {
+      this.isSaving.set(false);
+    }
   }
 
   openRegionalMarketplace() {

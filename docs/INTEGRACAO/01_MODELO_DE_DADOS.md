@@ -51,7 +51,7 @@ O endpoint `/api/hq/ledger` fica em estado `coming_soon` por padrão e não calc
     - `TableInfo`: Identificador físico da mesa, capacidade, status e comanda ativa.
     - `FinancialRecord`: Movimentação contábil categorizada.
     - `DeliveryRoute` e `DeliveryWaypoint`: Geometria da rota e paradas de entrega.
-    - `DriverProfile`: Status do motorista, tipo de veículo e campos de localização reportados. O App `/driver` não coleta GPS do dispositivo.
+    - `StoreDriver`: Status e vínculo da conta (`userUid`), tipo de veículo e posição GPS atual opcional (`lat`, `lng`, precisão, rota e horário do ping). O GPS só é atualizado por consentimento durante rota ativa, sem histórico; gestores consultam apenas seu tenant e HQ recebe o perfil sem os campos de localização.
     - `POSDevice`: Informações de hardware, MAC, IP e status MDM.
 - **Isolamento de Catálogo Público:**
   - O catálogo público reside em `/public_catalog`, mantido sincronizado pelo servidor apenas com produtos que tenham `availableOnline: true`.

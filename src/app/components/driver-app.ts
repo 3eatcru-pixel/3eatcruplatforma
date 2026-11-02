@@ -772,6 +772,8 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   private lastGpsSentAt = 0;
   private gpsPingInFlight = false;
   private gpsPingPromise: Promise<void> | null = null;
+  private gpsPingTimer: ReturnType<typeof setInterval> | null = null;
+  private latestGpsPosition: { lat: number; lng: number; accuracyMeters: number } | null = null;
   private readonly onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') void this.stopGpsSharing();
   };
@@ -782,7 +784,11 @@ export class DriverAppComponent implements OnInit, OnDestroy {
   });
 
   readonly activeDriverProfile = computed(() => {
-    return this.ecosystem.drivers().find(d => d.id === this.selectedDriverId());
+    const sessionId = this.ecosystem.currentSession()?.id;
+    return this.ecosystem.drivers().find(d =>
+      d.id === this.selectedDriverId() ||
+      (sessionId && d.userUid === sessionId)
+    );
   });
 
   readonly canShareGps = computed(() => {
@@ -790,7 +796,7 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     const driver = this.activeDriverProfile();
     const route = this.currentActiveRoute();
     return this.activeTab() === 'active_route' && session?.role === 'driver' &&
-      session.id === driver?.id && driver?.driverType === 'private' &&
+      (session.id === driver?.id || session.id === driver?.userUid) && driver?.driverType === 'private' &&
       Boolean(driver.tenantId && route?.tenantId === driver.tenantId && route.status === 'in_progress' && route.driverId === driver.id);
   });
 
@@ -886,7 +892,7 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     effect(() => {
       const session = this.ecosystem.currentSession();
       if (session?.role === 'driver' && session.id) {
-        this.selectedDriverId.set(session.id);
+        this.selectedDriverId.set(session.driverId || session.id);
         return;
       }
       const current = this.selectedDriverId();
@@ -1082,8 +1088,10 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     const generation = ++this.gpsWatchGeneration;
     this.gpsRouteId = route.id;
     this.lastGpsSentAt = 0;
+    this.latestGpsPosition = null;
     this.gpsError.set(null);
     this.isGpsStarting.set(true);
+    this.gpsPingTimer = setInterval(() => this.sendGpsPing(generation, driver.id, route.id), 15000);
     this.gpsWatchId = navigator.geolocation.watchPosition(
       (position) => {
         if (generation !== this.gpsWatchGeneration) return;
@@ -1094,28 +1102,8 @@ export class DriverAppComponent implements OnInit, OnDestroy {
         if (!this.isValidCoordinate(location.lat, location.lng)) return;
         this.liveLocation.set(location);
         this.gpsAccuracyMeters.set(position.coords.accuracy);
-        if (!this.gpsPingInFlight && Date.now() - this.lastGpsSentAt >= 15000) {
-          this.gpsPingInFlight = true;
-          this.gpsPingPromise = this.ecosystem.logisticsService.pingDriverGps(driver.id, {
-            sharing: true,
-            routeId: route.id,
-            ...location,
-            accuracyMeters: position.coords.accuracy
-          }).then(() => {
-            if (generation !== this.gpsWatchGeneration) return;
-            this.lastGpsSentAt = Date.now();
-            this.isGpsStarting.set(false);
-            this.isGpsSharing.set(true);
-            this.gpsError.set(null);
-          }).catch(() => {
-            if (generation !== this.gpsWatchGeneration) return;
-            this.gpsError.set('Não foi possível enviar a posição para a loja. O compartilhamento foi encerrado.');
-            void this.stopGpsSharing();
-          }).finally(() => {
-            this.gpsPingInFlight = false;
-            this.gpsPingPromise = null;
-          });
-        }
+        this.latestGpsPosition = { ...location, accuracyMeters: position.coords.accuracy };
+        this.sendGpsPing(generation, driver.id, route.id);
       },
       (error) => {
         if (generation !== this.gpsWatchGeneration) return;
@@ -1131,6 +1119,32 @@ export class DriverAppComponent implements OnInit, OnDestroy {
     );
   }
 
+  private sendGpsPing(generation: number, driverId: string, routeId: string) {
+    const position = this.latestGpsPosition;
+    if (generation !== this.gpsWatchGeneration || !position || this.gpsPingInFlight || Date.now() - this.lastGpsSentAt < 15000) return;
+    this.gpsPingInFlight = true;
+    this.gpsPingPromise = this.ecosystem.logisticsService.pingDriverGps(driverId, {
+      sharing: true,
+      routeId,
+      lat: position.lat,
+      lng: position.lng,
+      accuracyMeters: position.accuracyMeters
+    }).then(() => {
+      if (generation !== this.gpsWatchGeneration) return;
+      this.lastGpsSentAt = Date.now();
+      this.isGpsStarting.set(false);
+      this.isGpsSharing.set(true);
+      this.gpsError.set(null);
+    }).catch(() => {
+      if (generation !== this.gpsWatchGeneration) return;
+      this.gpsError.set('Não foi possível enviar a posição para a loja. O compartilhamento foi encerrado.');
+      void this.stopGpsSharing();
+    }).finally(() => {
+      this.gpsPingInFlight = false;
+      this.gpsPingPromise = null;
+    });
+  }
+
   private async stopGpsSharing() {
     const driverId = this.activeDriverProfile()?.id;
     const shouldClearRemote = this.isGpsSharing() || this.gpsWatchId !== null;
@@ -1139,12 +1153,17 @@ export class DriverAppComponent implements OnInit, OnDestroy {
       navigator.geolocation.clearWatch(this.gpsWatchId);
       this.gpsWatchId = null;
     }
+    if (this.gpsPingTimer) {
+      clearInterval(this.gpsPingTimer);
+      this.gpsPingTimer = null;
+    }
     this.isGpsStarting.set(false);
     this.isGpsSharing.set(false);
     this.liveLocation.set(null);
     this.gpsAccuracyMeters.set(null);
     this.gpsRouteId = null;
     this.lastGpsSentAt = 0;
+    this.latestGpsPosition = null;
     if (this.gpsPingPromise) await this.gpsPingPromise;
     if (this.driverMarker && this.map) {
       this.driverMarker.remove();

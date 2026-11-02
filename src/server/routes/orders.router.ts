@@ -76,7 +76,7 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
         return;
       }
       // P1.4: Strict filter — driver ONLY sees orders already assigned to their UID
-      query = query.where('driverId', '==', req.user.id);
+      query = query.where('driverId', '==', req.user.driverId || req.user.id);
     } else if (req.user?.id) {
       query = query.where('customerId', '==', req.user.id);
     } else {
@@ -110,7 +110,7 @@ ordersRouter.get('/:id', async (req: Request, res: Response) => {
       req.user?.role === 'driver' &&
       order.type === 'delivery' &&
       Boolean(order.driverId) &&
-      order.driverId === req.user.id;
+      order.driverId === (req.user.driverId || req.user.id);
 
     const isCustomerAuthorized =
       Boolean(req.user?.id) &&

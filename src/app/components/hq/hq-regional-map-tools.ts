@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal, ElementRef, viewChild, afterNextRender, effect, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, ElementRef, viewChild, afterNextRender, effect, computed, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import type * as L from 'leaflet';
 import { EcosystemService } from '../../services/ecosystem.service';
+import { CompanyTenant } from '../../models/ecosystem.model';
 import { MapToolsService, MapCoord } from '../../services/map-tools.service';
 
 @Component({
@@ -15,12 +16,13 @@ import { MapToolsService, MapCoord } from '../../services/map-tools.service';
       <div class="flex items-center justify-between border-b border-[#3d200f] pb-3">
         <h3 class="font-serif font-black text-white text-base flex items-center gap-2">
           <mat-icon class="text-amber-500">map</mat-icon>
-          Análise de Clusters Geodésicos (Free Map Tools)
+          Análise Geográfica das Lojas
         </h3>
         <div class="flex items-center gap-2">
           <span class="text-[10px] font-mono text-emerald-400 font-bold uppercase tracking-widest bg-emerald-950/40 px-2 py-1 rounded border border-emerald-800/30">
-            {{ tenantsInCluster().length }} Lojas no Raio
+            {{ tenantsInCluster().length }} lojas ativas no raio
           </span>
+          <span class="text-[9px] font-mono text-stone-400">{{ activeTenantsWithoutCoordinates() }} sem GPS cadastrado</span>
           <span class="text-[9px] font-mono text-amber-500 font-bold uppercase tracking-widest bg-[#170b04] px-2 py-1 rounded-lg border border-[#3d200f]">OpenFreeMap Liberty</span>
         </div>
       </div>
@@ -38,7 +40,7 @@ import { MapToolsService, MapCoord } from '../../services/map-tools.service';
                    [class]="toolMode() === 'radius' ? 'bg-amber-600 text-stone-950 font-black' : 'bg-[#1a0e07] text-amber-400 border border-[#4d2813]'"
                    class="p-3 rounded-xl text-[10px] uppercase flex flex-col items-center gap-1 transition-all cursor-pointer">
                    <mat-icon class="text-sm">radio_button_checked</mat-icon>
-                   Raio Entrega
+                   Raio de análise
                  </button>
                  <button 
                    type="button"
@@ -54,14 +56,14 @@ import { MapToolsService, MapCoord } from '../../services/map-tools.service';
             @if (toolMode() === 'radius') {
               <div class="space-y-3 animate-in fade-in">
                 <div class="space-y-1">
-                  <label for="clusterRadiusInput" class="text-[10px] font-mono font-bold text-amber-500 uppercase">Raio do Cluster ({{ radiusKm() }} KM)</label>
+                  <label for="clusterRadiusInput" class="text-[10px] font-mono font-bold text-amber-500 uppercase">Raio temporário ({{ radiusKm() }} km)</label>
                   <input 
                     id="clusterRadiusInput"
                     type="range" min="1" max="50" [value]="radiusKm()" 
                     (input)="radiusKm.set($any($event.target).valueAsNumber)"
                     class="w-full accent-amber-500 bg-[#1a0e07] rounded-lg h-1.5 cursor-pointer">
                 </div>
-                <p class="text-[9px] text-stone-400 italic">Clique no mapa para posicionar o centro do cluster geodésico.</p>
+                <p class="text-[9px] text-stone-400 italic">Análise visual local. Não altera o raio de busca público nem a área de entrega de nenhuma loja.</p>
               </div>
             }
 
@@ -91,6 +93,11 @@ import { MapToolsService, MapCoord } from '../../services/map-tools.service';
         <div class="lg:col-span-8">
           <div class="rounded-3xl border border-[#4d2813] overflow-hidden relative bg-stone-900 h-[450px]">
             <div #mapContainer class="w-full h-full opacity-90 grayscale-[0.3]"></div>
+            @if (mappableTenants().length === 0) {
+              <div class="absolute inset-0 z-[500] flex items-center justify-center bg-black/55 p-6 text-center text-xs text-stone-200">
+                Nenhuma loja ativa com coordenadas cadastradas para exibir no mapa.
+              </div>
+            }
             
             <!-- OVERLAY: LIST OF TENANTS IN CLUSTER -->
             @if (toolMode() === 'radius' && tenantsInCluster().length > 0) {
@@ -115,7 +122,7 @@ import { MapToolsService, MapCoord } from '../../services/map-tools.service';
     </div>
   `
 })
-export class HqRegionalMapToolsComponent {
+export class HqRegionalMapToolsComponent implements OnDestroy {
   readonly ecosystem = inject(EcosystemService);
   readonly mapTools = inject(MapToolsService);
 
@@ -132,16 +139,20 @@ export class HqRegionalMapToolsComponent {
   readonly cursorCoord = signal<MapCoord>({ lat: -23.5651, lng: -46.6521 });
 
   readonly areaSqM = computed(() => this.mapTools.calculateArea(this.areaPoints()));
+  readonly mappableTenants = computed(() => this.ecosystem.tenants().filter((tenant) =>
+    tenant.status === 'active' && this.hasValidCoordinates(tenant)
+  ));
+  readonly activeTenantsWithoutCoordinates = computed(() => this.ecosystem.tenants().filter((tenant) =>
+    tenant.status === 'active' && !this.hasValidCoordinates(tenant)
+  ).length);
 
   readonly tenantsInCluster = computed(() => {
     if (this.toolMode() !== 'radius') return [];
     const center = this.centerPoint();
     const radius = this.radiusKm();
     
-    return this.ecosystem.tenants().filter(t => {
-      const tLat = t.lat || (-23.5651 + (Math.random() - 0.5) * 0.2);
-      const tLng = t.lng || (-46.6521 + (Math.random() - 0.5) * 0.2);
-      const dist = this.mapTools.calculateDistance(center, { lat: tLat, lng: tLng });
+    return this.mappableTenants().filter(t => {
+      const dist = this.mapTools.calculateDistance(center, { lat: t.lat!, lng: t.lng! });
       return dist.km <= radius;
     });
   });
@@ -157,6 +168,21 @@ export class HqRegionalMapToolsComponent {
         this.updateToolVisuals();
       }
     });
+
+    effect(() => {
+      this.mappableTenants();
+      if (this.map && this.L) this.updateStoreMarkers();
+    });
+  }
+
+  ngOnDestroy() {
+    this.map?.remove();
+    this.map = null;
+  }
+
+  private hasValidCoordinates(tenant: CompanyTenant): boolean {
+    return typeof tenant.lat === 'number' && Number.isFinite(tenant.lat) && tenant.lat >= -90 && tenant.lat <= 90 &&
+      typeof tenant.lng === 'number' && Number.isFinite(tenant.lng) && tenant.lng >= -180 && tenant.lng <= 180;
   }
 
   private initMap() {
@@ -170,10 +196,10 @@ export class HqRegionalMapToolsComponent {
       center: [-23.5651, -46.6521], 
       zoom: 11,
       zoomControl: true,
-      attributionControl: false
+      attributionControl: true
     });
 
-    this.L.tileLayer(tileUrl).addTo(this.map);
+    this.L.tileLayer(tileUrl, { attribution: '© OpenStreetMap © OpenMapTiles © OpenFreeMap' }).addTo(this.map);
     this.markersLayer = this.L.layerGroup().addTo(this.map);
     this.toolLayer = this.L.layerGroup().addTo(this.map);
 
@@ -190,20 +216,28 @@ export class HqRegionalMapToolsComponent {
       }
     });
 
-    // Add store markers
-    this.ecosystem.tenants().forEach(t => {
-      if (!this.L || !this.markersLayer) return;
-      const lat = t.lat || (-23.5651 + (Math.random() - 0.5) * 0.25);
-      const lng = t.lng || (-46.6521 + (Math.random() - 0.5) * 0.25);
-      
+    this.updateStoreMarkers();
+  }
+
+  private updateStoreMarkers() {
+    if (!this.L || !this.markersLayer) return;
+    this.markersLayer.clearLayers();
+    this.mappableTenants().forEach(t => {
+      if (!this.L || !this.markersLayer || !this.hasValidCoordinates(t)) return;
+      const initial = (t.name.trim().charAt(0) || 'L')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
       const icon = this.L.divIcon({
         className: 'store-icon',
-        html: `<div class="w-5 h-5 rounded-lg bg-amber-900 border border-amber-400 flex items-center justify-center text-[8px] text-white font-bold shadow-lg">${t.name.charAt(0)}</div>`,
+        html: `<div class="w-5 h-5 rounded-lg bg-amber-900 border border-amber-400 flex items-center justify-center text-[8px] text-white font-bold shadow-lg">${initial}</div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10]
       });
 
-      this.L.marker([lat, lng], { icon }).addTo(this.markersLayer);
+      this.L.marker([t.lat!, t.lng!], { icon }).addTo(this.markersLayer);
     });
   }
 

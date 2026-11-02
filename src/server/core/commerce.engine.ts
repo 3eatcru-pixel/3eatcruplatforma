@@ -701,12 +701,12 @@ export async function transitionCommercialOrderStatus(
     const order = orderDoc.data() as OrderTransaction;
     const currentStatus = order.status;
 
-    // P1.4: Driver can ONLY act on orders already explicitly assigned to them (`order.driverId === user.id`)
+    // P1.4: Driver can only act on orders assigned to their linked driver profile.
     const isDriverAuthorized =
       user?.role === 'driver' &&
       order.type === 'delivery' &&
       Boolean(order.driverId) &&
-      order.driverId === user.id &&
+      order.driverId === (user.driverId || user.id) &&
       ['dispatched', 'delivered', 'completed'].includes(newStatus);
 
     const isHqAdmin = user?.role === 'hq_admin';

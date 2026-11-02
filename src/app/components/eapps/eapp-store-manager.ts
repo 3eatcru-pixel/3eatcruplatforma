@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EcosystemService } from '../../services/ecosystem.service';
@@ -19,17 +19,17 @@ import { EcosystemService } from '../../services/ecosystem.service';
           </div>
           <div>
             <h2 class="text-sm font-serif font-black text-white">Minha Loja • Gerenciador da Vitrine</h2>
-            <p class="text-[10px] text-stone-400">Customização visual da vitrine pública (/p/:id) e cardápio online.</p>
+            <p class="text-[10px] text-stone-400">Gerencie os dados da vitrine pública (/p/:id) e do cardápio desta loja. O marketplace geral da plataforma é configurado pelo HQ.</p>
           </div>
         </div>
 
         <button
           type="button"
           (click)="saveChanges()"
-          [disabled]="isSaving()"
+          [disabled]="isSaving() || !hasChanges()"
           class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <mat-icon class="text-sm">save</mat-icon>
-          <span>{{ isSaving() ? 'Salvando…' : 'Salvar Alterações' }}</span>
+          <span>{{ isSaving() ? 'Salvando…' : hasChanges() ? 'Salvar alterações' : 'Tudo salvo' }}</span>
         </button>
       </div>
 
@@ -125,6 +125,18 @@ export class EAppStoreManagerWindow {
   readonly minOrder = signal<number>(this.tenant.minOrderValue ?? 20.00);
   readonly description = signal<string>(this.tenant.aboutText || 'Especialidades culinárias artesanais e delivery rápido.');
   readonly pixKey = signal<string>(this.tenant.pixKey ?? '');
+  private readonly savedValues = signal(this.currentValues());
+  readonly hasChanges = computed(() => JSON.stringify(this.currentValues()) !== JSON.stringify(this.savedValues()));
+
+  private currentValues() {
+    return {
+      name: this.storeName().trim(),
+      deliveryFee: this.deliveryFee(),
+      minOrderValue: this.minOrder(),
+      aboutText: this.description().trim(),
+      pixKey: this.pixKey().trim()
+    };
+  }
 
   appUrl() {
     return window.location.origin;
@@ -133,10 +145,13 @@ export class EAppStoreManagerWindow {
   async saveChanges() {
     if (this.isSaving()) return;
 
-    const name = this.storeName().trim();
+    if (!this.hasChanges()) return;
+
+    const values = this.currentValues();
+    const name = values.name;
     const deliveryFee = this.deliveryFee();
     const minOrderValue = this.minOrder();
-    const pixKey = this.pixKey().trim();
+    const pixKey = values.pixKey;
     if (!name || !Number.isFinite(deliveryFee) || deliveryFee < 0 ||
         !Number.isFinite(minOrderValue) || minOrderValue < 0 || pixKey.length > 77) {
       this.ecosystem.notify('Informe nome, taxa, pedido mínimo e chave PIX válidos.', 'warning');
@@ -149,9 +164,10 @@ export class EAppStoreManagerWindow {
         name,
         deliveryFee,
         minOrderValue,
-        aboutText: this.description().trim(),
+        aboutText: values.aboutText,
         pixKey
       });
+      this.savedValues.set(values);
       this.ecosystem.notify(
         this.ecosystem.isSimulationMode()
           ? 'Alterações salvas somente na simulação.'

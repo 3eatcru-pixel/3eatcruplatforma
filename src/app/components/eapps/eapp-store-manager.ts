@@ -100,19 +100,37 @@ import { roundCurrencyAmount } from '../../../shared/utils/money.util';
             </div>
 
             <div class="grid sm:grid-cols-2 gap-2">
-              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300">
+              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300 cursor-pointer">
                 <input type="checkbox" [checked]="supportsDelivery()" (change)="supportsDelivery.set($any($event.target).checked)" class="accent-amber-500" />
                 <span>A loja oferece entrega própria</span>
               </label>
-              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300">
+              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300 cursor-pointer">
                 <input type="checkbox" [checked]="supportsTakeout()" (change)="supportsTakeout.set($any($event.target).checked)" class="accent-amber-500" />
                 <span>A loja aceita retirada no balcão</span>
               </label>
-              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300 sm:col-span-2">
+              <label class="flex items-center gap-2 rounded-xl border border-[#482814] bg-[#120803] p-2 text-[11px] text-stone-300 sm:col-span-2 cursor-pointer">
                 <input type="checkbox" [checked]="isOpen()" (change)="isOpen.set($any($event.target).checked)" class="accent-amber-500" />
                 <span>A loja está aberta para receber pedidos online</span>
               </label>
             </div>
+
+            @if (!supportsDelivery()) {
+              <div class="rounded-xl border border-amber-900/40 bg-amber-950/20 p-3 text-[10px] text-stone-400 space-y-1 animate-in slide-in-from-top-2 duration-300">
+                <div class="flex items-center gap-1.5 text-amber-500 font-bold uppercase text-[9px]">
+                  <mat-icon class="text-[12px] h-3 w-3">info</mat-icon>
+                  <span>Rede de Entregadores da Plataforma (Em breve)</span>
+                </div>
+                <p>Ao utilizar a rede própria da plataforma (quando disponível), incidirá uma comissão de <span class="text-white font-bold">8%</span> sobre o valor da entrega.</p>
+                <div class="flex justify-between items-center pt-1 border-t border-amber-900/30">
+                  <span>Compensação Bruta: R$ {{ driverCompensation().toFixed(2) }}</span>
+                  <span class="text-rose-400">- R$ {{ (driverCompensation() * 0.08).toFixed(2) }} (8%)</span>
+                </div>
+                <div class="flex justify-between items-center font-bold text-emerald-400 pt-0.5">
+                  <span>Líquido Estimado para o Motorista:</span>
+                  <span>R$ {{ (driverCompensation() * 0.92).toFixed(2) }}</span>
+                </div>
+              </div>
+            }
 
             <div>
               <label for="store-hours-input" class="text-[11px] text-stone-400 block font-bold">Horário informado aos clientes:</label>
@@ -151,16 +169,26 @@ import { roundCurrencyAmount } from '../../../shared/utils/money.util';
 
         <div class="bg-[#180b04] border border-[#381c0c] rounded-2xl p-4 space-y-2">
           <h3 class="text-xs font-bold text-white uppercase">Recebimento PIX da Loja</h3>
-          <label for="store-pix-key" class="text-[11px] text-stone-400 block font-bold">Chave PIX da conta da loja:</label>
-          <input
-            id="store-pix-key"
-            type="text"
-            maxlength="77"
-            autocomplete="off"
-            [value]="pixKey()"
-            (input)="pixKey.set($any($event.target).value)"
-            placeholder="CPF/CNPJ, e-mail, telefone ou chave aleatória"
-            class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500" />
+          <div class="space-y-1">
+            <label for="store-pix-key" class="text-[11px] text-stone-400 block font-bold">Chave PIX da conta da loja:</label>
+            <input
+              id="store-pix-key"
+              type="text"
+              maxlength="77"
+              autocomplete="off"
+              [value]="pixKey()"
+              (input)="pixKey.set($any($event.target).value)"
+              placeholder="CPF/CNPJ, e-mail, telefone ou chave aleatória"
+              [class.border-rose-500]="!isPixKeyValid() && pixKey().length > 0"
+              class="w-full bg-[#120803] border border-[#482814] text-white p-2 rounded-xl text-xs outline-none focus:border-amber-500 transition-colors" />
+            
+            @if (!isPixKeyValid() && pixKey().length > 0) {
+              <p class="text-[9px] text-rose-400 font-bold flex items-center gap-1">
+                <mat-icon class="text-[12px] h-3 w-3">error</mat-icon>
+                Formato de chave PIX inválido (esperado: CPF, CNPJ, E-mail, Celular ou Chave Aleatória).
+              </p>
+            }
+          </div>
           <p class="text-[10px] text-stone-400">O PIX do marketplace usa esta chave (até 77 caracteres) para direcionar o pagamento à conta da loja. O sistema não valida titularidade; a confirmação é manual. Cartão ficará disponível quando houver conexão de pagamento própria por loja.</p>
         </div>
 
@@ -185,7 +213,32 @@ export class EAppStoreManagerWindow {
   readonly supportsTakeout = signal<boolean>(this.tenant()?.supportsTakeout !== false);
   readonly isOpen = signal<boolean>(this.tenant()?.isOpen === true);
   readonly openingHours = signal<string>(this.tenant()?.openingHours ?? '');
-  readonly driverCompensation = computed(() => Number(((this.deliveryFee() ?? 0) + (this.storeDeliveryContribution() ?? 0)).toFixed(2)));
+  readonly driverCompensation = computed(() => {
+    const fee = this.deliveryFee() ?? 0;
+    const contrib = this.storeDeliveryContribution() ?? 0;
+    return Number((fee + contrib).toFixed(2));
+  });
+  
+  readonly isPixKeyValid = computed(() => {
+    const key = this.pixKey().trim();
+    if (!key) return true;
+    
+    // CPF/CNPJ (11 or 14 digits)
+    const digits = key.replace(/\D/g, '');
+    const isCpfCnpj = (digits.length === 11 || digits.length === 14) && /^\d+$/.test(digits);
+    
+    // Email
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key);
+    
+    // Phone (National 10-11 digits, International up to 15)
+    const isPhone = digits.length >= 10 && digits.length <= 15 && (key.startsWith('+') || /^\d+$/.test(digits));
+    
+    // UUID / Random Key (32-36 chars)
+    const isRandom = key.length >= 32 && key.length <= 77;
+    
+    return isCpfCnpj || isEmail || isPhone || isRandom;
+  });
+
   private readonly savedValues = signal(this.currentValues());
   readonly hasChanges = computed(() => JSON.stringify(this.currentValues()) !== JSON.stringify(this.savedValues()));
 
@@ -249,7 +302,7 @@ export class EAppStoreManagerWindow {
   async saveChanges() {
     if (this.isSaving()) return;
 
-    if (!this.hasChanges()) return;
+    if (!this.hasChanges() || !this.isPixKeyValid()) return;
 
     const values = this.currentValues();
     const tenantId = this.tenantId();
